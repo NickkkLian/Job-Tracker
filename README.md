@@ -26,8 +26,9 @@ A personal job search tracker for **Canada**, **Hong Kong**, and **Mainland Chin
 - Works with the free or Pro Claude.ai plan — no API key, no extra cost
 
 **Resume Management**
-- Master profile — paste or upload your full background (used to build AI prompts)
-- Resume library — store, preview, rename, and download multiple resume versions
+- My Profile — upload multiple files as separate named sections (resume versions, skills docs, anything you want Claude to reference); all sections are combined when building AI prompts
+- Resume library — store, preview, rename, and download your polished finished resumes separately from the profile
+- Formatting requirements — describe your preferred resume layout once; automatically injected into every Tailor Resume prompt so Claude always follows your structure
 - Upload support: `.txt`, `.md`, `.docx`, `.pdf`
 - Download tailored resumes and cover letters as `.md` or `.txt`
 
@@ -96,15 +97,18 @@ The app does not call any AI API directly. Instead, it builds a prompt from your
 
 ```
 Click "Tailor Resume"
-  → App generates a prompt (your background + JD + instructions)
-  → Copy the prompt
-  → Paste into Claude.ai and send
+  → App combines all your profile sections into one reference document
+  → Adds your formatting requirements (if set)
+  → Embeds the job description
+  → You copy the prompt, paste into Claude.ai, and send
   → Copy Claude's response
   → Paste it into the "Tailored Resume" field in the app
   → Save — stored in your private GitHub repo
 ```
 
 Uses your existing [Claude.ai](https://claude.ai) account — no additional API charges.
+
+**Tip:** Set your formatting requirements in **My Profile → 🎨 Resume formatting requirements** once. Every Tailor Resume prompt will include your rules automatically — section order, bullet style, page length, date format, language, etc.
 
 ---
 
@@ -114,14 +118,16 @@ After first use, your private data repo will contain:
 
 ```
 data/
-  resumeDb.txt          ← your master profile
+  resumeSections.json   ← your profile sections (uploaded files)
+  resumeDb.txt          ← combined profile text (auto-generated)
+  formatting.txt        ← your resume formatting requirements
   library.json          ← your resume library
   canada_jobs.json      ← Canada applications
   hongkong_jobs.json    ← Hong Kong applications
   china_jobs.json       ← Mainland China applications
 ```
 
-Each save creates a commit, so you have a full history of your data.
+Each save creates a commit, so you have a full history of your data. `resumeDb.txt` is auto-generated from your sections on every save — you don't need to edit it directly.
 
 ---
 
