@@ -1,6 +1,6 @@
 # 💼 Job Application Command Center
 
-Personal job search tracker for **Canada**, **Hong Kong**, and **Mainland China** — with AI-assisted resume tailoring, cover letter drafting, interview prep, and networking strategy via Claude.ai.
+A personal job search tracker for **Canada**, **Hong Kong**, and **Mainland China** — with AI-assisted resume tailoring, cover letter drafting, interview prep, and networking strategy via Claude.ai.
 
 **No API key. No build step. No backend. One HTML file.**
 
@@ -10,111 +10,105 @@ Personal job search tracker for **Canada**, **Hong Kong**, and **Mainland China*
 
 **Job Tracker**
 - Add applications manually — company, role, location, salary, deadline, notes
-- Track status: Applied → Interviewing → Offered / Rejected
+- Track status across the full pipeline: Applied → Interviewing → Offered / Rejected
 - Filter and search across all applications
 - Upcoming deadline reminders in the Insights dashboard
-- Three fully isolated regions — Canada, Hong Kong, Mainland China — data never crosses
+- Three fully isolated regions — Canada, Hong Kong, Mainland China — data never crosses between them
 
 **AI Help via Claude.ai**
-- Five pre-built prompts generated from your resume + job description:
+- Five ready-to-use prompts generated from your resume + job description:
   - 📝 Tailor Resume
   - ✉️ Cover Letter
   - 🎯 Interview Prep
   - 👥 Networking Strategy
   - 🔍 Analyze This Job
-- Copy the prompt → paste into Claude.ai → paste the result back to save it with the application
-- Uses your existing Claude.ai subscription — no API key, no extra cost
+- The app builds a structured prompt with your background and the JD already embedded — you copy it, paste into Claude.ai, and paste the result back to save it
+- Works with the free or Pro Claude.ai plan — no API key, no extra cost
 
 **Resume Management**
-- Master profile — paste or upload your full background (used to generate AI prompts)
-- Resume library — store, preview, rename, download multiple resume versions
+- Master profile — paste or upload your full background (used to build AI prompts)
+- Resume library — store, preview, rename, and download multiple resume versions
 - Upload support: `.txt`, `.md`, `.docx`, `.pdf`
 - Download tailored resumes and cover letters as `.md` or `.txt`
 
 **Insights Dashboard**
 - Pipeline counts by status
 - Response rate and offer rate
-- Applications in the last 7 and 30 days
+- Activity over the last 7 and 30 days
 - Top companies and upcoming deadlines
-
-**Data Storage**
-- All app data (resume, jobs, library) is saved to your own **private GitHub repo** via the GitHub API
-- GitHub token stays in your browser — never committed to any repo
-- Every save creates a readable commit in your data repo
 
 ---
 
-## How to deploy
+## How it works
 
-> Total time: about 10 minutes. No terminal required.
+| What | Where |
+|------|-------|
+| The app itself | A single `index.html` — hosted on GitHub Pages |
+| Your data (resume, jobs, library) | Your own **private** GitHub repo, via the GitHub API |
+| GitHub token | Your browser's `localStorage` only — never committed anywhere |
 
-### 1. Create two GitHub repos
+The app never sends your data to any third-party server. Your GitHub token is used only to read and write files in your own private repo.
 
-| Repo | Visibility | Purpose |
-|------|-----------|---------|
-| `NickkkLian/Job-Tracker` | **Public** | Hosts the app via GitHub Pages |
-| `NickkkLian/jobapp-data` | **Private** | Stores your resume and job data |
+---
 
-### 2. Upload the app file
+## Setup
 
-- Go to your **public** repo (`NickkkLian/Job-Tracker`)
-- Click **Add file → Upload files**
-- Upload `index.html` — rename it to `index.html` if it isn't already
-- Commit to `main`
+> Takes about 10 minutes. No terminal or coding required.
 
-### 3. Enable GitHub Pages
+### 1. Fork or download
 
-- In the repo → **Settings → Pages**
-- Source: **Deploy from a branch**
-- Branch: `main` · Folder: `/ (root)`
+- **Fork** this repo to your GitHub account, or
+- Download `index.html` and create a new public repo to host it
+
+### 2. Create a private repo for your data
+
+Go to [github.com/new](https://github.com/new) and create a **private** repo — name it anything, e.g. `jobapp-data`. Leave it empty.
+
+### 3. Enable GitHub Pages on this repo
+
+- Repo → **Settings → Pages**
+- Source: **Deploy from a branch** → branch: `main` · folder: `/ (root)`
 - Click **Save**
 
-Your app is live at `https://NickkkLian.github.io/Job-Tracker` within about a minute.
+Your app will be live at `https://your-username.github.io/your-repo-name` within about a minute.
 
-### 4. Configure the app
+### 4. Create a GitHub Personal Access Token
 
-- Open your GitHub Pages URL — a settings dialog appears automatically
-- Create a GitHub Personal Access Token at [github.com/settings/tokens/new](https://github.com/settings/tokens/new)
-  - Tick the **repo** scope (needed to read and write your private data repo)
-  - Copy the token — you only see it once
-- Enter the token and your data repo name (`NickkkLian/jobapp-data`) in the dialog
-- Click **Test connection** to verify, then **Save**
+- Go to [github.com/settings/tokens/new](https://github.com/settings/tokens/new)
+- Give it a name (e.g. "Job Tracker")
+- Tick the **repo** scope
+- Click **Generate token** — copy it immediately (you only see it once)
 
-The app writes your data as JSON files into the private repo on every save. You can view (and edit) them directly on GitHub anytime.
+### 5. Configure the app
+
+- Open your GitHub Pages URL
+- A settings dialog opens automatically on first visit
+- Enter your **GitHub token** and **private data repo** (format: `your-username/jobapp-data`)
+- Click **Test connection**, then **Save**
+
+Done. Your data now saves to your private repo on every change.
 
 ---
 
 ## How the AI features work
 
-The app does not call any AI API. Instead, it builds a structured prompt that includes your background and the job description, and opens Claude.ai for you.
+The app does not call any AI API directly. Instead, it builds a prompt from your profile and the job description, then opens Claude.ai for you.
 
 ```
-You click "Tailor Resume"
-  → App generates a prompt (your profile + JD + instructions)
-  → Modal shows the prompt with a Copy button
-  → You copy it and open Claude.ai
-  → Paste and send — Claude responds
-  → Copy the result back into the app's "Tailored Resume" field
-  → Click Save — stored in your private GitHub repo
+Click "Tailor Resume"
+  → App generates a prompt (your background + JD + instructions)
+  → Copy the prompt
+  → Paste into Claude.ai and send
+  → Copy Claude's response
+  → Paste it into the "Tailored Resume" field in the app
+  → Save — stored in your private GitHub repo
 ```
 
-This means AI features work with the [Claude.ai free or Pro plan](https://claude.ai) — no additional API account or charges.
+Uses your existing [Claude.ai](https://claude.ai) account — no additional API charges.
 
 ---
 
-## Data & privacy
-
-| What | Where |
-|------|-------|
-| Resume, jobs, library | Your private GitHub repo (`NickkkLian/jobapp-data`) |
-| GitHub token | Your browser's `localStorage` only |
-| Prompt content | Sent to Claude.ai when you paste and send — subject to Anthropic's [privacy policy](https://www.anthropic.com/privacy) |
-
-Nothing is sent to any third-party server by the app itself. The GitHub token is never committed to any repo.
-
----
-
-## File structure in your data repo
+## Your data in GitHub
 
 After first use, your private data repo will contain:
 
@@ -127,19 +121,28 @@ data/
   china_jobs.json       ← Mainland China applications
 ```
 
+Each save creates a commit, so you have a full history of your data.
+
 ---
 
-## Tech
+## Tech stack
 
-- [React 18](https://react.dev) + [Babel Standalone](https://babeljs.io/docs/babel-standalone) (JSX in browser, no build step)
+- [React 18](https://react.dev) + [Babel Standalone](https://babeljs.io/docs/babel-standalone) — JSX runs in the browser, no build step needed
 - [Tailwind CSS](https://tailwindcss.com) Play CDN
-- [Mammoth.js](https://github.com/mwilliamson/mammoth.js) for `.docx` parsing
-- [PDF.js](https://mozilla.github.io/pdf.js/) for `.pdf` parsing (lazy-loaded)
-- [GitHub Contents API](https://docs.github.com/en/rest/repos/contents) for storage
-- No framework, no bundler, no dependencies to install
+- [Mammoth.js](https://github.com/mwilliamson/mammoth.js) — `.docx` parsing
+- [PDF.js](https://mozilla.github.io/pdf.js/) — `.pdf` parsing (lazy-loaded)
+- [GitHub Contents API](https://docs.github.com/en/rest/repos/contents) — data storage
+
+No framework CLI, no bundler, no `npm install`.
 
 ---
 
 ## Updating
 
-When a new version of `index.html` is available, upload it to your public repo and commit — GitHub Pages updates automatically. Your data in the private repo is unaffected.
+When a new version of `index.html` is available, replace the file in your repo and commit — GitHub Pages updates automatically. Your data in the private repo is unaffected.
+
+---
+
+## License
+
+MIT — fork it, modify it, make it your own.
