@@ -83,13 +83,29 @@ async function ghWrite(path, content) {
   if (!token || !repo) throw new Error('GitHub not configured');
   const [o, r] = repo.split('/');
   const url = `https://api.github.com/repos/${o}/${r}/contents/${path}`;
+
+  // Fetch current SHA if not cached
   if (!shaCache[path]) {
     const c = await fetch(url, { headers: ghHdrs(token) });
     if (c.ok) { const d = await c.json(); shaCache[path] = d.sha; }
   }
-  const body = { message: `jobapp: update ${path}`, content: toB64(content), ...(shaCache[path] ? {sha: shaCache[path]} : {}) };
-  const res = await fetch(url, { method:'PUT', headers: ghHdrs(token), body: JSON.stringify(body) });
-  if (!res.ok) { const e = await res.json().catch(()=>({})); if(res.status===409) delete shaCache[path]; throw new Error(`GitHub ${res.status}: ${e.message||'error'}`); }
+
+  const doWrite = async () => {
+    const body = { message: `jobapp: update ${path}`, content: toB64(content), ...(shaCache[path] ? {sha: shaCache[path]} : {}) };
+    return fetch(url, { method:'PUT', headers: ghHdrs(token), body: JSON.stringify(body) });
+  };
+
+  let res = await doWrite();
+
+  // 409 = SHA mismatch (file changed on GitHub since last read) — re-fetch SHA and retry once
+  if (res.status === 409) {
+    const fresh = await fetch(url, { headers: ghHdrs(token) });
+    if (fresh.ok) { const d = await fresh.json(); shaCache[path] = d.sha; }
+    else delete shaCache[path];
+    res = await doWrite();
+  }
+
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`GitHub ${res.status}: ${e.message||'error'}`); }
   const d = await res.json();
   shaCache[path] = d.content.sha;
 }
