@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Job Application Command Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    #loading { display:flex; align-items:center; justify-content:center; min-height:100vh; color:#6b7280; font-size:14px; }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div id="loading">Loading app…</div>
+  <div id="root" style="display:none"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo } = React;
+
+// ════════════════════════════════════════════════════════════════
+// GITHUB STORAGE
+// ════════════════════════════════════════════════════════════════
+
+const LOCAL_PRE  = 'jobapp:';
+const LOCAL_KEYS = new Set(['githubToken','githubRepo']);
+
+const PATHS = {
+  resumeDb:     'data/resumeDb.txt',
+  library:      'data/library.json',
+  canadaJobs:   'data/canada_jobs.json',
+  hongkongJobs: 'data/hongkong_jobs.json',
+  chinaJobs:    'data/china_jobs.json',
+};
+
+const KEY_TO_PATH = {
+  resumeDb:     PATHS.resumeDb,
+  library:      PATHS.library,
+  'canada:jobs': PATHS.canadaJobs,
+  'hongkong:jobs': PATHS.hongkongJobs,
+  'china:jobs': PATHS.chinaJobs,
+};
+
+const shaCache = {};
+
+function ghCfg() {
+  return {
+    token: localStorage.getItem(LOCAL_PRE + 'githubToken') || '',
+    repo:  localStorage.getItem(LOCAL_PRE + 'githubRepo')  || '',
+  };
+}
+
+function ghHdrs(tok) {
+  return { Authorization: `Bearer ${tok}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' };
+}
+
+function toB64(s) { return btoa(unescape(encodeURIComponent(s))); }
+function frB64(b) { return decodeURIComponent(escape(atob(b.replace(/\n/g,'')))); }
+
+function ghConfigured() {
+  const { token, repo } = ghCfg();
+  return !!(token && repo && repo.includes('/'));
+}
+
+async function ghRead(path) {
+  const { token, repo } = ghCfg();
+  if (!token || !repo) return null;
+  const [o, r] = repo.split('/');
+  const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { headers: ghHdrs(token) });
+  if (res.status === 404) return null;
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`GitHub ${res.status}: ${e.message||'error'}`); }
+  const d = await res.json();
+  shaCache[path] = d.sha;
+  return frB64(d.content);
+}
+
+async function ghWrite(path, content) {
+  const { token, repo } = ghCfg();
+  if (!token || !repo) throw new Error('GitHub not configured');
+  const [o, r] = repo.split('/');
+  const url = `https://api.github.com/repos/${o}/${r}/contents/${path}`;
+  if (!shaCache[path]) {
+    const c = await fetch(url, { headers: ghHdrs(token) });
+    if (c.ok) { const d = await c.json(); shaCache[path] = d.sha; }
+  }
+  const body = { message: `jobapp: update ${path}`, content: toB64(content), ...(shaCache[path] ? {sha: shaCache[path]} : {}) };
+  const res = await fetch(url, { method:'PUT', headers: ghHdrs(token), body: JSON.stringify(body) });
+  if (!res.ok) { const e = await res.json().catch(()=>({})); if(res.status===409) delete shaCache[path]; throw new Error(`GitHub ${res.status}: ${e.message||'error'}`); }
+  const d = await res.json();
+  shaCache[path] = d.content.sha;
+}
+
+async function testGhConnection() {
+  const { token, repo } = ghCfg();
+  if (!token || !repo) throw new Error('Not configured');
+  const [o, r] = repo.split('/');
+  const res = await fetch(`https://api.github.com/repos/${o}/${r}`, { headers: ghHdrs(token) });
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`${res.status}: ${e.message||'error'}`); }
+  return res.json();
+}
+
+// Storage helpers
+async function loadText(key)  { try { return await ghRead(KEY_TO_PATH[key]) || ''; } catch { return ''; } }
+async function saveText(key, v){ try { await ghWrite(KEY_TO_PATH[key], v); } catch(e){ console.error(e); dispatchSaveErr(e); } }
+async function loadJson(key)  { try { const t = await ghRead(KEY_TO_PATH[key]); return t ? JSON.parse(t) : []; } catch { return []; } }
+async function saveJson(key, v){ try { await ghWrite(KEY_TO_PATH[key], JSON.stringify(v)); } catch(e){ console.error(e); dispatchSaveErr(e); } }
+
+function dispatchSaveErr(e) { window.dispatchEvent(new CustomEvent('jobapp:saveerror', {detail: e})); }
+
+function lsGet(k)  { return localStorage.getItem(LOCAL_PRE + k) || ''; }
+function lsSet(k,v){ localStorage.setItem(LOCAL_PRE + k, v); }
+function lsDel(k)  { localStorage.removeItem(LOCAL_PRE + k); }
+
+// ════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ════════════════════════════════════════════════════════════════
+
+const REGIONS = [
+  { id:'canada',   name:'Canada',         flag:'🇨🇦', accent:'bg-red-50 border-red-300 text-red-900',    dot:'bg-red-500'    },
+  { id:'hongkong', name:'Hong Kong',      flag:'🇭🇰', accent:'bg-rose-50 border-rose-300 text-rose-900', dot:'bg-rose-500'   },
+  { id:'china',    name:'Mainland China', flag:'🇨🇳', accent:'bg-amber-50 border-amber-300 text-amber-900', dot:'bg-amber-500'},
+];
+
+const STATUSES = [
+  { id:'applied',      label:'Applied',      cls:'bg-blue-100 text-blue-800 border-blue-200'   },
+  { id:'interviewing', label:'Interviewing', cls:'bg-yellow-100 text-yellow-800 border-yellow-200' },
+  { id:'offered',      label:'Offered',      cls:'bg-green-100 text-green-800 border-green-200'  },
+  { id:'rejected',     label:'Rejected',     cls:'bg-red-100 text-red-800 border-red-200'      },
+];
+
+const TABS = [
+  { id:'addjob',   label:'Add Job',    icon:'➕' },
+  { id:'tracker',  label:'Tracker',    icon:'📋' },
+  { id:'profile',  label:'My Profile', icon:'📝' },
+  { id:'library',  label:'Resumes',    icon:'📚' },
+  { id:'insights', label:'Insights',   icon:'📊' },
+];
+
+// ════════════════════════════════════════════════════════════════
+// PROMPT GENERATORS  (no AI needed — user pastes into Claude.ai)
+// ════════════════════════════════════════════════════════════════
+
+const CLAUDE_URL = 'https://claude.ai/new';
+const MAX_RES = 3000;
+const MAX_JD  = 3000;
+
+function promptTailorResume(resumeDb, job) {
+  return `Please tailor my resume for this specific job application. Output in clean Markdown.
+
+MY BACKGROUND:
+${(resumeDb||'').slice(0, MAX_RES)}
+
+TARGET ROLE: ${job.role||'(role)'} at ${job.company||'(company)'}
+LOCATION: ${job.location||''}
+${job.salaryRange ? `SALARY RANGE: ${job.salaryRange}` : ''}
+
+JOB DESCRIPTION:
+${(job.jdText||'').slice(0, MAX_JD)}
+
+INSTRUCTIONS:
+1. Rewrite my resume to highlight the most relevant experience for this role
+2. Mirror the language and keywords from the job description  
+3. Quantify achievements wherever possible
+4. Keep content to approximately one page
+5. Start with a strong summary tailored to this specific role
+6. Output only the resume — no commentary before or after`.trim();
+}
+
+function promptCoverLetter(resumeDb, job) {
+  return `Please write a professional cover letter for this job application. Output only the letter body (no header, no "Dear X", no sign-off placeholder).
+
+MY BACKGROUND:
+${(resumeDb||'').slice(0, MAX_RES)}
+
+TARGET ROLE: ${job.role||'(role)'} at ${job.company||'(company)'}
+LOCATION: ${job.location||''}
+
+JOB DESCRIPTION:
+${(job.jdText||'').slice(0, MAX_JD)}
+
+INSTRUCTIONS:
+- 3–4 paragraphs, 300–350 words
+- Opening: connect my background to this specific role
+- Middle: highlight 2–3 most relevant achievements with impact
+- Closing: clear call to action
+- Tone: confident and professional, not generic`.trim();
+}
+
+function promptInterviewPrep(resumeDb, job) {
+  return `Please help me prepare for an interview for this role.
+
+MY BACKGROUND:
+${(resumeDb||'').slice(0, 1500)}
+
+TARGET ROLE: ${job.role||'(role)'} at ${job.company||'(company)'}
+
+JOB DESCRIPTION:
+${(job.jdText||'').slice(0, MAX_JD)}
+
+Please provide:
+1. 8 likely interview questions — mix of behavioral, technical, and role-specific
+2. For each question, one sentence on what they are really testing
+3. 3 specific areas I should study or prepare before the interview
+4. Any red flags or challenges to be aware of in this JD
+5. ${job.location ? `Any tips specific to interviewing in ${job.location}` : 'General interview etiquette tips for this type of role'}`.trim();
+}
+
+function promptNetworking(resumeDb, job) {
+  return `Please suggest a LinkedIn networking strategy for this job application.
+
+TARGET ROLE: ${job.role||'(role)'} at ${job.company||'(company)'}
+LOCATION: ${job.location||''}
+
+JOB DESCRIPTION:
+${(job.jdText||'').slice(0, 2000)}
+
+MY BACKGROUND (brief):
+${(resumeDb||'').slice(0, 800)}
+
+Please provide:
+1. 4 specific types of people I should connect with on LinkedIn — be specific about their titles
+2. For each: exact LinkedIn search keywords to find them, and what to write in the connection request
+3. What to ask or discuss once connected (specific, not generic)
+4. Any tips for networking in this specific region/industry for this role`.trim();
+}
+
+function promptJobAnalysis(job) {
+  return `Please analyze this job description for me.
+
+ROLE: ${job.role||'(role)'} at ${job.company||'(company)'}
+LOCATION: ${job.location||''}
+
+JOB DESCRIPTION:
+${(job.jdText||'').slice(0, MAX_JD)}
+
+Please provide:
+1. What this role actually does day-to-day (not just what the JD says)
+2. What success looks like in the first 3–6 months
+3. The 5 most important requirements (ranked by importance)
+4. Any red flags or things that seem unusual in this JD
+5. Realistic salary range for this role and location (if not stated)
+6. How competitive this role likely is and what would make a candidate stand out`.trim();
+}
+
+// ════════════════════════════════════════════════════════════════
+// FILE UTILITIES
+// ════════════════════════════════════════════════════════════════
+
+let pdfjsPromise = null;
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (pdfjsPromise) return pdfjsPromise;
+  const V = '3.11.174';
+  pdfjsPromise = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${V}/pdf.min.js`;
+    s.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${V}/pdf.worker.min.js`;
+      res(window.pdfjsLib);
+    };
+    s.onerror = () => rej(new Error('Failed to load PDF library'));
+    document.head.appendChild(s);
+  });
+  return pdfjsPromise;
+}
+
+async function extractPdfText(file) {
+  const lib = await loadPdfJs();
+  const buf = await file.arrayBuffer();
+  const pdf = await lib.getDocument({ data: buf }).promise;
+  const parts = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const items = content.items.map(it => ({ str: it.str, y: it.transform?.[5] ?? 0, x: it.transform?.[4] ?? 0 }));
+    items.sort((a, b) => (b.y - a.y) || (a.x - b.x));
+    const lines = [];
+    let cy = null, cl = [];
+    for (const it of items) {
+      if (cy === null || Math.abs(it.y - cy) > 2) { if (cl.length) lines.push(cl.join(' ').trim()); cl = [it.str]; cy = it.y; }
+      else cl.push(it.str);
+    }
+    if (cl.length) lines.push(cl.join(' ').trim());
+    parts.push(lines.filter(Boolean).join('\n'));
+  }
+  return parts.join('\n\n').trim();
+}
+
+async function readFileAsText(file) {
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (['txt','md','markdown'].includes(ext)) return file.text();
+  if (ext === 'docx') {
+    const buf = await file.arrayBuffer();
+    const r = await mammoth.extractRawText({ arrayBuffer: buf });
+    return (r?.value || '').trim();
+  }
+  if (ext === 'pdf') {
+    const t = await extractPdfText(file);
+    if (!t || t.length < 10) throw new Error('Could not extract text — PDF may be scanned/image-based');
+    return t;
+  }
+  if (ext === 'doc') throw new Error('.doc not supported — save as .docx first');
+  throw new Error(`Unsupported: .${ext} — use .txt, .md, .docx, or .pdf`);
+}
+
+function downloadText(filename, content, mime='text/plain') {
+  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function safeName(s) { return (s||'file').replace(/[^\w\s-]/g,'').replace(/\s+/g,'_').slice(0,60) || 'file'; }
+function stripMd(md) {
+  return (md||'').replace(/^#{1,6}\s+/gm,'').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1')
+    .replace(/^[-*]\s+/gm,'• ').replace(/\[([^\]]+)\]\([^)]+\)/g,'$1');
+}
+
+// ════════════════════════════════════════════════════════════════
+// UTILITY HELPERS
+// ════════════════════════════════════════════════════════════════
+
+function newId() { return `${Date.now()}_${Math.random().toString(36).slice(2,8)}`; }
+function fmtDate(iso) { if (!iso) return ''; return new Date(iso).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }
+
+// ════════════════════════════════════════════════════════════════
+// UI PRIMITIVES
+// ════════════════════════════════════════════════════════════════
+
+function Card({ children, className='' }) {
+  return <div className={`bg-white border border-gray-200 rounded-lg ${className}`}>{children}</div>;
+}
+
+function Btn({ children, onClick, variant='secondary', disabled=false, className='' }) {
+  const base = 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+  const v = {
+    primary:   'text-white bg-blue-600 hover:bg-blue-700',
+    secondary: 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50',
+    danger:    'text-red-700 bg-white border border-red-200 hover:bg-red-50',
+    green:     'text-white bg-green-600 hover:bg-green-700',
+  };
+  return <button onClick={onClick} disabled={disabled} className={`${base} ${v[variant]||v.secondary} ${className}`}>{children}</button>;
+}
+
+function StatusPill({ status }) {
+  const s = STATUSES.find(x => x.id === status) || STATUSES[0];
+  return <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full border ${s.cls}`}>{s.label}</span>;
+}
+
+function StatusSelect({ value, onChange }) {
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)}
+      className="text-xs px-2 py-1 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+      {STATUSES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+    </select>
+  );
+}
+
+function SectionHdr({ icon, title, action }) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+        {icon && <span>{icon}</span>}{title}
+      </h3>
+      {action}
+    </div>
+  );
+}
+
+function Alert({ type='warning', children }) {
+  const styles = {
+    warning: 'bg-amber-50 border-amber-200 text-amber-900',
+    error:   'bg-red-50 border-red-200 text-red-900',
+    info:    'bg-blue-50 border-blue-200 text-blue-900',
+  };
+  return (
+    <div className={`flex items-start gap-2 p-3 border rounded-md text-sm ${styles[type]||styles.info}`}>
+      <span className="shrink-0">⚠️</span><div>{children}</div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// COPY / DOWNLOAD / UPLOAD BUTTONS
+// ════════════════════════════════════════════════════════════════
+
+function CopyButton({ text, label='Copy' }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Btn onClick={async () => { try { await navigator.clipboard.writeText(text||''); setCopied(true); setTimeout(()=>setCopied(false),1500); } catch {} }}>
+      {copied ? '✅ Copied' : `📋 ${label}`}
+    </Btn>
+  );
+}
+
+function DownloadMenu({ content, baseFilename }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+  const fn = safeName(baseFilename);
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <Btn onClick={() => setOpen(o => !o)}>⬇️ Download</Btn>
+      {open && (
+        <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+          <button onClick={()=>{downloadText(`${fn}.md`, content||'','text/markdown');setOpen(false);}}
+            className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 rounded-t-md">Markdown (.md)</button>
+          <button onClick={()=>{downloadText(`${fn}.txt`, stripMd(content||''));setOpen(false);}}
+            className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 rounded-b-md border-t border-gray-100">Plain text (.txt)</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FileUploadButton({ onFile, label='Upload', primary=false, accept='.txt,.md,.markdown,.docx,.pdf' }) {
+  const ref = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const handle = async e => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    setErr(''); setBusy(true);
+    try { const t = await readFileAsText(file); if (!t.trim()) { setErr('File is empty or unreadable'); return; } onFile(t, file.name); }
+    catch(e) { setErr(e.message||'Failed to read file'); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="inline-block">
+      <Btn variant={primary?'primary':'secondary'} onClick={()=>ref.current?.click()} disabled={busy}>
+        {busy ? '⏳ Reading…' : `⬆️ ${label}`}
+      </Btn>
+      <input ref={ref} type="file" accept={accept} onChange={handle} className="hidden" />
+      {err && <div className="mt-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 max-w-xs">{err}</div>}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// PROMPT MODAL
+// ════════════════════════════════════════════════════════════════
+
+function PromptModal({ title, prompt, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    try { await navigator.clipboard.writeText(prompt); setCopied(true); setTimeout(()=>setCopied(false),2000); } catch {}
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mt-8 mb-8" onClick={e=>e.stopPropagation()}>
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-900">✨ {title}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none">&times;</button>
+        </div>
+        <div className="p-4">
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 mb-3 space-y-1">
+            <div className="font-semibold">How to use:</div>
+            <div>1. Click <strong>Copy prompt</strong> below</div>
+            <div>2. Click <strong>Open Claude.ai</strong> — it opens in a new tab</div>
+            <div>3. Paste the prompt (⌘V / Ctrl+V) and press Send</div>
+            <div>4. Copy Claude's response and paste it back here in the relevant field</div>
+          </div>
+          <textarea
+            value={prompt}
+            readOnly
+            className="w-full h-64 p-3 text-xs font-mono border border-gray-300 rounded-md bg-gray-50 resize-y focus:outline-none"
+            onClick={e => e.target.select()}
+          />
+          <div className="flex gap-2 mt-3 justify-end flex-wrap">
+            <Btn onClick={handleCopy}>{copied ? '✅ Copied!' : '📋 Copy prompt'}</Btn>
+            <a href={CLAUDE_URL} target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600">
+              Open Claude.ai →
+            </a>
+          </div>
+          <p className="mt-2 text-xs text-gray-400">Uses your existing Claude.ai subscription — no extra cost.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// AI PROMPT BUTTONS (reused in AddJobTab and JobDetail)
+// ════════════════════════════════════════════════════════════════
+
+function AiPromptSection({ resumeDb, job }) {
+  const [modal, setModal] = useState(null); // { title, prompt }
+
+  const hasResume = !!(resumeDb || '').trim();
+  const hasJd     = !!(job?.jdText || '').trim();
+
+  const open = (title, promptFn) => {
+    if (!hasResume) { alert('Add your profile/background in My Profile tab first — it makes the prompts much better.'); return; }
+    setModal({ title, prompt: promptFn() });
+  };
+
+  const btns = [
+    { label:'📝 Tailor Resume',   fn: () => promptTailorResume(resumeDb, job), needsJd: true  },
+    { label:'✉️ Cover Letter',    fn: () => promptCoverLetter(resumeDb, job),   needsJd: true  },
+    { label:'🎯 Interview Prep',  fn: () => promptInterviewPrep(resumeDb, job), needsJd: true  },
+    { label:'👥 Networking',      fn: () => promptNetworking(resumeDb, job),    needsJd: true  },
+    { label:'🔍 Analyze This Job',fn: () => promptJobAnalysis(job),             needsJd: true  },
+  ];
+
+  return (
+    <Card className="p-4">
+      <SectionHdr icon="✨" title="AI Help via Claude.ai" />
+      <p className="text-xs text-gray-600 mb-3">
+        These buttons generate a ready-to-paste prompt for Claude.ai.
+        Paste the result back in the relevant field below to save it.
+        {!hasResume && <span className="text-amber-700 ml-1">Add your profile first for best results.</span>}
+        {!hasJd && hasResume && <span className="text-gray-500 ml-1">Add a JD for job-specific prompts.</span>}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {btns.map(b => (
+          <Btn key={b.label} variant="secondary"
+            onClick={() => open(b.label.replace(/^.\s/,''), b.fn)}>
+            {b.label}
+          </Btn>
+        ))}
+      </div>
+      {modal && <PromptModal title={modal.title} prompt={modal.prompt} onClose={() => setModal(null)} />}
+    </Card>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// MARKDOWN RENDERER (simple, for resume preview)
+// ════════════════════════════════════════════════════════════════
+
+function MdView({ text }) {
+  if (!text) return null;
+  const lines = text.split('\n');
+  const out = []; let listBuf = [];
+  const flushList = () => {
+    if (!listBuf.length) return;
+    out.push(<ul key={out.length} className="list-disc pl-5 my-1 space-y-0.5">{listBuf.map((li,i)=><li key={i} className="text-sm text-gray-700">{renderInline(li)}</li>)}</ul>);
+    listBuf = [];
+  };
+  const renderInline = s => s.split(/(\*\*[^*]+\*\*)/).map((p,i) =>
+    p.startsWith('**') && p.endsWith('**') ? <strong key={i}>{p.slice(2,-2)}</strong> : <span key={i}>{p}</span>
+  );
+  lines.forEach((raw,i) => {
+    const l = raw.replace(/\r$/,'');
+    if (/^#\s/.test(l))      { flushList(); out.push(<h1 key={i} className="text-xl font-bold mt-3 mb-1">{l.slice(2)}</h1>); }
+    else if (/^##\s/.test(l)){ flushList(); out.push(<h2 key={i} className="text-base font-semibold mt-3 mb-1 text-gray-800">{l.slice(3)}</h2>); }
+    else if (/^###\s/.test(l)){ flushList(); out.push(<h3 key={i} className="text-sm font-semibold mt-2 mb-0.5 text-gray-700">{l.slice(4)}</h3>); }
+    else if (/^\s*[-*]\s/.test(l)){ listBuf.push(l.replace(/^\s*[-*]\s/,'')); }
+    else if (l.trim()==='')  { flushList(); out.push(<div key={i} className="h-1.5"/>); }
+    else                     { flushList(); out.push(<p key={i} className="text-sm text-gray-700 my-0.5">{renderInline(l)}</p>); }
+  });
+  flushList();
+  return <div>{out}</div>;
+}
+
+// ════════════════════════════════════════════════════════════════
+// SETTINGS PANEL (GitHub only)
+// ════════════════════════════════════════════════════════════════
+
+function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
+  const [tok, setTok]   = useState('');
+  const [repo, setRepo] = useState('');
+  const [showTok, setShowTok] = useState(false);
+  const [saved, setSaved]     = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testRes, setTestRes] = useState(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setTok(lsGet('githubToken')); setRepo(lsGet('githubRepo'));
+    setSaved(false); setTestRes(null);
+  }, [open]);
+
+  if (!open) return null;
+
+  const handleSave = () => {
+    lsSet('githubToken', tok.trim()); lsSet('githubRepo', repo.trim());
+    onGhChange?.(ghConfigured()); setSaved(true); setTimeout(()=>setSaved(false),1500); setTestRes(null);
+  };
+
+  const handleTest = async () => {
+    lsSet('githubToken', tok.trim()); lsSet('githubRepo', repo.trim());
+    setTesting(true); setTestRes(null);
+    try { const d = await testGhConnection(); setTestRes({ok:true, msg:`✅ Connected — "${d.full_name}" (${d.private?'private':'public'})`}); onGhChange?.(true); }
+    catch(e) { setTestRes({ok:false, msg:`❌ ${e.message}`}); }
+    finally { setTesting(false); }
+  };
+
+  const handleClear = () => {
+    if (!window.confirm('Remove GitHub credentials?')) return;
+    lsDel('githubToken'); lsDel('githubRepo'); setTok(''); setRepo(''); onGhChange?.(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mt-8 mb-8" onClick={e=>e.stopPropagation()}>
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-900">⚙️ Settings — GitHub Storage</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg">&times;</button>
+        </div>
+        <div className="p-4 space-y-4">
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 space-y-1">
+            <div className="font-semibold">One-time setup:</div>
+            <div>1. Create a <strong>private</strong> GitHub repo — e.g. <code className="bg-blue-100 px-1 rounded">username/jobapp-data</code></div>
+            <div>2. Go to <a href="https://github.com/settings/tokens/new" target="_blank" rel="noreferrer" className="underline">github.com/settings/tokens/new</a></div>
+            <div>3. Tick <strong>repo</strong> scope → Generate → copy the token</div>
+            <div>4. Paste both below and click Save</div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-700 mb-1 block">Personal Access Token</label>
+            <div className="relative">
+              <input type={showTok?'text':'password'} value={tok} onChange={e=>setTok(e.target.value)}
+                placeholder="ghp_xxxxxxxxxxxxxxxx"
+                className="w-full px-3 py-2 pr-9 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoComplete="off" />
+              <button onClick={()=>setShowTok(s=>!s)} className="absolute right-2 top-2.5 text-gray-400 text-xs" type="button">{showTok?'🙈':'👁'}</button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-700 mb-1 block">Repository (owner/repo-name)</label>
+            <input type="text" value={repo} onChange={e=>setRepo(e.target.value)}
+              placeholder="your-username/jobapp-data"
+              className="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoComplete="off" />
+          </div>
+
+          {testRes && (
+            <div className={`p-2 rounded text-xs border ${testRes.ok?'bg-green-50 border-green-200 text-green-800':'bg-red-50 border-red-200 text-red-800'}`}>
+              {testRes.msg}
+            </div>
+          )}
+
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            {ghOk && <Btn variant="danger" onClick={handleClear}>Remove credentials</Btn>}
+            <div className="flex gap-2 ml-auto">
+              <Btn onClick={handleTest} disabled={testing||!tok.trim()||!repo.trim()}>
+                {testing?'Testing…':'Test connection'}
+              </Btn>
+              <Btn variant="primary" onClick={handleSave} disabled={!tok.trim()||!repo.trim()}>
+                {saved?'✅ Saved':'Save'}
+              </Btn>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400">Token stays in your browser only. Data commits to your private repo as JSON files.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// PROFILE TAB
+// ════════════════════════════════════════════════════════════════
+
+function ProfileTab({ resumeDb, setResumeDb, draft, setDraft }) {
+  const [saved, setSaved] = useState(false);
+  const isDirty = draft !== resumeDb;
+
+  const handleSave = async () => {
+    setResumeDb(draft);
+    await saveText('resumeDb', draft);
+    setSaved(true); setTimeout(()=>setSaved(false), 1500);
+  };
+
+  const sample = `# My Background
+
+## Contact
+Email: you@email.com | Phone: +1 xxx | Location: City, Country | LinkedIn: linkedin.com/in/you
+
+## Summary
+A 1-2 sentence positioning statement about who you are and what you do.
+
+## Experience
+### Job Title — Company Name (Jan 2022 – Present)
+- Achievement with metric (e.g. Increased revenue by 30%)
+- Key responsibility or project outcome
+- Tools, tech, or skills used
+
+### Previous Job — Company (2019 – 2022)
+- Achievement
+- Achievement
+
+## Education
+- Degree, School, Year
+
+## Skills
+Technical: list them here
+Languages: English (native), Cantonese (native), Mandarin (fluent)
+Certifications: any relevant ones
+
+## Projects / Side work
+- Project name — what it is and what you built
+
+## Other
+Awards, publications, volunteer work, anything else relevant
+`;
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4">
+        <SectionHdr icon="📝" title="Master profile — everything about you"
+          action={
+            <div className="flex flex-wrap gap-2 items-center">
+              {isDirty && !saved && <span className="text-xs text-amber-700 font-medium">● Unsaved</span>}
+              <FileUploadButton onFile={t=>setDraft(t)} label="Upload file" />
+              {!draft && <Btn onClick={()=>setDraft(sample)}>Insert template</Btn>}
+              <Btn variant="primary" onClick={handleSave} disabled={!isDirty}>
+                {saved?'✅ Saved':'💾 Save'}
+              </Btn>
+            </div>
+          }
+        />
+        <p className="text-xs text-gray-600 mb-3">
+          Paste everything about yourself here — work history, projects, skills, achievements, certifications, languages.
+          The more detail, the better the prompts Claude gets. <strong>Shared across all three regions.</strong>
+          Accepts .txt, .md, .docx, .pdf.
+        </p>
+        <textarea value={draft} onChange={e=>setDraft(e.target.value)}
+          placeholder="Paste or write your full background here…"
+          className="w-full h-96 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
+        <div className="mt-1 text-xs text-gray-400">{(draft||'').length.toLocaleString()} characters</div>
+      </Card>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// RESUME LIBRARY TAB
+// ════════════════════════════════════════════════════════════════
+
+function LibraryTab({ library, setLibrary, setResumeDb }) {
+  const [expandedId, setExpandedId] = useState(null);
+
+  const handleUpload = async (text, filename) => {
+    const entry = { id: newId(), name: filename.replace(/\.[^.]+$/,'') || 'Untitled', content: text, uploadedAt: new Date().toISOString() };
+    const updated = [entry, ...library];
+    setLibrary(updated); await saveJson('library', updated);
+  };
+
+  const handleDelete = async id => {
+    if (!window.confirm('Delete this resume?')) return;
+    const updated = library.filter(r=>r.id!==id); setLibrary(updated); await saveJson('library', updated);
+  };
+
+  const handleRename = async id => {
+    const cur = library.find(r=>r.id===id); if (!cur) return;
+    const next = window.prompt('Rename:', cur.name); if (!next||next===cur.name) return;
+    const updated = library.map(r=>r.id===id?{...r,name:next}:r); setLibrary(updated); await saveJson('library', updated);
+  };
+
+  const handleUseAsProfile = async entry => {
+    if (!window.confirm(`Replace your master profile with "${entry.name}"?`)) return;
+    setResumeDb(entry.content); await saveText('resumeDb', entry.content);
+  };
+
+  return (
+    <div className="space-y-3">
+      <Card className="p-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">📚 Resume library</h3>
+            <p className="text-xs text-gray-600">Store multiple resume versions. <strong>Shared across all regions.</strong> .txt, .md, .docx, .pdf</p>
+          </div>
+          <FileUploadButton onFile={handleUpload} label="Upload resume" primary />
+        </div>
+      </Card>
+      {library.length === 0 ? (
+        <Card className="p-8 text-center text-sm text-gray-500">No resumes yet. Click Upload resume above.</Card>
+      ) : (
+        <div className="space-y-2">
+          {library.map(r => (
+            <Card key={r.id} className="p-3">
+              <div className="flex items-start justify-between gap-2">
+                <button className="flex-1 text-left min-w-0" onClick={()=>setExpandedId(expandedId===r.id?null:r.id)}>
+                  <div className="text-sm font-semibold text-gray-900 truncate">{r.name}</div>
+                  <div className="text-xs text-gray-500">{fmtDate(r.uploadedAt)} · {r.content.length.toLocaleString()} chars</div>
+                </button>
+                <div className="flex gap-1 flex-wrap shrink-0">
+                  <Btn onClick={()=>handleUseAsProfile(r)}>👤 Use as profile</Btn>
+                  <DownloadMenu content={r.content} baseFilename={r.name} />
+                  <Btn onClick={()=>handleRename(r.id)}>✏️</Btn>
+                  <Btn variant="danger" onClick={()=>handleDelete(r.id)}>🗑</Btn>
+                </div>
+              </div>
+              {expandedId===r.id && (
+                <div className="mt-3 p-3 bg-gray-50 rounded-md max-h-96 overflow-y-auto"><MdView text={r.content} /></div>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// ADD JOB TAB
+// ════════════════════════════════════════════════════════════════
+
+function AddJobTab({ resumeDb, jobs, setJobs, region, onSaved }) {
+  const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'applied', jdText:'', notes:'' };
+  const [form, setForm] = useState(empty);
+  const [saved, setSaved] = useState(false);
+
+  const set = (k, v) => setForm(f => ({...f, [k]:v}));
+
+  const handleSave = async () => {
+    if (!form.company.trim() && !form.role.trim()) { alert('Please enter at least a company name or role.'); return; }
+    const job = { id: newId(), dateAdded: new Date().toISOString(), tailoredResume:'', coverLetter:'', ...form };
+    const updated = [job, ...jobs];
+    setJobs(updated); await saveJson(`${region}:jobs`, updated);
+    setSaved(true); setTimeout(()=>setSaved(false), 1200);
+    setForm(empty);
+    onSaved?.(job.id);
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4">
+        <SectionHdr icon="➕" title="Add a job application" />
+        {/* JD textarea */}
+        <div className="mb-4">
+          <label className="text-xs font-medium text-gray-700 mb-1 block">Job description (paste here — used for AI prompts)</label>
+          <textarea value={form.jdText} onChange={e=>set('jdText',e.target.value)}
+            placeholder="Paste the full job description here…"
+            className="w-full h-36 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
+          <div className="text-xs text-gray-400 mt-0.5">{form.jdText.length.toLocaleString()} chars</div>
+        </div>
+        {/* Form fields */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+          {[['company','Company *','Google'],['role','Job Title *','Software Engineer'],['location','Location','Toronto, ON / Remote'],['salaryRange','Salary Range','$120k – $150k']].map(([k,lbl,ph]) => (
+            <div key={k}>
+              <label className="text-xs font-medium text-gray-700 mb-1 block">{lbl}</label>
+              <input value={form[k]} onChange={e=>set(k,e.target.value)} placeholder={ph}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          ))}
+          <div>
+            <label className="text-xs font-medium text-gray-700 mb-1 block">Application Deadline</label>
+            <input type="date" value={form.applicationDeadline} onChange={e=>set('applicationDeadline',e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-700 mb-1 block">Status</label>
+            <select value={form.status} onChange={e=>set('status',e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {STATUSES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="mb-4">
+          <label className="text-xs font-medium text-gray-700 mb-1 block">Notes</label>
+          <textarea value={form.notes} onChange={e=>set('notes',e.target.value)}
+            placeholder="Recruiter name, how you found it, first impressions…"
+            className="w-full h-20 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
+        </div>
+        <div className="flex justify-end">
+          <Btn variant="primary" onClick={handleSave} className="px-4 py-2 text-sm">
+            {saved ? '✅ Saved!' : '💾 Save to Tracker'}
+          </Btn>
+        </div>
+      </Card>
+
+      {/* AI Help section */}
+      <AiPromptSection resumeDb={resumeDb} job={form} />
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// TRACKER TAB
+// ════════════════════════════════════════════════════════════════
+
+function TrackerTab({ region, jobs, setJobs, onOpen }) {
+  const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() => jobs.filter(j => {
+    if (filter!=='all' && j.status!==filter) return false;
+    if (search) { const q=search.toLowerCase(); if (!`${j.company} ${j.role} ${j.location}`.toLowerCase().includes(q)) return false; }
+    return true;
+  }), [jobs, filter, search]);
+
+  const updateStatus = async (id, status) => {
+    const updated = jobs.map(j=>j.id===id?{...j,status}:j); setJobs(updated); await saveJson(`${region}:jobs`, updated);
+  };
+
+  const deleteJob = async id => {
+    if (!window.confirm('Delete this application?')) return;
+    const updated = jobs.filter(j=>j.id!==id); setJobs(updated); await saveJson(`${region}:jobs`, updated);
+  };
+
+  if (!jobs.length) return (
+    <Card className="p-8 text-center text-sm text-gray-500">
+      No applications yet. Go to <strong>Add Job</strong> to add your first one.
+    </Card>
+  );
+
+  return (
+    <div className="space-y-3">
+      <Card className="p-3">
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="relative flex-1 min-w-[180px]">
+            <span className="absolute left-2.5 top-2 text-gray-400 text-xs">🔍</span>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search company, role…"
+              className="w-full pl-7 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <select value={filter} onChange={e=>setFilter(e.target.value)}
+            className="text-sm px-2 py-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="all">All ({jobs.length})</option>
+            {STATUSES.map(s=><option key={s.id} value={s.id}>{s.label} ({jobs.filter(j=>j.status===s.id).length})</option>)}
+          </select>
+        </div>
+      </Card>
+      {filtered.map(j => (
+        <Card key={j.id} className="p-3 hover:shadow-sm transition-shadow">
+          <div className="flex items-start justify-between gap-2">
+            <button className="flex-1 text-left min-w-0" onClick={()=>onOpen(j.id)}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-semibold text-gray-900 truncate">{j.role||'(no title)'}</span>
+                <StatusPill status={j.status} />
+                {j.applicationDeadline && new Date(j.applicationDeadline) < new Date() && <span className="text-xs text-red-600 font-medium">⏰ Deadline passed</span>}
+              </div>
+              <div className="text-xs text-gray-600 mt-0.5">{j.company||'(no company)'}{j.location?` · ${j.location}`:''}</div>
+              <div className="text-xs text-gray-400 mt-0.5">Added {fmtDate(j.dateAdded)}{j.applicationDeadline?` · Deadline: ${fmtDate(j.applicationDeadline)}`:''}</div>
+            </button>
+            <div className="flex gap-1.5 shrink-0 items-center">
+              <StatusSelect value={j.status} onChange={s=>updateStatus(j.id,s)} />
+              <Btn onClick={()=>onOpen(j.id)}>Open →</Btn>
+              <Btn variant="danger" onClick={()=>deleteJob(j.id)}>🗑</Btn>
+            </div>
+          </div>
+        </Card>
+      ))}
+      {!filtered.length && <Card className="p-6 text-center text-sm text-gray-500">No applications match your filters.</Card>}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// JOB DETAIL
+// ════════════════════════════════════════════════════════════════
+
+function JobDetail({ region, job, resumeDb, jobs, setJobs, onBack }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm]       = useState({...job});
+  const [saving, setSaving]   = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
+
+  useEffect(() => { setForm({...job}); }, [job.id]);
+
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  const updateJob = async patch => {
+    const updated = jobs.map(j=>j.id===job.id?{...j,...patch}:j); setJobs(updated); await saveJson(`${region}:jobs`, updated);
+  };
+
+  const handleSaveAll = async () => {
+    setSaving(true); await updateJob(form); setSaving(false); setEditing(false);
+  };
+
+  const handleSaveNotes = async () => {
+    await updateJob({ notes: form.notes, tailoredResume: form.tailoredResume, coverLetter: form.coverLetter });
+    setNotesSaved(true); setTimeout(()=>setNotesSaved(false),1500);
+  };
+
+  return (
+    <div className="space-y-4">
+      <button onClick={onBack} className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900">← Back to tracker</button>
+
+      {/* Header card */}
+      <Card className="p-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">{form.role||'(no title)'}</h2>
+            <div className="text-sm text-gray-600">{form.company||'(no company)'}{form.location?` · ${form.location}`:''}</div>
+            <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-gray-500">
+              <span>Added {fmtDate(form.dateAdded)}</span>
+              {form.salaryRange && <span>💰 {form.salaryRange}</span>}
+              {form.applicationDeadline && <span>📅 Deadline: {fmtDate(form.applicationDeadline)}</span>}
+            </div>
+          </div>
+          <div className="flex gap-2 items-center">
+            <StatusSelect value={form.status} onChange={v=>{set('status',v); updateJob({status:v});}} />
+            <Btn onClick={()=>setEditing(e=>!e)}>{editing?'Cancel editing':'✏️ Edit details'}</Btn>
+          </div>
+        </div>
+
+        {editing && (
+          <div className="mt-4 border-t border-gray-100 pt-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[['company','Company'],['role','Role'],['location','Location'],['salaryRange','Salary Range']].map(([k,lbl])=>(
+                <div key={k}>
+                  <label className="text-xs text-gray-600 mb-1 block">{lbl}</label>
+                  <input value={form[k]||''} onChange={e=>set(k,e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              ))}
+              <div>
+                <label className="text-xs text-gray-600 mb-1 block">Deadline</label>
+                <input type="date" value={form.applicationDeadline||''} onChange={e=>set('applicationDeadline',e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Job Description</label>
+              <textarea value={form.jdText||''} onChange={e=>set('jdText',e.target.value)}
+                className="w-full h-32 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
+            </div>
+            <div className="flex justify-end">
+              <Btn variant="primary" onClick={handleSaveAll} disabled={saving}>
+                {saving?'Saving…':'💾 Save changes'}
+              </Btn>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* AI prompts */}
+      <AiPromptSection resumeDb={resumeDb} job={form} />
+
+      {/* Paste-back sections */}
+      <Card className="p-4">
+        <SectionHdr icon="📝" title="Tailored resume"
+          action={
+            <div className="flex gap-2">
+              {form.tailoredResume && <><CopyButton text={form.tailoredResume} /><DownloadMenu content={form.tailoredResume} baseFilename={`Resume_${form.company}_${form.role}`} /></>}
+            </div>
+          }
+        />
+        <p className="text-xs text-gray-500 mb-2">Paste your Claude-generated tailored resume here to save it with this application.</p>
+        <textarea value={form.tailoredResume||''} onChange={e=>set('tailoredResume',e.target.value)}
+          placeholder="Paste your Claude-generated tailored resume here…"
+          className="w-full h-40 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
+        {form.tailoredResume && (
+          <div className="mt-2 p-3 bg-gray-50 rounded-md max-h-60 overflow-y-auto"><MdView text={form.tailoredResume} /></div>
+        )}
+      </Card>
+
+      <Card className="p-4">
+        <SectionHdr icon="✉️" title="Cover letter"
+          action={form.coverLetter && <><CopyButton text={form.coverLetter} /><DownloadMenu content={form.coverLetter} baseFilename={`CoverLetter_${form.company}_${form.role}`} /></>}
+        />
+        <p className="text-xs text-gray-500 mb-2">Paste your Claude-generated cover letter here to save it with this application.</p>
+        <textarea value={form.coverLetter||''} onChange={e=>set('coverLetter',e.target.value)}
+          placeholder="Paste your Claude-generated cover letter here…"
+          className="w-full h-36 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
+      </Card>
+
+      <Card className="p-4">
+        <SectionHdr icon="🗒" title="My notes"
+          action={<Btn variant="primary" onClick={handleSaveNotes}>{notesSaved?'✅ Saved':'💾 Save'}</Btn>}
+        />
+        <textarea value={form.notes||''} onChange={e=>set('notes',e.target.value)}
+          placeholder="Recruiter names, what they asked, follow-ups, why rejected, general vibes…"
+          className="w-full h-32 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
+      </Card>
+
+      {form.jdText && (
+        <details className="bg-white border border-gray-200 rounded-lg">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">Original job description</summary>
+          <div className="px-4 pb-4 text-xs text-gray-700 whitespace-pre-wrap font-mono max-h-80 overflow-y-auto">{form.jdText}</div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// INSIGHTS TAB
+// ════════════════════════════════════════════════════════════════
+
+function InsightsTab({ jobs, regionName }) {
+  const stats = useMemo(() => {
+    const byStatus = STATUSES.map(s => ({...s, count: jobs.filter(j=>j.status===s.id).length}));
+    const total = jobs.length;
+    const responseRate = total ? Math.round(jobs.filter(j=>['interviewing','offered'].includes(j.status)).length/total*100) : 0;
+    const offerRate    = total ? Math.round(jobs.filter(j=>j.status==='offered').length/total*100) : 0;
+    const now = Date.now();
+    const last7  = jobs.filter(j=>now-new Date(j.dateAdded).getTime()<7*86400000).length;
+    const last30 = jobs.filter(j=>now-new Date(j.dateAdded).getTime()<30*86400000).length;
+    const coMap = {}; jobs.forEach(j=>{if(j.company) coMap[j.company]=(coMap[j.company]||0)+1;});
+    const topCos = Object.entries(coMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const upcoming = jobs.filter(j=>j.applicationDeadline && new Date(j.applicationDeadline)>new Date()).sort((a,b)=>new Date(a.applicationDeadline)-new Date(b.applicationDeadline)).slice(0,5);
+    return { byStatus, responseRate, offerRate, last7, last30, topCos, total, upcoming };
+  }, [jobs]);
+
+  if (!jobs.length) return <Card className="p-8 text-center text-sm text-gray-500">No data yet — add some applications first.</Card>;
+
+  return (
+    <div className="space-y-3">
+      <Card className="p-4">
+        <SectionHdr icon="📊" title={`${regionName} pipeline`} />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {stats.byStatus.map(s=>(
+            <div key={s.id} className="p-3 bg-gray-50 rounded-md">
+              <div className="text-2xl font-bold text-gray-900">{s.count}</div>
+              <div className="text-xs text-gray-600">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Card className="p-4">
+          <SectionHdr title="Activity" />
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between"><span className="text-gray-600">Total</span><strong>{stats.total}</strong></div>
+            <div className="flex justify-between"><span className="text-gray-600">Last 7 days</span><strong>{stats.last7}</strong></div>
+            <div className="flex justify-between"><span className="text-gray-600">Last 30 days</span><strong>{stats.last30}</strong></div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <SectionHdr title="Conversion" />
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between"><span className="text-gray-600">Response rate</span><strong>{stats.responseRate}%</strong></div>
+            <div className="flex justify-between"><span className="text-gray-600">Offer rate</span><strong>{stats.offerRate}%</strong></div>
+            <div className="text-xs text-gray-400 mt-1">Response = interviewing or offered</div>
+          </div>
+        </Card>
+      </div>
+      {stats.upcoming.length>0 && (
+        <Card className="p-4">
+          <SectionHdr title="📅 Upcoming deadlines" />
+          <div className="space-y-1.5">
+            {stats.upcoming.map(j=>(
+              <div key={j.id} className="flex justify-between text-sm">
+                <span className="text-gray-700">{j.role} at {j.company}</span>
+                <span className="text-gray-500">{fmtDate(j.applicationDeadline)}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+      {stats.topCos.length>0 && (
+        <Card className="p-4">
+          <SectionHdr title="Top companies" />
+          <div className="space-y-1.5">
+            {stats.topCos.map(([co,n])=>(
+              <div key={co} className="flex justify-between text-sm">
+                <span className="text-gray-700">{co}</span><span className="text-gray-500">{n}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// REGION APP
+// ════════════════════════════════════════════════════════════════
+
+function RegionApp({ region, resumeDb, setResumeDb, library, setLibrary, profileDraft, setProfileDraft }) {
+  const regionMeta = REGIONS.find(r=>r.id===region);
+  const [tab, setTab] = useState('addjob');
+  const [jobs, setJobs] = useState([]);
+  const [openJobId, setOpenJobId] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const j = await loadJson(`${region}:jobs`);
+      if (!cancelled) { setJobs(j); setLoading(false); }
+    })();
+    return () => { cancelled=true; };
+  }, [region]);
+
+  if (loading) return <div className="p-8 text-center text-sm text-gray-500">⏳ Loading {regionMeta.name} data…</div>;
+
+  const openJob = jobs.find(j=>j.id===openJobId);
+  const switchTab = t => { setTab(t); setOpenJobId(null); };
+
+  return (
+    <div className="space-y-4">
+      {/* Sub-tabs */}
+      <div className="flex gap-0.5 border-b border-gray-200 overflow-x-auto">
+        {TABS.map(t => (
+          <button key={t.id} onClick={()=>switchTab(t.id)}
+            className={`inline-flex items-center gap-1 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              tab===t.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+            }`}>
+            <span>{t.icon}</span>{t.label}
+            {t.id==='tracker' && jobs.length>0 && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full">{jobs.length}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>{switchTab('tracker'); setOpenJobId(id);}} />}
+      {tab==='tracker' && !openJob && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} onOpen={id=>{setOpenJobId(id);}} />}
+      {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} jobs={jobs} setJobs={setJobs} onBack={()=>setOpenJobId(null)} />}
+      {tab==='profile' && <ProfileTab resumeDb={resumeDb} setResumeDb={setResumeDb} draft={profileDraft} setDraft={setProfileDraft} />}
+      {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} setResumeDb={val=>{setResumeDb(val); setProfileDraft(val);}} />}
+      {tab==='insights'&& <InsightsTab jobs={jobs} regionName={regionMeta.name} />}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// MAIN APP
+// ════════════════════════════════════════════════════════════════
+
+function App() {
+  const [region, setRegion] = useState('canada');
+  const [resumeDb, setResumeDb]       = useState('');
+  const [profileDraft, setProfileDraft] = useState('');
+  const [library, setLibrary]         = useState([]);
+  const [loaded, setLoaded]           = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [ghOk, setGhOk]               = useState(false);
+  const [saveErr, setSaveErr]         = useState('');
+
+  useEffect(() => {
+    // Show root, hide loading spinner
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('root').style.display = '';
+  }, []);
+
+  useEffect(() => {
+    const ok = ghConfigured(); setGhOk(ok);
+    if (!ok) { setLoaded(true); setSettingsOpen(true); return; }
+    (async () => {
+      const [r, lib] = await Promise.all([loadText('resumeDb'), loadJson('library')]);
+      setResumeDb(r); setProfileDraft(r); setLibrary(lib); setLoaded(true);
+    })();
+  }, []);
+
+  useEffect(() => {
+    const h = e => { setSaveErr(e.detail?.message||'Save to GitHub failed'); setTimeout(()=>setSaveErr(''),5000); };
+    window.addEventListener('jobapp:saveerror', h);
+    return () => window.removeEventListener('jobapp:saveerror', h);
+  }, []);
+
+  const handleGhChange = async ok => {
+    setGhOk(ok);
+    if (ok) {
+      const [r, lib] = await Promise.all([loadText('resumeDb'), loadJson('library')]).catch(()=>[resumeDb,library]);
+      setResumeDb(r); setProfileDraft(r); setLibrary(lib);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {settingsOpen && <SettingsPanel open={settingsOpen} onClose={()=>setSettingsOpen(false)} ghOk={ghOk} onGhChange={handleGhChange} />}
+
+      <div className="max-w-5xl mx-auto p-4 sm:p-6">
+        {/* Header */}
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">💼 Job Application Command Center</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Paste a JD, track applications, get AI prompts for Claude.ai — no API key needed.</p>
+          </div>
+          <button onClick={()=>setSettingsOpen(true)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border shrink-0 ${
+              ghOk ? 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50' : 'text-amber-900 bg-amber-50 border-amber-300 hover:bg-amber-100'
+            }`}>
+            ⚙️ {ghOk ? 'Settings' : 'Setup required'}
+          </button>
+        </div>
+
+        {/* Banners */}
+        {!ghOk && (
+          <div className="mb-4">
+            <Alert type="warning">
+              GitHub not configured — data won't be saved.{' '}
+              <button onClick={()=>setSettingsOpen(true)} className="underline font-medium">Open Settings to set it up.</button>
+            </Alert>
+          </div>
+        )}
+        {saveErr && (
+          <div className="mb-4"><Alert type="error">Save error: {saveErr}</Alert></div>
+        )}
+
+        {/* Region tabs */}
+        <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
+          {REGIONS.map(r => {
+            const active = region===r.id;
+            return (
+              <button key={r.id} onClick={()=>setRegion(r.id)}
+                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors whitespace-nowrap ${
+                  active ? `${r.accent} border-current shadow-sm` : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}>
+                {r.flag} {r.name}
+                {active && <span className={`w-1.5 h-1.5 rounded-full ${r.dot}`} />}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* App */}
+        {loaded && (
+          <RegionApp
+            key={region}
+            region={region}
+            resumeDb={resumeDb}
+            setResumeDb={setResumeDb}
+            library={library}
+            setLibrary={setLibrary}
+            profileDraft={profileDraft}
+            setProfileDraft={setProfileDraft}
+          />
+        )}
+
+        <div className="mt-8 text-center text-xs text-gray-400">
+          GitHub credentials stay in your browser. All app data commits to your private repo. No Anthropic API needed.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Mount
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
