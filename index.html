@@ -26,22 +26,23 @@ const { useState, useEffect, useRef, useMemo } = React;
 // ════════════════════════════════════════════════════════════════
 
 const LOCAL_PRE  = 'jobapp:';
-const LOCAL_KEYS = new Set(['githubToken','githubRepo']);
 
 const PATHS = {
-  resumeDb:     'data/resumeDb.txt',
-  library:      'data/library.json',
-  canadaJobs:   'data/canada_jobs.json',
-  hongkongJobs: 'data/hongkong_jobs.json',
-  chinaJobs:    'data/china_jobs.json',
+  resumeDb:       'data/resumeDb.txt',
+  resumeSections: 'data/resumeSections.json',
+  library:        'data/library.json',
+  canadaJobs:     'data/canada_jobs.json',
+  hongkongJobs:   'data/hongkong_jobs.json',
+  chinaJobs:      'data/china_jobs.json',
 };
 
 const KEY_TO_PATH = {
-  resumeDb:     PATHS.resumeDb,
-  library:      PATHS.library,
-  'canada:jobs': PATHS.canadaJobs,
+  resumeDb:        PATHS.resumeDb,
+  resumeSections:  PATHS.resumeSections,
+  library:         PATHS.library,
+  'canada:jobs':   PATHS.canadaJobs,
   'hongkong:jobs': PATHS.hongkongJobs,
-  'china:jobs': PATHS.chinaJobs,
+  'china:jobs':    PATHS.chinaJobs,
 };
 
 const shaCache = {};
@@ -109,6 +110,13 @@ async function loadJson(key)  { try { const t = await ghRead(KEY_TO_PATH[key]); 
 async function saveJson(key, v){ try { await ghWrite(KEY_TO_PATH[key], JSON.stringify(v)); } catch(e){ console.error(e); dispatchSaveErr(e); } }
 
 function dispatchSaveErr(e) { window.dispatchEvent(new CustomEvent('jobapp:saveerror', {detail: e})); }
+
+// Combine all profile sections into one string for AI prompts
+function combineSections(sections) {
+  if (!sections || !sections.length) return '';
+  if (sections.length === 1) return sections[0].content || '';
+  return sections.map(s => `[${s.name}]\n${s.content || ''}`).join('\n\n---\n\n');
+}
 
 function lsGet(k)  { return localStorage.getItem(LOCAL_PRE + k) || ''; }
 function lsSet(k,v){ localStorage.setItem(LOCAL_PRE + k, v); }
@@ -524,7 +532,7 @@ function AiPromptSection({ resumeDb, job }) {
       <div className="flex flex-wrap gap-2">
         {btns.map(b => (
           <Btn key={b.label} variant="secondary"
-            onClick={() => open(b.label.replace(/^.\s/,''), b.fn)}>
+            onClick={() => open(b.label.replace(/^\S+\s/, ''), b.fn)}>
             {b.label}
           </Btn>
         ))}
@@ -664,73 +672,129 @@ function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
 // PROFILE TAB
 // ════════════════════════════════════════════════════════════════
 
-function ProfileTab({ resumeDb, setResumeDb, draft, setDraft }) {
-  const [saved, setSaved] = useState(false);
-  const isDirty = draft !== resumeDb;
+function ProfileTab({ sections, updateSections }) {
+  const [expandedId, setExpandedId] = useState(null);
+  const [editingId, setEditingId]   = useState(null); // which section name is being renamed
+  const [editName, setEditName]     = useState('');
+  const [saving, setSaving]         = useState(false);
+  const [saved, setSaved]           = useState(false);
 
-  const handleSave = async () => {
-    setResumeDb(draft);
-    await saveText('resumeDb', draft);
-    setSaved(true); setTimeout(()=>setSaved(false), 1500);
+  const handleUpload = (text, filename) => {
+    const name = filename.replace(/\.[^.]+$/, '') || 'Untitled';
+    const section = { id: newId(), name, content: text, source: 'upload', filename, addedAt: new Date().toISOString() };
+    updateSections([...sections, section], false); // false = don't save to GitHub yet
   };
 
-  const sample = `# My Background
+  const handleAddManual = () => {
+    const section = { id: newId(), name: 'New section', content: '', source: 'manual', addedAt: new Date().toISOString() };
+    const updated = [...sections, section];
+    updateSections(updated, false);
+    setExpandedId(section.id);
+    setEditingId(section.id);
+    setEditName('New section');
+  };
 
-## Contact
-Email: you@email.com | Phone: +1 xxx | Location: City, Country | LinkedIn: linkedin.com/in/you
+  const handleDelete = id => {
+    if (!window.confirm('Remove this section from your profile?')) return;
+    updateSections(sections.filter(s => s.id !== id), false);
+  };
 
-## Summary
-A 1-2 sentence positioning statement about who you are and what you do.
+  const handleContentChange = (id, val) => {
+    updateSections(sections.map(s => s.id === id ? {...s, content: val} : s), false);
+  };
 
-## Experience
-### Job Title — Company Name (Jan 2022 – Present)
-- Achievement with metric (e.g. Increased revenue by 30%)
-- Key responsibility or project outcome
-- Tools, tech, or skills used
+  const startRename = (s) => { setEditingId(s.id); setEditName(s.name); };
+  const commitRename = (id) => {
+    if (editName.trim()) updateSections(sections.map(s => s.id === id ? {...s, name: editName.trim()} : s), false);
+    setEditingId(null);
+  };
 
-### Previous Job — Company (2019 – 2022)
-- Achievement
-- Achievement
+  const handleSaveAll = async () => {
+    setSaving(true);
+    await updateSections(sections, true); // true = save to GitHub
+    setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 1500);
+  };
 
-## Education
-- Degree, School, Year
-
-## Skills
-Technical: list them here
-Languages: English (native), Cantonese (native), Mandarin (fluent)
-Certifications: any relevant ones
-
-## Projects / Side work
-- Project name — what it is and what you built
-
-## Other
-Awards, publications, volunteer work, anything else relevant
-`;
+  const totalChars = sections.reduce((n, s) => n + (s.content || '').length, 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <Card className="p-4">
-        <SectionHdr icon="📝" title="Master profile — everything about you"
+        <SectionHdr icon="📝" title="My profile — reference files for AI prompts"
           action={
             <div className="flex flex-wrap gap-2 items-center">
-              {isDirty && !saved && <span className="text-xs text-amber-700 font-medium">● Unsaved</span>}
-              <FileUploadButton onFile={t=>setDraft(t)} label="Upload file" />
-              {!draft && <Btn onClick={()=>setDraft(sample)}>Insert template</Btn>}
-              <Btn variant="primary" onClick={handleSave} disabled={!isDirty}>
-                {saved?'✅ Saved':'💾 Save'}
+              <FileUploadButton onFile={handleUpload} label="Upload file" />
+              <Btn onClick={handleAddManual}>➕ Add section</Btn>
+              <Btn variant="primary" onClick={handleSaveAll} disabled={saving}>
+                {saving ? '⏳ Saving…' : saved ? '✅ Saved' : '💾 Save all'}
               </Btn>
             </div>
           }
         />
-        <p className="text-xs text-gray-600 mb-3">
-          Paste everything about yourself here — work history, projects, skills, achievements, certifications, languages.
-          The more detail, the better the prompts Claude gets. <strong>Shared across all three regions.</strong>
-          Accepts .txt, .md, .docx, .pdf.
-        </p>
-        <textarea value={draft} onChange={e=>setDraft(e.target.value)}
-          placeholder="Paste or write your full background here…"
-          className="w-full h-96 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
-        <div className="mt-1 text-xs text-gray-400">{(draft||'').length.toLocaleString()} characters</div>
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 mb-3">
+          <strong>All sections below are combined and sent to Claude when you use AI prompts.</strong>{' '}
+          Upload each file separately — work history, resume templates, skills, anything you want Claude to reference.
+          Accepts .txt, .md, .docx, .pdf. <strong>Shared across all three regions.</strong>
+          {totalChars > 0 && <span className="ml-1 text-blue-700">Total: {totalChars.toLocaleString()} characters across {sections.length} section{sections.length !== 1 ? 's' : ''}.</span>}
+        </div>
+
+        {sections.length === 0 ? (
+          <div className="p-6 text-center text-sm text-gray-500 border border-dashed border-gray-300 rounded-md">
+            No sections yet. Click <strong>Upload file</strong> to add your first one, or <strong>Add section</strong> to write manually.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {sections.map((s, idx) => (
+              <div key={s.id} className="border border-gray-200 rounded-md overflow-hidden">
+                {/* Section header row */}
+                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <button className="text-gray-400 text-xs w-4 shrink-0" onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}>
+                    {expandedId === s.id ? '▼' : '▶'}
+                  </button>
+                  <span className="text-xs">{s.source === 'upload' ? '📄' : '✍️'}</span>
+
+                  {/* Inline rename */}
+                  {editingId === s.id ? (
+                    <input
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      onBlur={() => commitRename(s.id)}
+                      onKeyDown={e => { if (e.key === 'Enter') commitRename(s.id); if (e.key === 'Escape') setEditingId(null); }}
+                      className="flex-1 text-sm font-medium px-1 border border-blue-400 rounded focus:outline-none"
+                      autoFocus
+                    />
+                  ) : (
+                    <button className="flex-1 text-left text-sm font-medium text-gray-900 truncate" onClick={() => startRename(s)}>
+                      {s.name}
+                    </button>
+                  )}
+
+                  <span className="text-xs text-gray-400 shrink-0">{(s.content || '').length.toLocaleString()} chars</span>
+                  <button onClick={() => startRename(s)} className="text-xs text-gray-400 hover:text-gray-700 shrink-0" title="Rename">✏️</button>
+                  <button onClick={() => handleDelete(s.id)} className="text-xs text-gray-400 hover:text-red-600 shrink-0" title="Remove">🗑</button>
+                </div>
+
+                {/* Expanded editor */}
+                {expandedId === s.id && (
+                  <div className="p-2 border-t border-gray-200">
+                    <textarea
+                      value={s.content || ''}
+                      onChange={e => handleContentChange(s.id, e.target.value)}
+                      placeholder="Content of this section…"
+                      className="w-full h-48 p-2 text-sm font-mono border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {sections.length > 0 && (
+          <p className="mt-3 text-xs text-gray-400">
+            Click a section name to rename it. Click ▶ to expand and edit the content. Click 💾 Save all when done.
+          </p>
+        )}
       </Card>
     </div>
   );
@@ -740,7 +804,7 @@ Awards, publications, volunteer work, anything else relevant
 // RESUME LIBRARY TAB
 // ════════════════════════════════════════════════════════════════
 
-function LibraryTab({ library, setLibrary, setResumeDb }) {
+function LibraryTab({ library, setLibrary, updateSections }) {
   const [expandedId, setExpandedId] = useState(null);
 
   const handleUpload = async (text, filename) => {
@@ -761,8 +825,9 @@ function LibraryTab({ library, setLibrary, setResumeDb }) {
   };
 
   const handleUseAsProfile = async entry => {
-    if (!window.confirm(`Replace your master profile with "${entry.name}"?`)) return;
-    setResumeDb(entry.content); await saveText('resumeDb', entry.content);
+    if (!window.confirm(`Replace your entire profile with "${entry.name}"?\n\nThis replaces all existing sections with one section from this resume.`)) return;
+    const section = { id: newId(), name: entry.name, content: entry.content, source: 'library', addedAt: new Date().toISOString() };
+    await updateSections([section], true);
   };
 
   return (
@@ -1163,7 +1228,7 @@ function InsightsTab({ jobs, regionName }) {
 // REGION APP
 // ════════════════════════════════════════════════════════════════
 
-function RegionApp({ region, resumeDb, setResumeDb, library, setLibrary, profileDraft, setProfileDraft }) {
+function RegionApp({ region, resumeDb, sections, updateSections, library, setLibrary }) {
   const regionMeta = REGIONS.find(r=>r.id===region);
   const [tab, setTab] = useState('addjob');
   const [jobs, setJobs] = useState([]);
@@ -1205,8 +1270,8 @@ function RegionApp({ region, resumeDb, setResumeDb, library, setLibrary, profile
       {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>{switchTab('tracker'); setOpenJobId(id);}} />}
       {tab==='tracker' && !openJob && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} onOpen={id=>{setOpenJobId(id);}} />}
       {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} jobs={jobs} setJobs={setJobs} onBack={()=>setOpenJobId(null)} />}
-      {tab==='profile' && <ProfileTab resumeDb={resumeDb} setResumeDb={setResumeDb} draft={profileDraft} setDraft={setProfileDraft} />}
-      {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} setResumeDb={val=>{setResumeDb(val); setProfileDraft(val);}} />}
+      {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} />}
+      {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}
       {tab==='insights'&& <InsightsTab jobs={jobs} regionName={regionMeta.name} />}
     </div>
   );
@@ -1218,16 +1283,15 @@ function RegionApp({ region, resumeDb, setResumeDb, library, setLibrary, profile
 
 function App() {
   const [region, setRegion] = useState('canada');
-  const [resumeDb, setResumeDb]       = useState('');
-  const [profileDraft, setProfileDraft] = useState('');
-  const [library, setLibrary]         = useState([]);
-  const [loaded, setLoaded]           = useState(false);
+  const [sections, setSections]   = useState([]);   // profile sections
+  const [resumeDb, setResumeDb]   = useState('');   // computed from sections
+  const [library, setLibrary]     = useState([]);
+  const [loaded, setLoaded]       = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [ghOk, setGhOk]               = useState(false);
-  const [saveErr, setSaveErr]         = useState('');
+  const [ghOk, setGhOk]           = useState(false);
+  const [saveErr, setSaveErr]     = useState('');
 
   useEffect(() => {
-    // Show root, hide loading spinner
     document.getElementById('loading').style.display = 'none';
     document.getElementById('root').style.display = '';
   }, []);
@@ -1236,22 +1300,51 @@ function App() {
     const ok = ghConfigured(); setGhOk(ok);
     if (!ok) { setLoaded(true); setSettingsOpen(true); return; }
     (async () => {
-      const [r, lib] = await Promise.all([loadText('resumeDb'), loadJson('library')]);
-      setResumeDb(r); setProfileDraft(r); setLibrary(lib); setLoaded(true);
+      const [rawSecs, oldDb, lib] = await Promise.all([
+        loadJson('resumeSections'),
+        loadText('resumeDb'),
+        loadJson('library'),
+      ]);
+      let secs = rawSecs;
+      // Migration: if no sections yet but old plain-text resumeDb exists, create one section from it
+      if ((!secs || secs.length === 0) && oldDb.trim()) {
+        secs = [{ id: newId(), name: 'My Profile', content: oldDb, source: 'manual', addedAt: new Date().toISOString() }];
+      }
+      setSections(secs);
+      setResumeDb(combineSections(secs));
+      setLibrary(lib);
+      setLoaded(true);
     })();
   }, []);
 
   useEffect(() => {
-    const h = e => { setSaveErr(e.detail?.message||'Save to GitHub failed'); setTimeout(()=>setSaveErr(''),5000); };
+    const h = e => { setSaveErr(e.detail?.message || 'Save to GitHub failed'); setTimeout(() => setSaveErr(''), 5000); };
     window.addEventListener('jobapp:saveerror', h);
     return () => window.removeEventListener('jobapp:saveerror', h);
   }, []);
 
+  // updateSections: update state + optionally persist to GitHub
+  const updateSections = async (newSecs, persist = true) => {
+    setSections(newSecs);
+    const combined = combineSections(newSecs);
+    setResumeDb(combined);
+    if (persist) {
+      await Promise.all([
+        saveJson('resumeSections', newSecs),
+        saveText('resumeDb', combined),
+      ]);
+    }
+  };
+
   const handleGhChange = async ok => {
     setGhOk(ok);
     if (ok) {
-      const [r, lib] = await Promise.all([loadText('resumeDb'), loadJson('library')]).catch(()=>[resumeDb,library]);
-      setResumeDb(r); setProfileDraft(r); setLibrary(lib);
+      const [rawSecs, oldDb, lib] = await Promise.all([loadJson('resumeSections'), loadText('resumeDb'), loadJson('library')]).catch(() => [[], '', library]);
+      let secs = rawSecs;
+      if ((!secs || secs.length === 0) && oldDb.trim()) {
+        secs = [{ id: newId(), name: 'My Profile', content: oldDb, source: 'manual', addedAt: new Date().toISOString() }];
+      }
+      setSections(secs); setResumeDb(combineSections(secs)); setLibrary(lib);
     }
   };
 
@@ -1309,11 +1402,10 @@ function App() {
             key={region}
             region={region}
             resumeDb={resumeDb}
-            setResumeDb={setResumeDb}
+            sections={sections}
+            updateSections={updateSections}
             library={library}
             setLibrary={setLibrary}
-            profileDraft={profileDraft}
-            setProfileDraft={setProfileDraft}
           />
         )}
 
