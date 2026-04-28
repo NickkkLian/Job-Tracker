@@ -30,6 +30,7 @@ const LOCAL_PRE  = 'jobapp:';
 const PATHS = {
   resumeDb:       'data/resumeDb.txt',
   resumeSections: 'data/resumeSections.json',
+  formatting:     'data/formatting.txt',
   library:        'data/library.json',
   canadaJobs:     'data/canada_jobs.json',
   hongkongJobs:   'data/hongkong_jobs.json',
@@ -39,6 +40,7 @@ const PATHS = {
 const KEY_TO_PATH = {
   resumeDb:        PATHS.resumeDb,
   resumeSections:  PATHS.resumeSections,
+  formatting:      PATHS.formatting,
   library:         PATHS.library,
   'canada:jobs':   PATHS.canadaJobs,
   'hongkong:jobs': PATHS.hongkongJobs,
@@ -168,10 +170,10 @@ const TABS = [
 // ════════════════════════════════════════════════════════════════
 
 const CLAUDE_URL = 'https://claude.ai/new';
-const MAX_RES = 3000;
+const MAX_RES = 6000;  // raised from 3000 to handle multi-section profiles
 const MAX_JD  = 3000;
 
-function promptTailorResume(resumeDb, job) {
+function promptTailorResume(resumeDb, job, formatting) {
   return `Please tailor my resume for this specific job application. Output in clean Markdown.
 
 MY BACKGROUND:
@@ -186,11 +188,11 @@ ${(job.jdText||'').slice(0, MAX_JD)}
 
 INSTRUCTIONS:
 1. Rewrite my resume to highlight the most relevant experience for this role
-2. Mirror the language and keywords from the job description  
+2. Mirror the language and keywords from the job description
 3. Quantify achievements wherever possible
-4. Keep content to approximately one page
-5. Start with a strong summary tailored to this specific role
-6. Output only the resume — no commentary before or after`.trim();
+4. Start with a strong summary tailored to this specific role
+5. Output only the resume — no commentary before or after
+${(formatting||'').trim() ? `\nFORMATTING REQUIREMENTS (follow exactly):\n${formatting.trim()}` : '6. Keep content to approximately one page'}`.trim();
 }
 
 function promptCoverLetter(resumeDb, job) {
@@ -517,8 +519,8 @@ function PromptModal({ title, prompt, onClose }) {
 // AI PROMPT BUTTONS (reused in AddJobTab and JobDetail)
 // ════════════════════════════════════════════════════════════════
 
-function AiPromptSection({ resumeDb, job }) {
-  const [modal, setModal] = useState(null); // { title, prompt }
+function AiPromptSection({ resumeDb, job, formatting }) {
+  const [modal, setModal] = useState(null);
 
   const hasResume = !!(resumeDb || '').trim();
   const hasJd     = !!(job?.jdText || '').trim();
@@ -529,11 +531,11 @@ function AiPromptSection({ resumeDb, job }) {
   };
 
   const btns = [
-    { label:'📝 Tailor Resume',   fn: () => promptTailorResume(resumeDb, job), needsJd: true  },
-    { label:'✉️ Cover Letter',    fn: () => promptCoverLetter(resumeDb, job),   needsJd: true  },
-    { label:'🎯 Interview Prep',  fn: () => promptInterviewPrep(resumeDb, job), needsJd: true  },
-    { label:'👥 Networking',      fn: () => promptNetworking(resumeDb, job),    needsJd: true  },
-    { label:'🔍 Analyze This Job',fn: () => promptJobAnalysis(job),             needsJd: true  },
+    { label:'📝 Tailor Resume',    fn: () => promptTailorResume(resumeDb, job, formatting) },
+    { label:'✉️ Cover Letter',     fn: () => promptCoverLetter(resumeDb, job)               },
+    { label:'🎯 Interview Prep',   fn: () => promptInterviewPrep(resumeDb, job)             },
+    { label:'👥 Networking',       fn: () => promptNetworking(resumeDb, job)                },
+    { label:'🔍 Analyze This Job', fn: () => promptJobAnalysis(job)                         },
   ];
 
   return (
@@ -688,12 +690,17 @@ function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
 // PROFILE TAB
 // ════════════════════════════════════════════════════════════════
 
-function ProfileTab({ sections, updateSections }) {
+function ProfileTab({ sections, updateSections, formatting, setFormatting }) {
   const [expandedId, setExpandedId] = useState(null);
-  const [editingId, setEditingId]   = useState(null); // which section name is being renamed
+  const [editingId, setEditingId]   = useState(null);
   const [editName, setEditName]     = useState('');
   const [saving, setSaving]         = useState(false);
   const [saved, setSaved]           = useState(false);
+  const [fmtDraft, setFmtDraft]     = useState(formatting || '');
+  const [fmtSaved, setFmtSaved]     = useState(false);
+
+  // Keep fmtDraft in sync if formatting changes from outside (e.g. on first load)
+  useEffect(() => { setFmtDraft(formatting || ''); }, [formatting]);
 
   const handleUpload = (text, filename) => {
     const name = filename.replace(/\.[^.]+$/, '') || 'Untitled';
@@ -760,7 +767,7 @@ function ProfileTab({ sections, updateSections }) {
           </div>
         ) : (
           <div className="space-y-2">
-            {sections.map((s, idx) => (
+            {sections.map((s) => (
               <div key={s.id} className="border border-gray-200 rounded-md overflow-hidden">
                 {/* Section header row */}
                 <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors">
@@ -811,6 +818,35 @@ function ProfileTab({ sections, updateSections }) {
             Click a section name to rename it. Click ▶ to expand and edit the content. Click 💾 Save all when done.
           </p>
         )}
+      </Card>
+
+      {/* Formatting instructions card */}
+      <Card className="p-4">
+        <SectionHdr icon="🎨" title="Resume formatting requirements"
+          action={
+            <Btn variant="primary" onClick={async () => {
+              setFormatting(fmtDraft);
+              await saveText('formatting', fmtDraft);
+              setFmtSaved(true); setTimeout(() => setFmtSaved(false), 1500);
+            }}>
+              {fmtSaved ? '✅ Saved' : '💾 Save'}
+            </Btn>
+          }
+        />
+        <p className="text-xs text-gray-600 mb-3">
+          Describe exactly how you want your resume laid out. This is included in every <strong>Tailor Resume</strong> prompt so Claude always follows your preferred format — even though it can't read the visual styling of your uploaded files.
+        </p>
+        <textarea
+          value={fmtDraft}
+          onChange={e => setFmtDraft(e.target.value)}
+          placeholder={`Examples of what to write here:\n\n- One page maximum\n- Sections in this order: Summary, Experience, Education, Skills\n- Bullet points under each role, max 4 bullets\n- Dates on the right side, company and title on the left\n- No objective statement\n- Use bold for company names and job titles\n- Skills section: list as comma-separated, grouped by category\n- Hong Kong format: include a photo placeholder line at the top\n- Use British English spelling`}
+          className="w-full h-48 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y font-mono"
+        />
+        <p className="mt-1 text-xs text-gray-400">
+          {fmtDraft.trim()
+            ? `✅ ${fmtDraft.trim().split('\n').filter(Boolean).length} formatting rule${fmtDraft.trim().split('\n').filter(Boolean).length !== 1 ? 's' : ''} saved — included in Tailor Resume prompts.`
+            : 'No formatting rules set yet — Claude will use its default layout.'}
+        </p>
       </Card>
     </div>
   );
@@ -890,7 +926,7 @@ function LibraryTab({ library, setLibrary, updateSections }) {
 // ADD JOB TAB
 // ════════════════════════════════════════════════════════════════
 
-function AddJobTab({ resumeDb, jobs, setJobs, region, onSaved }) {
+function AddJobTab({ resumeDb, formatting, jobs, setJobs, region, onSaved }) {
   const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'applied', jdText:'', notes:'' };
   const [form, setForm] = useState(empty);
   const [saved, setSaved] = useState(false);
@@ -955,7 +991,7 @@ function AddJobTab({ resumeDb, jobs, setJobs, region, onSaved }) {
       </Card>
 
       {/* AI Help section */}
-      <AiPromptSection resumeDb={resumeDb} job={form} />
+      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} />
     </div>
   );
 }
@@ -1034,7 +1070,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen }) {
 // JOB DETAIL
 // ════════════════════════════════════════════════════════════════
 
-function JobDetail({ region, job, resumeDb, jobs, setJobs, onBack }) {
+function JobDetail({ region, job, resumeDb, formatting, jobs, setJobs, onBack }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm]       = useState({...job});
   const [saving, setSaving]   = useState(false);
@@ -1110,7 +1146,7 @@ function JobDetail({ region, job, resumeDb, jobs, setJobs, onBack }) {
       </Card>
 
       {/* AI prompts */}
-      <AiPromptSection resumeDb={resumeDb} job={form} />
+      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} />
 
       {/* Paste-back sections */}
       <Card className="p-4">
@@ -1244,7 +1280,7 @@ function InsightsTab({ jobs, regionName }) {
 // REGION APP
 // ════════════════════════════════════════════════════════════════
 
-function RegionApp({ region, resumeDb, sections, updateSections, library, setLibrary }) {
+function RegionApp({ region, resumeDb, sections, updateSections, formatting, setFormatting, library, setLibrary }) {
   const regionMeta = REGIONS.find(r=>r.id===region);
   const [tab, setTab] = useState('addjob');
   const [jobs, setJobs] = useState([]);
@@ -1283,10 +1319,10 @@ function RegionApp({ region, resumeDb, sections, updateSections, library, setLib
       </div>
 
       {/* Tab content */}
-      {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>{switchTab('tracker'); setOpenJobId(id);}} />}
+      {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} formatting={formatting} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>{switchTab('tracker'); setOpenJobId(id);}} />}
       {tab==='tracker' && !openJob && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} onOpen={id=>{setOpenJobId(id);}} />}
-      {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} jobs={jobs} setJobs={setJobs} onBack={()=>setOpenJobId(null)} />}
-      {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} />}
+      {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} jobs={jobs} setJobs={setJobs} onBack={()=>setOpenJobId(null)} />}
+      {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} />}
       {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}
       {tab==='insights'&& <InsightsTab jobs={jobs} regionName={regionMeta.name} />}
     </div>
@@ -1299,8 +1335,9 @@ function RegionApp({ region, resumeDb, sections, updateSections, library, setLib
 
 function App() {
   const [region, setRegion] = useState('canada');
-  const [sections, setSections]   = useState([]);   // profile sections
-  const [resumeDb, setResumeDb]   = useState('');   // computed from sections
+  const [sections, setSections]   = useState([]);
+  const [resumeDb, setResumeDb]   = useState('');
+  const [formatting, setFormatting] = useState('');
   const [library, setLibrary]     = useState([]);
   const [loaded, setLoaded]       = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1316,18 +1353,19 @@ function App() {
     const ok = ghConfigured(); setGhOk(ok);
     if (!ok) { setLoaded(true); setSettingsOpen(true); return; }
     (async () => {
-      const [rawSecs, oldDb, lib] = await Promise.all([
+      const [rawSecs, oldDb, fmt, lib] = await Promise.all([
         loadJson('resumeSections'),
         loadText('resumeDb'),
+        loadText('formatting'),
         loadJson('library'),
       ]);
       let secs = rawSecs;
-      // Migration: if no sections yet but old plain-text resumeDb exists, create one section from it
       if ((!secs || secs.length === 0) && oldDb.trim()) {
         secs = [{ id: newId(), name: 'My Profile', content: oldDb, source: 'manual', addedAt: new Date().toISOString() }];
       }
       setSections(secs);
       setResumeDb(combineSections(secs));
+      setFormatting(fmt);
       setLibrary(lib);
       setLoaded(true);
     })();
@@ -1339,7 +1377,6 @@ function App() {
     return () => window.removeEventListener('jobapp:saveerror', h);
   }, []);
 
-  // updateSections: update state + optionally persist to GitHub
   const updateSections = async (newSecs, persist = true) => {
     setSections(newSecs);
     const combined = combineSections(newSecs);
@@ -1355,12 +1392,14 @@ function App() {
   const handleGhChange = async ok => {
     setGhOk(ok);
     if (ok) {
-      const [rawSecs, oldDb, lib] = await Promise.all([loadJson('resumeSections'), loadText('resumeDb'), loadJson('library')]).catch(() => [[], '', library]);
+      const [rawSecs, oldDb, fmt, lib] = await Promise.all([
+        loadJson('resumeSections'), loadText('resumeDb'), loadText('formatting'), loadJson('library'),
+      ]).catch(() => [[], '', '', library]);
       let secs = rawSecs;
       if ((!secs || secs.length === 0) && oldDb.trim()) {
         secs = [{ id: newId(), name: 'My Profile', content: oldDb, source: 'manual', addedAt: new Date().toISOString() }];
       }
-      setSections(secs); setResumeDb(combineSections(secs)); setLibrary(lib);
+      setSections(secs); setResumeDb(combineSections(secs)); setFormatting(fmt); setLibrary(lib);
     }
   };
 
@@ -1420,6 +1459,8 @@ function App() {
             resumeDb={resumeDb}
             sections={sections}
             updateSections={updateSections}
+            formatting={formatting}
+            setFormatting={setFormatting}
             library={library}
             setLibrary={setLibrary}
           />
