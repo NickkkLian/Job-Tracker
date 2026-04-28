@@ -52,12 +52,12 @@ Personal job search tracker for **Canada**, **Hong Kong**, and **Mainland China*
 
 | Repo | Visibility | Purpose |
 |------|-----------|---------|
-| `NickkkLian/jobapp` | **Public** | Hosts the app via GitHub Pages |
+| `NickkkLian/Job-Tracker` | **Public** | Hosts the app via GitHub Pages |
 | `NickkkLian/jobapp-data` | **Private** | Stores your resume and job data |
 
 ### 2. Upload the app file
 
-- Go to your **public** repo (`NickkkLian/jobapp`)
+- Go to your **public** repo (`NickkkLian/Job-Tracker`)
 - Click **Add file → Upload files**
 - Upload `index.html` — rename it to `index.html` if it isn't already
 - Commit to `main`
@@ -69,7 +69,7 @@ Personal job search tracker for **Canada**, **Hong Kong**, and **Mainland China*
 - Branch: `main` · Folder: `/ (root)`
 - Click **Save**
 
-Your app is live at `https://NickkkLian.github.io/jobapp` within about a minute.
+Your app is live at `https://NickkkLian.github.io/Job-Tracker` within about a minute.
 
 ### 4. Configure the app
 
