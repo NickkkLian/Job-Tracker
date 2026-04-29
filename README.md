@@ -17,16 +17,22 @@ A personal job search tracker for **Canada**, **Hong Kong**, and **Mainland Chin
 
 **AI Help via Claude.ai**
 - Seven ready-to-use prompts generated from your resume + job description:
-  - 📝 Tailor Resume
-  - ✉️ Cover Letter
-  - 🎯 Interview Prep
-  - 👥 Networking Strategy
-  - 🔍 Analyze This Job
-  - 🇨🇳 Translate to Simplified Chinese (简体中文)
-  - 🇭🇰 Translate to Traditional Chinese (繁體中文)
-- The app builds a structured prompt with your background and the JD already embedded — you copy it, paste into Claude.ai, and paste the result back to save it
-- Translation prompts use your tailored resume as the source if one exists, otherwise fall back to your profile — always translate the tailored version for best results
+  - 📝 Tailor Resume — tailors your profile to the specific role and JD
+  - ✉️ Cover Letter — writes a targeted 300-word cover letter
+  - 🎯 Interview Prep — 8 likely questions, what they test, areas to study
+  - 👥 Networking Strategy — specific LinkedIn targets and outreach approach
+  - 🔍 Analyze This Job — day-to-day reality, red flags, salary estimate, competition
+  - 🇨🇳 Translate to Simplified Chinese — translates and reformats into Mainland China 简历 structure
+  - 🇭🇰 Translate to Traditional Chinese — translates and reformats into Hong Kong CV structure
+- Translation prompts open a source picker — choose from the saved tailored resume, any resume in your library, or paste your own text
 - Works with the free or Pro Claude.ai plan — no API key, no extra cost
+
+**Print View (PDF export)**
+- Once a tailored resume is saved, a 🖨️ Print view button appears next to Copy and Download
+- Choose from three visual styles: 🇨🇳 Mainland China 简历, 🇭🇰 Hong Kong CV, 📄 English (clean)
+- Opens a fully styled A4 HTML page in a new tab — press Ctrl+P (⌘P) and save as PDF
+- Chinese styles use Noto Sans SC / TC fonts loaded from Google Fonts
+- No install required — runs entirely in your browser
 
 **Resume Management**
 - My Profile — upload multiple files as separate named sections (resume versions, skills docs, anything you want Claude to reference); all sections are combined when building AI prompts
@@ -103,15 +109,24 @@ Click "Tailor Resume"
   → App combines all your profile sections into one reference document
   → Adds your formatting requirements (if set)
   → Embeds the job description
-  → You copy the prompt, paste into Claude.ai, and send
-  → Copy Claude's response
-  → Paste it into the "Tailored Resume" field in the app
-  → Save — stored in your private GitHub repo
+  → Copy the prompt → paste into Claude.ai → send
+  → Copy Claude's response → paste it into the Tailored Resume field → Save
 
 Click "→ 简体中文" or "→ 繁體中文"
-  → App uses your saved tailored resume as the source (or profile if none)
-  → Generates a translation prompt with region-appropriate terminology instructions
-  → Paste into Claude.ai → copy result → paste back into the Tailored Resume field
+  → Source picker opens — choose from:
+       · Saved tailored resume for this job
+       · Any resume in your library
+       · Paste your own text
+  → Generate prompt → copy → open Claude.ai → paste → send
+  → Paste translation back into the Tailored Resume field → Save
+
+Click "🖨️ Print view" (appears once a tailored resume is saved)
+  → Choose a visual style:
+       · 🇨🇳 Mainland China 简历  (dark navy accents, Noto Sans SC)
+       · 🇭🇰 Hong Kong CV        (clean uppercase headers, Noto Sans TC)
+       · 📄 English clean        (minimal Inter font)
+  → Styled A4 HTML opens in a new tab
+  → Press Ctrl+P (⌘P) → Destination: Save as PDF → set Margins to None
 ```
 
 Uses your existing [Claude.ai](https://claude.ai) account — no additional API charges.
