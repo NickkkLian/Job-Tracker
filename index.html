@@ -273,23 +273,59 @@ Please provide:
 
 function promptTranslateResume(resumeContent, targetLang) {
   const isSimplified = targetLang === 'simplified';
-  const langLabel    = isSimplified ? 'Simplified Chinese (简体中文)' : 'Traditional Chinese (繁體中文)';
-  const regionNote   = isSimplified
-    ? 'for Mainland China job applications — use standard Mainland Chinese professional terminology and conventions'
-    : 'for Hong Kong or Taiwan job applications — use standard Traditional Chinese professional terminology and conventions appropriate for the target region';
 
-  return `Please translate the following resume into ${langLabel}, ${regionNote}.
+  const simplified = `Please translate the following resume into Simplified Chinese (简体中文) and reformat it to match the standard Mainland China 简历 format.
 
-RESUME TO TRANSLATE:
+RESUME TO TRANSLATE AND REFORMAT:
 ${(resumeContent||'').slice(0, 5000)}
 
 TRANSLATION REQUIREMENTS:
-1. Translate all text into ${langLabel} — do not leave any English text untranslated except proper nouns (company names, school names, product names, programming languages, tools)
-2. Use professional resume terminology appropriate for ${isSimplified ? 'Mainland China' : 'Hong Kong / Taiwan'}
-3. Preserve the exact same structure, section order, and formatting as the original
-4. Keep all numbers, dates, metrics, and quantified achievements accurate
-5. For technical terms with no direct translation, keep the English term and add a Chinese explanation in parentheses if helpful
-6. Output only the translated resume — no commentary before or after`.trim();
+1. Translate all text into Simplified Chinese — keep proper nouns in English (company names, school names, tools, programming languages, product names)
+2. Use standard Mainland China professional terminology (e.g. 工作经历 not 工作經歷, 教育背景, 技能, 项目经历, 自我评价)
+3. Keep all numbers, dates, metrics, and quantified achievements accurate
+4. For technical terms with no natural translation, keep English and add Chinese in parentheses if helpful
+
+MAINLAND CHINA 简历 FORMAT REQUIREMENTS (apply after translating):
+- Header: Full name (large, centered) → contact line with phone | email | city | LinkedIn or GitHub if relevant
+- Personal information block directly under header: 性别 | 出生年月 | 籍贯 (use placeholder values like "男/女 | 199X年XX月 | [省份]" if not in source — note these as placeholders)
+- Section order: 求职意向 (target role) → 教育背景 → 工作经历 → 项目经历 → 专业技能 → 获奖情况 (if any) → 自我评价
+- 求职意向: one line stating the target role and city preference
+- 教育背景: institution → degree → graduation year → GPA or awards if present
+- 工作经历: company | location | dates (right-aligned) → job title → bullet points starting with action verbs
+- 项目经历: project name | date → role → bullet points with outcomes and tech stack
+- 专业技能: grouped by category with label, e.g. 编程语言：Python、R、SQL
+- 自我评价: 3–4 sentences, first-person, confident tone summarising strengths
+- Dates: use Chinese format — XXXX年XX月 or XXXX年XX月–XXXX年XX月
+- Bullet points: use • or ·, start with action verb in Chinese, quantify outcomes
+- Output clean Markdown — no commentary before or after`;
+
+  const traditional = `Please translate the following resume into Traditional Chinese (繁體中文) and reformat it to match the standard Hong Kong professional CV format.
+
+RESUME TO TRANSLATE AND REFORMAT:
+${(resumeContent||'').slice(0, 5000)}
+
+TRANSLATION REQUIREMENTS:
+1. Translate all text into Traditional Chinese — keep proper nouns in English (company names, school names, tools, programming languages, product names)
+2. Use standard Hong Kong professional terminology (e.g. 工作經驗 not 工作经历, 學歷, 技能, 項目經驗, 個人簡介)
+3. Keep all numbers, dates, metrics, and quantified achievements accurate
+4. For technical terms with no natural translation, keep English and add Chinese in parentheses if helpful
+
+HONG KONG PROFESSIONAL CV FORMAT REQUIREMENTS (apply after translating):
+- Header: Full name in English AND Chinese characters (大名) centered at top → contact line: phone | email | LinkedIn/GitHub
+- Personal details block: 性別 | 出生日期 | 居住地區 | 國籍/居留權 (use placeholder values if not in source — note these as placeholders)
+- No photo placeholder needed in text format
+- Section order: 個人簡介 → 學歷 → 工作經驗 → 項目經驗 → 技能 → 語言能力 → 證書及獎項 (if any)
+- 個人簡介: 3–4 sentences, professional tone, summarising background and value proposition
+- 學歷: institution (include both English and Chinese name if known) → degree → year → relevant awards or distinctions
+- 工作經驗: company | location | date range → job title → 3–4 bullet points with quantified achievements
+- 項目經驗: project name → date → brief description → bullet points on contribution and outcome
+- 技能: grouped by category, e.g. 程式語言：Python、R、SQL
+- 語言能力: list each language with proficiency, e.g. 英語（雅思8.0）、廣東話（母語）、普通話（流利）
+- Dates: Month YYYY format or YYYY年MM月 in Chinese
+- Bullet points: use •, open with strong action verb in Traditional Chinese, quantify outcomes
+- Output clean Markdown — no commentary before or after`;
+
+  return isSimplified ? simplified : traditional;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -365,6 +401,202 @@ function safeName(s) { return (s||'file').replace(/[^\w\s-]/g,'').replace(/\s+/g
 function stripMd(md) {
   return (md||'').replace(/^#{1,6}\s+/gm,'').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1')
     .replace(/^[-*]\s+/gm,'• ').replace(/\[([^\]]+)\]\([^)]+\)/g,'$1');
+}
+
+// ════════════════════════════════════════════════════════════════
+// RESUME PRINT VIEW GENERATOR
+// ════════════════════════════════════════════════════════════════
+
+const PRINT_STYLES = {
+  mainland: {
+    label: '🇨🇳 Mainland China 简历',
+    fontUrl: 'https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap',
+    fontFamily: "'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', sans-serif",
+    css: `
+      body { font-family: FONT; font-size: 11pt; color: #1a1a1a; margin: 0; padding: 0; background: white; }
+      .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm 16mm; box-sizing: border-box; }
+      h1 { font-size: 22pt; font-weight: 700; text-align: center; margin: 0 0 4px; letter-spacing: 4px; color: #0d2137; }
+      .contact { text-align: center; font-size: 9.5pt; color: #444; margin-bottom: 10px; }
+      .contact span { margin: 0 8px; }
+      .divider { border: none; border-top: 2.5px solid #0d2137; margin: 6px 0 10px; }
+      h2 { font-size: 11.5pt; font-weight: 700; color: #0d2137; border-left: 4px solid #0d2137;
+           padding: 2px 0 2px 8px; background: #eef4fb; margin: 12px 0 6px; letter-spacing: 1px; }
+      h3 { font-size: 10.5pt; font-weight: 600; margin: 8px 0 2px; color: #1a1a1a; display: flex; justify-content: space-between; }
+      .date { font-weight: 400; font-size: 9.5pt; color: #555; float: right; }
+      ul { margin: 2px 0 6px 0; padding-left: 16px; }
+      li { margin: 2px 0; font-size: 10pt; line-height: 1.5; }
+      p { margin: 3px 0; font-size: 10pt; line-height: 1.6; }
+      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .page { padding: 10mm 14mm; } @page { size: A4; margin: 0; } }
+    `,
+  },
+  hongkong: {
+    label: '🇭🇰 Hong Kong CV',
+    fontUrl: 'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap',
+    fontFamily: "'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif",
+    css: `
+      body { font-family: FONT; font-size: 11pt; color: #1a1a1a; margin: 0; padding: 0; background: white; }
+      .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm 18mm; box-sizing: border-box; }
+      h1 { font-size: 20pt; font-weight: 700; margin: 0 0 2px; color: #1a1a2e; letter-spacing: 1px; }
+      .name-zh { font-size: 14pt; color: #444; margin-bottom: 6px; }
+      .contact { font-size: 9.5pt; color: #555; margin-bottom: 4px; }
+      .contact span { margin-right: 14px; }
+      .divider { border: none; border-top: 1.5px solid #1a1a2e; margin: 8px 0; }
+      h2 { font-size: 11pt; font-weight: 700; color: #1a1a2e; text-transform: uppercase;
+           letter-spacing: 1.5px; border-bottom: 1px solid #ccd; padding-bottom: 3px; margin: 12px 0 6px; }
+      h3 { font-size: 10.5pt; font-weight: 600; margin: 8px 0 2px; display: flex; justify-content: space-between; }
+      .date { font-weight: 400; font-size: 9.5pt; color: #666; }
+      ul { margin: 2px 0 6px 0; padding-left: 16px; }
+      li { margin: 2px 0; font-size: 10pt; line-height: 1.55; }
+      p { margin: 3px 0; font-size: 10pt; line-height: 1.65; }
+      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .page { padding: 10mm 16mm; } @page { size: A4; margin: 0; } }
+    `,
+  },
+  english: {
+    label: '📄 English (clean)',
+    fontUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+    fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
+    css: `
+      body { font-family: FONT; font-size: 10.5pt; color: #1a1a1a; margin: 0; padding: 0; background: white; }
+      .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm 18mm; box-sizing: border-box; }
+      h1 { font-size: 20pt; font-weight: 700; margin: 0 0 4px; letter-spacing: 0.5px; }
+      .contact { font-size: 9.5pt; color: #555; margin-bottom: 10px; }
+      .contact span { margin-right: 12px; }
+      .divider { border: none; border-top: 1.5px solid #222; margin: 6px 0 10px; }
+      h2 { font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+           border-bottom: 1px solid #aaa; padding-bottom: 2px; margin: 12px 0 5px; color: #111; }
+      h3 { font-size: 10.5pt; font-weight: 600; margin: 7px 0 1px; display: flex; justify-content: space-between; }
+      .date { font-weight: 400; font-size: 9.5pt; color: #555; }
+      ul { margin: 2px 0 5px 0; padding-left: 16px; }
+      li { margin: 1px 0; font-size: 10pt; line-height: 1.5; }
+      p { margin: 3px 0; font-size: 10pt; line-height: 1.6; }
+      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .page { padding: 10mm 16mm; } @page { size: A4; margin: 0; } }
+    `,
+  },
+};
+
+function mdToHtmlBody(text) {
+  const lines = (text || '').split('\n');
+  let html = '';
+  let inList = false;
+
+  const inline = s => s
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g,'<em>$1</em>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2">$1</a>');
+
+  const flush = () => { if (inList) { html += '</ul>'; inList = false; } };
+
+  lines.forEach(raw => {
+    const l = raw.replace(/\r$/,'');
+    if (/^#\s/.test(l)) {
+      flush();
+      // h1 = name line — split contact info out
+      const name = l.replace(/^#\s/,'').trim();
+      html += `<h1>${inline(name)}</h1>`;
+    } else if (/^##\s/.test(l)) {
+      flush();
+      html += `<h2>${inline(l.replace(/^##\s/,'').trim())}</h2>`;
+    } else if (/^###\s/.test(l)) {
+      flush();
+      // Detect "Title — Company    Date" pattern and split date to right
+      const content = l.replace(/^###\s/,'').trim();
+      const dateMatch = content.match(/^(.*?)\s{2,}(\d{4}.{0,20})$/) || content.match(/^(.*?)\s*[·|]\s*([\d年月–\-].+)$/);
+      if (dateMatch) {
+        html += `<h3><span>${inline(dateMatch[1].trim())}</span><span class="date">${inline(dateMatch[2].trim())}</span></h3>`;
+      } else {
+        html += `<h3>${inline(content)}</h3>`;
+      }
+    } else if (/^\s*[-•·*]\s/.test(l)) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      html += `<li>${inline(l.replace(/^\s*[-•·*]\s/,'').trim())}</li>`;
+    } else if (l.trim() === '') {
+      flush();
+      html += '<div style="height:4px"></div>';
+    } else {
+      flush();
+      // Contact line heuristic: if it contains · or | and no letters before first |/·, treat as contact
+      if (/[·|]/.test(l) && l.trim().length < 200) {
+        const parts = l.split(/\s*[·|]\s*/);
+        html += `<p class="contact">${parts.map(p => `<span>${inline(p.trim())}</span>`).join('')}</p>`;
+      } else {
+        html += `<p>${inline(l)}</p>`;
+      }
+    }
+  });
+  flush();
+  return html;
+}
+
+function openPrintView(content, styleKey) {
+  const s = PRINT_STYLES[styleKey];
+  const css = s.css.replace(/FONT/g, s.fontFamily);
+  const body = mdToHtmlBody(content);
+  const html = `<!DOCTYPE html>
+<html lang="${styleKey === 'mainland' ? 'zh-CN' : styleKey === 'hongkong' ? 'zh-HK' : 'en'}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<title>Resume</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="${s.fontUrl}" rel="stylesheet">
+<style>${css}</style>
+</head>
+<body>
+<div class="page">
+${body}
+</div>
+<script>
+  document.fonts.ready.then(() => {
+    document.getElementById('printbar').style.display = 'flex';
+  });
+<\/script>
+<div id="printbar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#1a365d;color:white;padding:10px 20px;align-items:center;justify-content:space-between;font-family:sans-serif;font-size:13px;z-index:999">
+  <span>✅ Resume ready — press <strong>Ctrl+P</strong> (or ⌘P on Mac) to save as PDF. Set margins to None for best results.</span>
+  <button onclick="window.print()" style="background:white;color:#1a365d;border:none;padding:6px 16px;border-radius:4px;font-weight:600;cursor:pointer">🖨️ Print / Save PDF</button>
+</div>
+</body>
+</html>`;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// PrintView button component
+function PrintViewButton({ content }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+
+  if (!(content||'').trim()) return null;
+
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <Btn onClick={() => setOpen(o => !o)}>🖨️ Print view</Btn>
+      {open && (
+        <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-20">
+          <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-100">Choose visual style:</div>
+          {Object.entries(PRINT_STYLES).map(([key, s]) => (
+            <button key={key}
+              onClick={() => { openPrintView(content, key); setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 last:rounded-b-md">
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -537,20 +769,137 @@ function PromptModal({ title, prompt, onClose }) {
 }
 
 // ════════════════════════════════════════════════════════════════
+// TRANSLATE SOURCE PICKER MODAL
+// ════════════════════════════════════════════════════════════════
+
+function TranslatePickerModal({ targetLang, tailoredResume, library, onClose }) {
+  const langLabel = targetLang === 'simplified' ? 'Simplified Chinese (简体中文)' : 'Traditional Chinese (繁體中文)';
+  const langIcon  = targetLang === 'simplified' ? '🇨🇳' : '🇭🇰';
+
+  const sources = [
+    ...(tailoredResume?.trim() ? [{ id:'tailored', label:'Tailored resume (saved for this job)' }] : []),
+    ...(library||[]).map(r => ({ id:`lib:${r.id}`, label:`Resume library: ${r.name}` })),
+    { id:'custom', label:'Paste / type my own text' },
+  ];
+
+  const [sel, setSel]             = useState(sources[0]?.id || 'custom');
+  const [customText, setCustomText] = useState('');
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [copied, setCopied]       = useState(false);
+
+  const getContent = () => {
+    if (sel === 'tailored') return tailoredResume || '';
+    if (sel === 'custom')   return customText;
+    const libId = sel.replace('lib:', '');
+    return (library||[]).find(r => r.id === libId)?.content || '';
+  };
+
+  const content = getContent();
+  const prompt  = promptTranslateResume(content, targetLang);
+
+  const handleCopy = async () => {
+    try { await navigator.clipboard.writeText(prompt); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mt-8 mb-8" onClick={e => e.stopPropagation()}>
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-900">{langIcon} Translate Resume → {langLabel}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none">&times;</button>
+        </div>
+        <div className="p-4 space-y-4">
+
+          {/* Source picker */}
+          <div>
+            <label className="text-xs font-medium text-gray-700 mb-2 block">Which resume do you want to translate?</label>
+            <div className="space-y-2">
+              {sources.map(s => (
+                <label key={s.id} className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                  sel === s.id ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+                }`}>
+                  <input type="radio" name="translateSource" value={s.id}
+                    checked={sel === s.id} onChange={() => { setSel(s.id); setShowPrompt(false); }} className="shrink-0" />
+                  <span className="text-sm text-gray-800 flex-1">{s.label}</span>
+                  {sel === s.id && s.id !== 'custom' && content && (
+                    <span className="text-xs text-gray-400">{content.length.toLocaleString()} chars</span>
+                  )}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom text area */}
+          {sel === 'custom' && (
+            <div>
+              <label className="text-xs font-medium text-gray-700 mb-1 block">Paste your resume here</label>
+              <textarea value={customText} onChange={e => { setCustomText(e.target.value); setShowPrompt(false); }}
+                placeholder="Paste the resume text you want to translate…"
+                className="w-full h-40 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                autoFocus />
+              <div className="text-xs text-gray-400 mt-0.5">{customText.length.toLocaleString()} chars</div>
+            </div>
+          )}
+
+          {/* Collapsible source preview */}
+          {sel !== 'custom' && content && (
+            <details className="border border-gray-200 rounded-md">
+              <summary className="cursor-pointer px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 rounded-md">
+                Preview source content
+              </summary>
+              <div className="px-3 pb-3 max-h-40 overflow-y-auto text-xs font-mono text-gray-700 whitespace-pre-wrap border-t border-gray-100 pt-2">
+                {content.slice(0, 1000)}{content.length > 1000 ? '\n…' : ''}
+              </div>
+            </details>
+          )}
+
+          {/* Generate prompt */}
+          {!showPrompt ? (
+            <div className="flex justify-end">
+              <Btn variant="primary" disabled={!content.trim()} onClick={() => setShowPrompt(true)}>
+                Generate prompt →
+              </Btn>
+            </div>
+          ) : (
+            <div>
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 mb-2 space-y-0.5">
+                <div className="font-semibold">How to use:</div>
+                <div>1. Click <strong>Copy prompt</strong> → click <strong>Open Claude.ai</strong></div>
+                <div>2. Paste (⌘V / Ctrl+V) and press Send</div>
+                <div>3. Copy Claude's translation → paste it back into the Tailored Resume field</div>
+              </div>
+              <textarea value={prompt} readOnly
+                className="w-full h-52 p-3 text-xs font-mono border border-gray-300 rounded-md bg-gray-50 resize-y focus:outline-none"
+                onClick={e => e.target.select()} />
+              <div className="flex gap-2 mt-3 justify-end flex-wrap">
+                <Btn onClick={handleCopy}>{copied ? '✅ Copied!' : '📋 Copy prompt'}</Btn>
+                <a href={CLAUDE_URL} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600">
+                  Open Claude.ai →
+                </a>
+              </div>
+              <p className="mt-2 text-xs text-gray-400">Uses your existing Claude.ai subscription — no extra cost.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
 // AI PROMPT BUTTONS (reused in AddJobTab and JobDetail)
 // ════════════════════════════════════════════════════════════════
 
-function AiPromptSection({ resumeDb, job, formatting, tailoredResume }) {
-  const [modal, setModal] = useState(null);
+function AiPromptSection({ resumeDb, job, formatting, tailoredResume, library }) {
+  const [modal, setModal]             = useState(null);
+  const [translateLang, setTranslateLang] = useState(null); // 'simplified' | 'traditional'
 
   const hasResume = !!(resumeDb || '').trim();
   const hasJd     = !!(job?.jdText || '').trim();
-  // For translation, prefer the tailored resume if it exists, otherwise fall back to the raw profile
-  const translateSource = (tailoredResume || '').trim() || (resumeDb || '').trim();
-  const hasTranslateSource = !!translateSource;
 
-  const open = (title, promptFn, requiresResume = true) => {
-    if (requiresResume && !hasResume) { alert('Add your profile/background in My Profile tab first — it makes the prompts much better.'); return; }
+  const open = (title, promptFn) => {
+    if (!hasResume) { alert('Add your profile/background in My Profile tab first — it makes the prompts much better.'); return; }
     setModal({ title, prompt: promptFn() });
   };
 
@@ -560,11 +909,6 @@ function AiPromptSection({ resumeDb, job, formatting, tailoredResume }) {
     { label:'🎯 Interview Prep',   fn: () => promptInterviewPrep(resumeDb, job)             },
     { label:'👥 Networking',       fn: () => promptNetworking(resumeDb, job)                },
     { label:'🔍 Analyze This Job', fn: () => promptJobAnalysis(job)                         },
-  ];
-
-  const translateBtns = [
-    { label:'🇨🇳 → 简体中文', title:'Translate to Simplified Chinese', fn: () => promptTranslateResume(translateSource, 'simplified') },
-    { label:'🇭🇰 → 繁體中文', title:'Translate to Traditional Chinese', fn: () => promptTranslateResume(translateSource, 'traditional') },
   ];
 
   return (
@@ -585,25 +929,21 @@ function AiPromptSection({ resumeDb, job, formatting, tailoredResume }) {
         ))}
       </div>
       <div className="border-t border-gray-100 pt-3">
-        <p className="text-xs text-gray-500 mb-2">
-          Translate resume to Chinese —{' '}
-          {hasTranslateSource
-            ? (tailoredResume||'').trim()
-              ? 'uses the tailored resume above as source'
-              : 'uses your profile as source (tailor the resume first for best results)'
-            : 'add your profile or tailor a resume first'}
-        </p>
+        <p className="text-xs text-gray-500 mb-2">Translate a resume to Chinese — you'll choose which resume to use.</p>
         <div className="flex flex-wrap gap-2">
-          {translateBtns.map(b => (
-            <Btn key={b.label} variant="secondary"
-              disabled={!hasTranslateSource}
-              onClick={() => open(b.title, b.fn, false)}>
-              {b.label}
-            </Btn>
-          ))}
+          <Btn variant="secondary" onClick={() => setTranslateLang('simplified')}>🇨🇳 → 简体中文</Btn>
+          <Btn variant="secondary" onClick={() => setTranslateLang('traditional')}>🇭🇰 → 繁體中文</Btn>
         </div>
       </div>
       {modal && <PromptModal title={modal.title} prompt={modal.prompt} onClose={() => setModal(null)} />}
+      {translateLang && (
+        <TranslatePickerModal
+          targetLang={translateLang}
+          tailoredResume={tailoredResume || ''}
+          library={library || []}
+          onClose={() => setTranslateLang(null)}
+        />
+      )}
     </Card>
   );
 }
@@ -974,7 +1314,7 @@ function LibraryTab({ library, setLibrary, updateSections }) {
 // ADD JOB TAB
 // ════════════════════════════════════════════════════════════════
 
-function AddJobTab({ resumeDb, formatting, jobs, setJobs, region, onSaved }) {
+function AddJobTab({ resumeDb, formatting, library, jobs, setJobs, region, onSaved }) {
   const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'applied', jdText:'', notes:'' };
   const [form, setForm] = useState(empty);
   const [saved, setSaved] = useState(false);
@@ -1039,7 +1379,7 @@ function AddJobTab({ resumeDb, formatting, jobs, setJobs, region, onSaved }) {
       </Card>
 
       {/* AI Help section */}
-      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} tailoredResume="" />
+      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} tailoredResume="" library={library} />
     </div>
   );
 }
@@ -1118,7 +1458,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen }) {
 // JOB DETAIL
 // ════════════════════════════════════════════════════════════════
 
-function JobDetail({ region, job, resumeDb, formatting, jobs, setJobs, onBack }) {
+function JobDetail({ region, job, resumeDb, formatting, library, jobs, setJobs, onBack }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm]       = useState({...job});
   const [saving, setSaving]   = useState(false);
@@ -1194,14 +1534,20 @@ function JobDetail({ region, job, resumeDb, formatting, jobs, setJobs, onBack })
       </Card>
 
       {/* AI prompts */}
-      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} tailoredResume={form.tailoredResume||''} />
+      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} tailoredResume={form.tailoredResume||''} library={library} />
 
       {/* Paste-back sections */}
       <Card className="p-4">
         <SectionHdr icon="📝" title="Tailored resume"
           action={
-            <div className="flex gap-2">
-              {form.tailoredResume && <><CopyButton text={form.tailoredResume} /><DownloadMenu content={form.tailoredResume} baseFilename={`Resume_${form.company}_${form.role}`} /></>}
+            <div className="flex gap-2 flex-wrap">
+              {form.tailoredResume && (
+                <>
+                  <CopyButton text={form.tailoredResume} />
+                  <DownloadMenu content={form.tailoredResume} baseFilename={`Resume_${form.company}_${form.role}`} />
+                  <PrintViewButton content={form.tailoredResume} />
+                </>
+              )}
             </div>
           }
         />
@@ -1367,9 +1713,9 @@ function RegionApp({ region, resumeDb, sections, updateSections, formatting, set
       </div>
 
       {/* Tab content */}
-      {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} formatting={formatting} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>{switchTab('tracker'); setOpenJobId(id);}} />}
+      {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} formatting={formatting} library={library} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>{switchTab('tracker'); setOpenJobId(id);}} />}
       {tab==='tracker' && !openJob && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} onOpen={id=>{setOpenJobId(id);}} />}
-      {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} jobs={jobs} setJobs={setJobs} onBack={()=>setOpenJobId(null)} />}
+      {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>setOpenJobId(null)} />}
       {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} />}
       {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}
       {tab==='insights'&& <InsightsTab jobs={jobs} regionName={regionMeta.name} />}
