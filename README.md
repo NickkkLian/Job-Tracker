@@ -16,13 +16,16 @@ A personal job search tracker for **Canada**, **Hong Kong**, and **Mainland Chin
 - Three fully isolated regions — Canada, Hong Kong, Mainland China — data never crosses between them
 
 **AI Help via Claude.ai**
-- Five ready-to-use prompts generated from your resume + job description:
+- Seven ready-to-use prompts generated from your resume + job description:
   - 📝 Tailor Resume
   - ✉️ Cover Letter
   - 🎯 Interview Prep
   - 👥 Networking Strategy
   - 🔍 Analyze This Job
+  - 🇨🇳 Translate to Simplified Chinese (简体中文)
+  - 🇭🇰 Translate to Traditional Chinese (繁體中文)
 - The app builds a structured prompt with your background and the JD already embedded — you copy it, paste into Claude.ai, and paste the result back to save it
+- Translation prompts use your tailored resume as the source if one exists, otherwise fall back to your profile — always translate the tailored version for best results
 - Works with the free or Pro Claude.ai plan — no API key, no extra cost
 
 **Resume Management**
@@ -104,6 +107,11 @@ Click "Tailor Resume"
   → Copy Claude's response
   → Paste it into the "Tailored Resume" field in the app
   → Save — stored in your private GitHub repo
+
+Click "→ 简体中文" or "→ 繁體中文"
+  → App uses your saved tailored resume as the source (or profile if none)
+  → Generates a translation prompt with region-appropriate terminology instructions
+  → Paste into Claude.ai → copy result → paste back into the Tailored Resume field
 ```
 
 Uses your existing [Claude.ai](https://claude.ai) account — no additional API charges.
