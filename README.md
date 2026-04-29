@@ -166,10 +166,6 @@ No framework CLI, no bundler, no `npm install`.
 
 ---
 
-## Updating
-
-When a new version of `index.html` is available, replace the file in your repo and commit — GitHub Pages updates automatically. Your data in the private repo is unaffected.
-
 ---
 
 ## License
