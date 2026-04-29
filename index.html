@@ -271,6 +271,27 @@ Please provide:
 6. How competitive this role likely is and what would make a candidate stand out`.trim();
 }
 
+function promptTranslateResume(resumeContent, targetLang) {
+  const isSimplified = targetLang === 'simplified';
+  const langLabel    = isSimplified ? 'Simplified Chinese (简体中文)' : 'Traditional Chinese (繁體中文)';
+  const regionNote   = isSimplified
+    ? 'for Mainland China job applications — use standard Mainland Chinese professional terminology and conventions'
+    : 'for Hong Kong or Taiwan job applications — use standard Traditional Chinese professional terminology and conventions appropriate for the target region';
+
+  return `Please translate the following resume into ${langLabel}, ${regionNote}.
+
+RESUME TO TRANSLATE:
+${(resumeContent||'').slice(0, 5000)}
+
+TRANSLATION REQUIREMENTS:
+1. Translate all text into ${langLabel} — do not leave any English text untranslated except proper nouns (company names, school names, product names, programming languages, tools)
+2. Use professional resume terminology appropriate for ${isSimplified ? 'Mainland China' : 'Hong Kong / Taiwan'}
+3. Preserve the exact same structure, section order, and formatting as the original
+4. Keep all numbers, dates, metrics, and quantified achievements accurate
+5. For technical terms with no direct translation, keep the English term and add a Chinese explanation in parentheses if helpful
+6. Output only the translated resume — no commentary before or after`.trim();
+}
+
 // ════════════════════════════════════════════════════════════════
 // FILE UTILITIES
 // ════════════════════════════════════════════════════════════════
@@ -519,23 +540,31 @@ function PromptModal({ title, prompt, onClose }) {
 // AI PROMPT BUTTONS (reused in AddJobTab and JobDetail)
 // ════════════════════════════════════════════════════════════════
 
-function AiPromptSection({ resumeDb, job, formatting }) {
+function AiPromptSection({ resumeDb, job, formatting, tailoredResume }) {
   const [modal, setModal] = useState(null);
 
   const hasResume = !!(resumeDb || '').trim();
   const hasJd     = !!(job?.jdText || '').trim();
+  // For translation, prefer the tailored resume if it exists, otherwise fall back to the raw profile
+  const translateSource = (tailoredResume || '').trim() || (resumeDb || '').trim();
+  const hasTranslateSource = !!translateSource;
 
-  const open = (title, promptFn) => {
-    if (!hasResume) { alert('Add your profile/background in My Profile tab first — it makes the prompts much better.'); return; }
+  const open = (title, promptFn, requiresResume = true) => {
+    if (requiresResume && !hasResume) { alert('Add your profile/background in My Profile tab first — it makes the prompts much better.'); return; }
     setModal({ title, prompt: promptFn() });
   };
 
-  const btns = [
+  const mainBtns = [
     { label:'📝 Tailor Resume',    fn: () => promptTailorResume(resumeDb, job, formatting) },
     { label:'✉️ Cover Letter',     fn: () => promptCoverLetter(resumeDb, job)               },
     { label:'🎯 Interview Prep',   fn: () => promptInterviewPrep(resumeDb, job)             },
     { label:'👥 Networking',       fn: () => promptNetworking(resumeDb, job)                },
     { label:'🔍 Analyze This Job', fn: () => promptJobAnalysis(job)                         },
+  ];
+
+  const translateBtns = [
+    { label:'🇨🇳 → 简体中文', title:'Translate to Simplified Chinese', fn: () => promptTranslateResume(translateSource, 'simplified') },
+    { label:'🇭🇰 → 繁體中文', title:'Translate to Traditional Chinese', fn: () => promptTranslateResume(translateSource, 'traditional') },
   ];
 
   return (
@@ -547,13 +576,32 @@ function AiPromptSection({ resumeDb, job, formatting }) {
         {!hasResume && <span className="text-amber-700 ml-1">Add your profile first for best results.</span>}
         {!hasJd && hasResume && <span className="text-gray-500 ml-1">Add a JD for job-specific prompts.</span>}
       </p>
-      <div className="flex flex-wrap gap-2">
-        {btns.map(b => (
+      <div className="flex flex-wrap gap-2 mb-3">
+        {mainBtns.map(b => (
           <Btn key={b.label} variant="secondary"
             onClick={() => open(b.label.replace(/^\S+\s/, ''), b.fn)}>
             {b.label}
           </Btn>
         ))}
+      </div>
+      <div className="border-t border-gray-100 pt-3">
+        <p className="text-xs text-gray-500 mb-2">
+          Translate resume to Chinese —{' '}
+          {hasTranslateSource
+            ? (tailoredResume||'').trim()
+              ? 'uses the tailored resume above as source'
+              : 'uses your profile as source (tailor the resume first for best results)'
+            : 'add your profile or tailor a resume first'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {translateBtns.map(b => (
+            <Btn key={b.label} variant="secondary"
+              disabled={!hasTranslateSource}
+              onClick={() => open(b.title, b.fn, false)}>
+              {b.label}
+            </Btn>
+          ))}
+        </div>
       </div>
       {modal && <PromptModal title={modal.title} prompt={modal.prompt} onClose={() => setModal(null)} />}
     </Card>
@@ -991,7 +1039,7 @@ function AddJobTab({ resumeDb, formatting, jobs, setJobs, region, onSaved }) {
       </Card>
 
       {/* AI Help section */}
-      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} />
+      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} tailoredResume="" />
     </div>
   );
 }
@@ -1146,7 +1194,7 @@ function JobDetail({ region, job, resumeDb, formatting, jobs, setJobs, onBack })
       </Card>
 
       {/* AI prompts */}
-      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} />
+      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} tailoredResume={form.tailoredResume||''} />
 
       {/* Paste-back sections */}
       <Card className="p-4">
