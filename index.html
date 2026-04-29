@@ -31,6 +31,7 @@ const PATHS = {
   resumeDb:       'data/resumeDb.txt',
   resumeSections: 'data/resumeSections.json',
   formatting:     'data/formatting.txt',
+  glossary:       'data/glossary.txt',
   library:        'data/library.json',
   canadaJobs:     'data/canada_jobs.json',
   hongkongJobs:   'data/hongkong_jobs.json',
@@ -41,6 +42,7 @@ const KEY_TO_PATH = {
   resumeDb:        PATHS.resumeDb,
   resumeSections:  PATHS.resumeSections,
   formatting:      PATHS.formatting,
+  glossary:        PATHS.glossary,
   library:         PATHS.library,
   'canada:jobs':   PATHS.canadaJobs,
   'hongkong:jobs': PATHS.hongkongJobs,
@@ -271,16 +273,19 @@ Please provide:
 6. How competitive this role likely is and what would make a candidate stand out`.trim();
 }
 
-function promptTranslateResume(resumeContent, targetLang) {
+function promptTranslateResume(resumeContent, targetLang, glossary) {
   const isSimplified = targetLang === 'simplified';
+  const glossaryBlock = (glossary||'').trim()
+    ? `\nPERSONAL TRANSLATION GLOSSARY (use these exact translations — do not deviate):\n${glossary.trim()}\n`
+    : '';
 
   const simplified = `Please translate the following resume into Simplified Chinese (简体中文) and reformat it to match the standard Mainland China 简历 format.
 
 RESUME TO TRANSLATE AND REFORMAT:
 ${(resumeContent||'').slice(0, 5000)}
-
+${glossaryBlock}
 TRANSLATION REQUIREMENTS:
-1. Translate all text into Simplified Chinese — keep proper nouns in English (company names, school names, tools, programming languages, product names)
+1. Translate all text into Simplified Chinese — keep proper nouns in English (company names, school names, tools, programming languages, product names) UNLESS a preferred Chinese translation is listed in the glossary above
 2. Use standard Mainland China professional terminology (e.g. 工作经历 not 工作經歷, 教育背景, 技能, 项目经历, 自我评价)
 3. Keep all numbers, dates, metrics, and quantified achievements accurate
 4. For technical terms with no natural translation, keep English and add Chinese in parentheses if helpful
@@ -303,9 +308,9 @@ MAINLAND CHINA 简历 FORMAT REQUIREMENTS (apply after translating):
 
 RESUME TO TRANSLATE AND REFORMAT:
 ${(resumeContent||'').slice(0, 5000)}
-
+${glossaryBlock}
 TRANSLATION REQUIREMENTS:
-1. Translate all text into Traditional Chinese — keep proper nouns in English (company names, school names, tools, programming languages, product names)
+1. Translate all text into Traditional Chinese — keep proper nouns in English (company names, school names, tools, programming languages, product names) UNLESS a preferred Chinese translation is listed in the glossary above
 2. Use standard Hong Kong professional terminology (e.g. 工作經驗 not 工作经历, 學歷, 技能, 項目經驗, 個人簡介)
 3. Keep all numbers, dates, metrics, and quantified achievements accurate
 4. For technical terms with no natural translation, keep English and add Chinese in parentheses if helpful
@@ -772,7 +777,7 @@ function PromptModal({ title, prompt, onClose }) {
 // TRANSLATE SOURCE PICKER MODAL
 // ════════════════════════════════════════════════════════════════
 
-function TranslatePickerModal({ targetLang, tailoredResume, library, onClose }) {
+function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, onClose }) {
   const langLabel = targetLang === 'simplified' ? 'Simplified Chinese (简体中文)' : 'Traditional Chinese (繁體中文)';
   const langIcon  = targetLang === 'simplified' ? '🇨🇳' : '🇭🇰';
 
@@ -795,7 +800,7 @@ function TranslatePickerModal({ targetLang, tailoredResume, library, onClose }) 
   };
 
   const content = getContent();
-  const prompt  = promptTranslateResume(content, targetLang);
+  const prompt  = promptTranslateResume(content, targetLang, glossary);
 
   const handleCopy = async () => {
     try { await navigator.clipboard.writeText(prompt); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
@@ -891,7 +896,7 @@ function TranslatePickerModal({ targetLang, tailoredResume, library, onClose }) 
 // AI PROMPT BUTTONS (reused in AddJobTab and JobDetail)
 // ════════════════════════════════════════════════════════════════
 
-function AiPromptSection({ resumeDb, job, formatting, tailoredResume, library }) {
+function AiPromptSection({ resumeDb, job, formatting, glossary, tailoredResume, library }) {
   const [modal, setModal]             = useState(null);
   const [translateLang, setTranslateLang] = useState(null); // 'simplified' | 'traditional'
 
@@ -941,6 +946,7 @@ function AiPromptSection({ resumeDb, job, formatting, tailoredResume, library })
           targetLang={translateLang}
           tailoredResume={tailoredResume || ''}
           library={library || []}
+          glossary={glossary || ''}
           onClose={() => setTranslateLang(null)}
         />
       )}
@@ -1078,7 +1084,7 @@ function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
 // PROFILE TAB
 // ════════════════════════════════════════════════════════════════
 
-function ProfileTab({ sections, updateSections, formatting, setFormatting }) {
+function ProfileTab({ sections, updateSections, formatting, setFormatting, glossary, setGlossary }) {
   const [expandedId, setExpandedId] = useState(null);
   const [editingId, setEditingId]   = useState(null);
   const [editName, setEditName]     = useState('');
@@ -1086,9 +1092,12 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting }) {
   const [saved, setSaved]           = useState(false);
   const [fmtDraft, setFmtDraft]     = useState(formatting || '');
   const [fmtSaved, setFmtSaved]     = useState(false);
+  const [glsDraft, setGlsDraft]     = useState(glossary || '');
+  const [glsSaved, setGlsSaved]     = useState(false);
 
-  // Keep fmtDraft in sync if formatting changes from outside (e.g. on first load)
+  // Keep drafts in sync if values change from outside (e.g. on first load)
   useEffect(() => { setFmtDraft(formatting || ''); }, [formatting]);
+  useEffect(() => { setGlsDraft(glossary  || ''); }, [glossary]);
 
   const handleUpload = (text, filename) => {
     const name = filename.replace(/\.[^.]+$/, '') || 'Untitled';
@@ -1208,6 +1217,36 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting }) {
         )}
       </Card>
 
+      {/* Translation glossary card */}
+      <Card className="p-4">
+        <SectionHdr icon="📖" title="Translation glossary"
+          action={
+            <Btn variant="primary" onClick={async () => {
+              setGlossary(glsDraft);
+              await saveText('glossary', glsDraft);
+              setGlsSaved(true); setTimeout(() => setGlsSaved(false), 1500);
+            }}>
+              {glsSaved ? '✅ Saved' : '💾 Save'}
+            </Btn>
+          }
+        />
+        <p className="text-xs text-gray-600 mb-3">
+          Specify exact Chinese translations for your name, company names, school names, and any other terms.
+          These are injected into every <strong>Translate</strong> prompt so Claude always uses your preferred translations — one entry per line.
+        </p>
+        <textarea
+          value={glsDraft}
+          onChange={e => setGlsDraft(e.target.value)}
+          placeholder={`One entry per line, format: English term → Chinese translation\n\nExamples:\nZixi Lian → 连子熙\nUBC Sauder School of Business → 英属哥伦比亚大学商学院\nChina Guangfa Bank → 广发银行\nGhost Job Detection & Trading Signal → 幽灵职位检测与交易信号\nVancouver → 温哥华`}
+          className="w-full h-40 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+        />
+        <p className="mt-1 text-xs text-gray-400">
+          {glsDraft.trim()
+            ? `✅ ${glsDraft.trim().split('\n').filter(Boolean).length} entr${glsDraft.trim().split('\n').filter(Boolean).length !== 1 ? 'ies' : 'y'} — injected into all translate prompts.`
+            : 'No glossary entries yet — Claude will use its best judgment for names.'}
+        </p>
+      </Card>
+
       {/* Formatting instructions card */}
       <Card className="p-4">
         <SectionHdr icon="🎨" title="Resume formatting requirements"
@@ -1314,7 +1353,7 @@ function LibraryTab({ library, setLibrary, updateSections }) {
 // ADD JOB TAB
 // ════════════════════════════════════════════════════════════════
 
-function AddJobTab({ resumeDb, formatting, library, jobs, setJobs, region, onSaved }) {
+function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved }) {
   const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'applied', jdText:'', notes:'' };
   const [form, setForm] = useState(empty);
   const [saved, setSaved] = useState(false);
@@ -1379,7 +1418,7 @@ function AddJobTab({ resumeDb, formatting, library, jobs, setJobs, region, onSav
       </Card>
 
       {/* AI Help section */}
-      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} tailoredResume="" library={library} />
+      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} glossary={glossary} tailoredResume="" library={library} />
     </div>
   );
 }
@@ -1458,7 +1497,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen }) {
 // JOB DETAIL
 // ════════════════════════════════════════════════════════════════
 
-function JobDetail({ region, job, resumeDb, formatting, library, jobs, setJobs, onBack }) {
+function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs, setJobs, onBack }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm]       = useState({...job});
   const [saving, setSaving]   = useState(false);
@@ -1534,7 +1573,7 @@ function JobDetail({ region, job, resumeDb, formatting, library, jobs, setJobs, 
       </Card>
 
       {/* AI prompts */}
-      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} tailoredResume={form.tailoredResume||''} library={library} />
+      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} glossary={glossary} tailoredResume={form.tailoredResume||''} library={library} />
 
       {/* Paste-back sections */}
       <Card className="p-4">
@@ -1674,7 +1713,7 @@ function InsightsTab({ jobs, regionName }) {
 // REGION APP
 // ════════════════════════════════════════════════════════════════
 
-function RegionApp({ region, resumeDb, sections, updateSections, formatting, setFormatting, library, setLibrary }) {
+function RegionApp({ region, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary }) {
   const regionMeta = REGIONS.find(r=>r.id===region);
   const [tab, setTab] = useState('addjob');
   const [jobs, setJobs] = useState([]);
@@ -1713,10 +1752,10 @@ function RegionApp({ region, resumeDb, sections, updateSections, formatting, set
       </div>
 
       {/* Tab content */}
-      {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} formatting={formatting} library={library} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>{switchTab('tracker'); setOpenJobId(id);}} />}
+      {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>{switchTab('tracker'); setOpenJobId(id);}} />}
       {tab==='tracker' && !openJob && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} onOpen={id=>{setOpenJobId(id);}} />}
-      {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>setOpenJobId(null)} />}
-      {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} />}
+      {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>setOpenJobId(null)} />}
+      {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} glossary={glossary} setGlossary={setGlossary} />}
       {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}
       {tab==='insights'&& <InsightsTab jobs={jobs} regionName={regionMeta.name} />}
     </div>
@@ -1729,10 +1768,11 @@ function RegionApp({ region, resumeDb, sections, updateSections, formatting, set
 
 function App() {
   const [region, setRegion] = useState('canada');
-  const [sections, setSections]   = useState([]);
-  const [resumeDb, setResumeDb]   = useState('');
+  const [sections, setSections]     = useState([]);
+  const [resumeDb, setResumeDb]     = useState('');
   const [formatting, setFormatting] = useState('');
-  const [library, setLibrary]     = useState([]);
+  const [glossary, setGlossary]     = useState('');
+  const [library, setLibrary]       = useState([]);
   const [loaded, setLoaded]       = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ghOk, setGhOk]           = useState(false);
@@ -1747,10 +1787,11 @@ function App() {
     const ok = ghConfigured(); setGhOk(ok);
     if (!ok) { setLoaded(true); setSettingsOpen(true); return; }
     (async () => {
-      const [rawSecs, oldDb, fmt, lib] = await Promise.all([
+      const [rawSecs, oldDb, fmt, gls, lib] = await Promise.all([
         loadJson('resumeSections'),
         loadText('resumeDb'),
         loadText('formatting'),
+        loadText('glossary'),
         loadJson('library'),
       ]);
       let secs = rawSecs;
@@ -1760,6 +1801,7 @@ function App() {
       setSections(secs);
       setResumeDb(combineSections(secs));
       setFormatting(fmt);
+      setGlossary(gls);
       setLibrary(lib);
       setLoaded(true);
     })();
@@ -1786,14 +1828,14 @@ function App() {
   const handleGhChange = async ok => {
     setGhOk(ok);
     if (ok) {
-      const [rawSecs, oldDb, fmt, lib] = await Promise.all([
-        loadJson('resumeSections'), loadText('resumeDb'), loadText('formatting'), loadJson('library'),
-      ]).catch(() => [[], '', '', library]);
+      const [rawSecs, oldDb, fmt, gls, lib] = await Promise.all([
+        loadJson('resumeSections'), loadText('resumeDb'), loadText('formatting'), loadText('glossary'), loadJson('library'),
+      ]).catch(() => [[], '', '', '', library]);
       let secs = rawSecs;
       if ((!secs || secs.length === 0) && oldDb.trim()) {
         secs = [{ id: newId(), name: 'My Profile', content: oldDb, source: 'manual', addedAt: new Date().toISOString() }];
       }
-      setSections(secs); setResumeDb(combineSections(secs)); setFormatting(fmt); setLibrary(lib);
+      setSections(secs); setResumeDb(combineSections(secs)); setFormatting(fmt); setGlossary(gls); setLibrary(lib);
     }
   };
 
@@ -1855,6 +1897,8 @@ function App() {
             updateSections={updateSections}
             formatting={formatting}
             setFormatting={setFormatting}
+            glossary={glossary}
+            setGlossary={setGlossary}
             library={library}
             setLibrary={setLibrary}
           />
