@@ -123,6 +123,75 @@ async function testGhConnection() {
   return res.json();
 }
 
+// ── Binary / data-URL file operations (for PDF and HTML resume files) ──
+
+// Convert pdfKey + dataUrl to a GitHub path: data/files/region_jobId_type.html|pdf
+function pdfGhPath(pdfKey, dataUrl) {
+  const ext = (dataUrl||'').startsWith('data:text/html') ? 'html' : 'pdf';
+  return `data/files/${pdfKey.replace(/:/g,'_')}.${ext}`;
+}
+
+// Write a data URL as a binary file to GitHub (raw base64, not re-encoded)
+async function ghWriteDataUrl(path, dataUrl) {
+  const base64 = (dataUrl||'').split(',')[1];
+  if (!base64) throw new Error('Invalid data URL');
+  const { token, repo } = ghCfg();
+  if (!token || !repo) throw new Error('GitHub not configured');
+  const [o, r] = repo.split('/');
+  const url = `https://api.github.com/repos/${o}/${r}/contents/${path}`;
+
+  if (!shaCache[path]) {
+    const c = await fetch(url, { headers: ghHdrs(token) });
+    if (c.ok) { const d = await c.json(); shaCache[path] = d.sha; }
+  }
+
+  const doWrite = async () => {
+    const body = { message: `jobapp: update ${path}`, content: base64, ...(shaCache[path] ? {sha: shaCache[path]} : {}) };
+    return fetch(url, { method:'PUT', headers: ghHdrs(token), body: JSON.stringify(body) });
+  };
+
+  let res = await doWrite();
+  if (res.status === 409) {
+    const fresh = await fetch(url, { headers: ghHdrs(token) });
+    if (fresh.ok) { const d = await fresh.json(); shaCache[path] = d.sha; }
+    else delete shaCache[path];
+    res = await doWrite();
+  }
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`GitHub ${res.status}: ${e.message||'error'}`); }
+  const d = await res.json();
+  shaCache[path] = d.content.sha;
+}
+
+// Read a binary file from GitHub and return as a data URL
+async function ghReadDataUrl(path, mimeType) {
+  const { token, repo } = ghCfg();
+  if (!token || !repo) return null;
+  const [o, r] = repo.split('/');
+  const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { headers: ghHdrs(token) });
+  if (res.status === 404) return null;
+  if (!res.ok) return null; // fail silently, fall back to localStorage
+  const d = await res.json();
+  shaCache[path] = d.sha;
+  return `data:${mimeType};base64,${d.content.replace(/\n/g,'')}`;
+}
+
+// Delete a file from GitHub (best-effort — used when deleting jobs)
+async function ghDeleteFile(path) {
+  const { token, repo } = ghCfg();
+  if (!token || !repo) return;
+  const [o, r] = repo.split('/');
+  const url = `https://api.github.com/repos/${o}/${r}/contents/${path}`;
+  if (!shaCache[path]) {
+    const c = await fetch(url, { headers: ghHdrs(token) });
+    if (!c.ok) return; // file doesn't exist — nothing to delete
+    const d = await c.json();
+    shaCache[path] = d.sha;
+  }
+  const body = { message: `jobapp: delete ${path}`, sha: shaCache[path] };
+  const res = await fetch(url, { method:'DELETE', headers: ghHdrs(token), body: JSON.stringify(body) });
+  if (res.ok) delete shaCache[path];
+}
+
 // Storage helpers
 async function loadText(key)  { try { return await ghRead(KEY_TO_PATH[key]) || ''; } catch { return ''; } }
 async function saveText(key, v){ try { await ghWrite(KEY_TO_PATH[key], v); } catch(e){ console.error(e); dispatchSaveErr(e); } }
@@ -548,8 +617,6 @@ function stripMd(md) {
     .replace(/^[-*]\s+/gm,'• ').replace(/\[([^\]]+)\]\([^)]+\)/g,'$1');
 }
 
-// ════════════════════════════════════════════════════════════════
-// UTILITY HELPERS
 // ════════════════════════════════════════════════════════════════
 // UTILITY HELPERS
 // ════════════════════════════════════════════════════════════════
@@ -1500,10 +1567,17 @@ function TrackerTab({ region, jobs, setJobs, onOpen }) {
 
   const deleteJob = async id => {
     if (!window.confirm('Delete this application?')) return;
-    // Clean up any locally stored resume/cover letter PDFs
+    // Clean up localStorage cache
     deletePdfLocal(`${region}:${id}:resume`);
     deletePdfLocal(`${region}:${id}:cover`);
-    const updated = jobs.filter(j=>j.id!==id); setJobs(updated); await saveJson(`${region}:jobs`, updated);
+    // Clean up GitHub files (both possible extensions, silent fail)
+    for (const type of ['resume','cover']) {
+      for (const ext of ['html','pdf']) {
+        ghDeleteFile(`data/files/${region}_${id}_${type}.${ext}`).catch(()=>{});
+      }
+    }
+    const updated = jobs.filter(j=>j.id!==id);
+    setJobs(updated); await saveJson(`${region}:jobs`, updated);
   };
 
   if (!jobs.length) return (
@@ -1559,9 +1633,24 @@ function TrackerTab({ region, jobs, setJobs, onOpen }) {
 
 function PdfUploadField({ label, pdfKey, icon='📄' }) {
   const [dataUrl, setDataUrl] = useState(() => loadPdfLocal(pdfKey));
-  const [busy, setBusy] = useState(false);
-  const [err, setErr]   = useState('');
+  const [busy, setBusy]       = useState(false);
+  const [ghSaving, setGhSaving] = useState(false);
+  const [err, setErr]         = useState('');
   const ref = useRef(null);
+
+  // On mount: if nothing cached locally, pull from GitHub (enables cross-device sync)
+  useEffect(() => {
+    if (dataUrl || !ghConfigured()) return;
+    (async () => {
+      for (const [ext, mime] of [['html','text/html'],['pdf','application/pdf']]) {
+        try {
+          const path = `data/files/${pdfKey.replace(/:/g,'_')}.${ext}`;
+          const url = await ghReadDataUrl(path, mime);
+          if (url) { setDataUrl(url); savePdfLocal(pdfKey, url); return; }
+        } catch {}
+      }
+    })();
+  }, [pdfKey]);
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0]; e.target.value = '';
@@ -1571,28 +1660,40 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
     setBusy(true); setErr('');
     try {
       const url = await readFileAsDataUrl(file);
-      if (!savePdfLocal(pdfKey, url)) {
-        setErr('File too large for browser storage. Try compressing the PDF first.');
-        return;
-      }
+      // Save locally first for immediate preview
+      savePdfLocal(pdfKey, url);
       setDataUrl(url);
-    } catch(e) { setErr(e.message || 'Upload failed'); }
-    finally { setBusy(false); }
+      // Then sync to GitHub
+      setGhSaving(true);
+      await ghWriteDataUrl(pdfGhPath(pdfKey, url), url);
+    } catch(e) {
+      const msg = e.message || 'Upload failed';
+      if (msg.includes('GitHub') || msg.includes('configured')) {
+        // File is saved locally but GitHub sync failed — not fatal
+        setErr(`Saved locally. GitHub sync failed: ${msg}`);
+      } else {
+        setErr(msg);
+      }
+    }
+    finally { setBusy(false); setGhSaving(false); }
   };
 
   const handleDelete = () => {
     if (!window.confirm('Remove this file?')) return;
     deletePdfLocal(pdfKey);
+    // Delete from GitHub (best-effort, both possible extensions)
+    for (const ext of ['html','pdf']) {
+      ghDeleteFile(`data/files/${pdfKey.replace(/:/g,'_')}.${ext}`).catch(()=>{});
+    }
     setDataUrl(null);
   };
 
   const handleDownload = () => {
     if (!dataUrl) return;
     const isHtml = dataUrl.includes('text/html');
-    const ext = isHtml ? 'html' : 'pdf';
     const a = document.createElement('a');
     a.href = dataUrl;
-    a.download = `${pdfKey.replace(/:/g,'_')}.${ext}`;
+    a.download = `${pdfKey.replace(/:/g,'_')}.${isHtml ? 'html' : 'pdf'}`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
@@ -1600,10 +1701,11 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
     <Card className="p-4">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 className="text-sm font-semibold text-gray-900">{icon} {label}</h3>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          {ghSaving && <span className="text-xs text-blue-600 animate-pulse">⏳ Saving to GitHub…</span>}
           {dataUrl && <Btn onClick={handleDownload}>⬇️ Download</Btn>}
           <input ref={ref} type="file" accept=".pdf,.html,.htm" onChange={handleUpload} className="hidden" />
-          <Btn variant="primary" onClick={() => ref.current?.click()} disabled={busy}>
+          <Btn variant="primary" onClick={() => ref.current?.click()} disabled={busy || ghSaving}>
             {busy ? '⏳ Reading…' : '⬆️ Upload file'}
           </Btn>
           {dataUrl && <Btn variant="danger" onClick={handleDelete}>🗑</Btn>}
@@ -1624,7 +1726,9 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
           <p className="text-xs text-gray-400">After getting the HTML from Claude.ai, save it as a file and upload here — or export as PDF and upload the PDF</p>
         </div>
       )}
-      <p className="mt-2 text-xs text-gray-400">⚠️ Stored in this browser only — not synced to GitHub. Re-upload on other devices.</p>
+      <p className="mt-2 text-xs text-gray-400">
+        Saved to GitHub at <code className="bg-gray-100 px-1 rounded">data/files/</code> and cached locally for fast loading.
+      </p>
     </Card>
   );
 }
