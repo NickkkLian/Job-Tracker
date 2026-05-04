@@ -172,21 +172,20 @@ const TABS = [
 // ════════════════════════════════════════════════════════════════
 
 const CLAUDE_URL = 'https://claude.ai/new';
-const MAX_RES = 6000;  // raised from 3000 to handle multi-section profiles
-const MAX_JD  = 3000;
+// Prompts are pasted into Claude.ai (200K token context) — no length limits needed.
 
 function promptTailorResume(resumeDb, job, formatting) {
   return `Please tailor my resume for this specific job application. Output in clean Markdown.
 
 MY BACKGROUND:
-${(resumeDb||'').slice(0, MAX_RES)}
+${resumeDb||''}
 
 TARGET ROLE: ${job.role||'(role)'} at ${job.company||'(company)'}
 LOCATION: ${job.location||''}
 ${job.salaryRange ? `SALARY RANGE: ${job.salaryRange}` : ''}
 
 JOB DESCRIPTION:
-${(job.jdText||'').slice(0, MAX_JD)}
+${job.jdText||''}
 
 INSTRUCTIONS:
 1. Rewrite my resume to highlight the most relevant experience for this role
@@ -201,13 +200,13 @@ function promptCoverLetter(resumeDb, job) {
   return `Please write a professional cover letter for this job application. Output only the letter body (no header, no "Dear X", no sign-off placeholder).
 
 MY BACKGROUND:
-${(resumeDb||'').slice(0, MAX_RES)}
+${resumeDb||''}
 
 TARGET ROLE: ${job.role||'(role)'} at ${job.company||'(company)'}
 LOCATION: ${job.location||''}
 
 JOB DESCRIPTION:
-${(job.jdText||'').slice(0, MAX_JD)}
+${job.jdText||''}
 
 INSTRUCTIONS:
 - 3–4 paragraphs, 300–350 words
@@ -221,12 +220,12 @@ function promptInterviewPrep(resumeDb, job) {
   return `Please help me prepare for an interview for this role.
 
 MY BACKGROUND:
-${(resumeDb||'').slice(0, 1500)}
+${resumeDb||''}
 
 TARGET ROLE: ${job.role||'(role)'} at ${job.company||'(company)'}
 
 JOB DESCRIPTION:
-${(job.jdText||'').slice(0, MAX_JD)}
+${job.jdText||''}
 
 Please provide:
 1. 8 likely interview questions — mix of behavioral, technical, and role-specific
@@ -243,10 +242,10 @@ TARGET ROLE: ${job.role||'(role)'} at ${job.company||'(company)'}
 LOCATION: ${job.location||''}
 
 JOB DESCRIPTION:
-${(job.jdText||'').slice(0, 2000)}
+${job.jdText||''}
 
-MY BACKGROUND (brief):
-${(resumeDb||'').slice(0, 800)}
+MY BACKGROUND:
+${resumeDb||''}
 
 Please provide:
 1. 4 specific types of people I should connect with on LinkedIn — be specific about their titles
@@ -262,7 +261,7 @@ ROLE: ${job.role||'(role)'} at ${job.company||'(company)'}
 LOCATION: ${job.location||''}
 
 JOB DESCRIPTION:
-${(job.jdText||'').slice(0, MAX_JD)}
+${job.jdText||''}
 
 Please provide:
 1. What this role actually does day-to-day (not just what the JD says)
@@ -282,7 +281,7 @@ function promptTranslateResume(resumeContent, targetLang, glossary) {
   const simplified = `Please translate the following resume into Simplified Chinese (简体中文) and reformat it to match the standard Mainland China 简历 format.
 
 RESUME TO TRANSLATE AND REFORMAT:
-${(resumeContent||'').slice(0, 5000)}
+${resumeContent||''}
 ${glossaryBlock}
 TRANSLATION REQUIREMENTS:
 1. Translate all text into Simplified Chinese — keep proper nouns in English (company names, school names, tools, programming languages, product names) UNLESS a preferred Chinese translation is listed in the glossary above
@@ -307,7 +306,7 @@ MAINLAND CHINA 简历 FORMAT REQUIREMENTS (apply after translating):
   const traditional = `Please translate the following resume into Traditional Chinese (繁體中文) and reformat it to match the standard Hong Kong professional CV format.
 
 RESUME TO TRANSLATE AND REFORMAT:
-${(resumeContent||'').slice(0, 5000)}
+${resumeContent||''}
 ${glossaryBlock}
 TRANSLATION REQUIREMENTS:
 1. Translate all text into Traditional Chinese — keep proper nouns in English (company names, school names, tools, programming languages, product names) UNLESS a preferred Chinese translation is listed in the glossary above
@@ -614,8 +613,27 @@ function fmtDate(iso) { if (!iso) return ''; return new Date(iso).toLocaleDateSt
 function parseJdFields(text) {
   const t = text || '';
   const lines = t.split('\n').map(l => l.trim()).filter(Boolean);
-  const head  = lines.slice(0, 40).join('\n'); // focus on the top of the doc
-  const all   = t.slice(0, 6000);
+
+  // ── Strip noise lines before parsing structured fields ────────
+  // Remove lines that are clearly company contact/boilerplate, not job info.
+  // This only affects field extraction — the raw JD text is stored unmodified.
+  const NOISE_PATTERNS = [
+    /^\s*(?:tel|phone|fax|email|e-mail|website|web|url|www\.)\s*[:\-]/i,
+    /^\s*(?:apply (?:now|here|online|via|through|at)|how to apply|to apply)/i,
+    /^\s*(?:equal opportunity|eeo|diversity|we are an|we welcome|we do not discriminate)/i,
+    /^\s*(?:copyright|all rights reserved|privacy policy|terms)/i,
+    /^\+?[\d\s\-().]{7,}$/,                          // phone number lines
+    /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/, // email-only lines
+    /^https?:\/\//i,                                  // URL-only lines
+    /^\s*(?:p\.?o\.?\s*box|suite|floor|unit)\s+\d/i, // PO box / suite lines
+    /^\s*(?:confidential|disclaimer|note:|please note)/i,
+  ];
+  const cleanLines = lines.filter(l => !NOISE_PATTERNS.some(p => p.test(l)));
+  const head = cleanLines.slice(0, 80).join('\n');
+
+  // For salary/deadline, search the full text (deadlines can be at the bottom)
+  // but skip noise lines
+  const all = cleanLines.join('\n');
 
   // ── Helpers ──────────────────────────────────────────────────
   const firstMatch = (patterns, src) => {
@@ -628,13 +646,11 @@ function parseJdFields(text) {
   const clean = s => s ? s.replace(/\s+/g,' ').replace(/[|·–—:]+$/,'').trim() : '';
 
   // ── Role ─────────────────────────────────────────────────────
-  // Try labelled fields first, then the first bold/heading-looking line
   const roleRaw = firstMatch([
     /(?:job title|position|role|title)\s*[:\-]\s*(.+)/i,
-    /^#+\s*(.+)$/m,         // markdown heading
-    /^\*\*(.+?)\*\*/m,      // bold
-  ], head) || clean(lines[0]);
-  // Remove "at Company", "@ Company" suffix if present
+    /^#+\s*(.+)$/m,
+    /^\*\*(.+?)\*\*/m,
+  ], head) || clean(cleanLines[0]);
   const role = clean(roleRaw.replace(/\s+(?:at|@)\s+.+$/i, '').slice(0, 80));
 
   // ── Company ───────────────────────────────────────────────────
@@ -649,26 +665,22 @@ function parseJdFields(text) {
   const location = clean(firstMatch([
     /(?:location|city|based in|office)\s*[:\-]\s*(.+)/i,
     /(?:remote|hybrid)\s*(?:[-–—,/|]\s*([A-Za-z ,]+))?/i,
-    // City, Province/State pattern
     /([A-Z][a-z]+(?: [A-Z][a-z]+)?,\s*(?:BC|AB|ON|QC|MB|SK|NS|NB|PE|NL|NT|NU|YT|CA|NY|TX|WA|HK|SG|London|Tokyo|Shanghai|Beijing|Shenzhen|Hong Kong)[^,\n]{0,30})/,
   ], head));
 
   // ── Salary range ─────────────────────────────────────────────
   const salary = clean(firstMatch([
     /(?:salary|compensation|pay|remuneration|package)\s*[:\-]\s*(.+)/i,
-    // e.g. $80,000 – $120,000, $80k-$120k, CAD 80,000 – 120,000
     /(?:CAD|HKD|CNY|USD|RMB|HK\$|\$|¥)\s*[\d,]+(?:k|K)?(?:\s*[-–—to]+\s*(?:CAD|HKD|CNY|USD|RMB|HK\$|\$|¥)?\s*[\d,]+(?:k|K)?)?/,
     /[\d,]+(?:k|K)?\s*[-–—to]+\s*[\d,]+(?:k|K)?\s*(?:CAD|HKD|USD|CNY|per year|per month|annually|\/yr|\/mo)?/i,
   ], all));
 
   // ── Application deadline ──────────────────────────────────────
-  // Try to find a date near deadline-related language
   const deadlineRaw = firstMatch([
     /(?:apply by|deadline|closing date|application closes?|due date|submit by)\s*[:\-]?\s*([A-Za-z]+\s+\d{1,2}[,\s]+\d{2,4}|\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/i,
     /(?:apply by|deadline)\s*[:\-]?\s*(\d{4}[\/.-]\d{1,2}[\/.-]\d{1,2})/i,
   ], all);
 
-  // Try to parse deadline into YYYY-MM-DD for the date input
   let deadline = '';
   if (deadlineRaw) {
     const d = new Date(deadlineRaw);
@@ -694,7 +706,6 @@ function Btn({ children, onClick, variant='secondary', disabled=false, className
     primary:   'text-white bg-blue-600 hover:bg-blue-700',
     secondary: 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50',
     danger:    'text-red-700 bg-white border border-red-200 hover:bg-red-50',
-    green:     'text-white bg-green-600 hover:bg-green-700',
   };
   return <button onClick={onClick} disabled={disabled} className={`${base} ${v[variant]||v.secondary} ${className}`}>{children}</button>;
 }
