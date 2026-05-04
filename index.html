@@ -423,7 +423,6 @@ const PRINT_STYLES = {
       h1 { font-size: 22pt; font-weight: 700; text-align: center; margin: 0 0 4px; letter-spacing: 4px; color: #0d2137; }
       .contact { text-align: center; font-size: 9.5pt; color: #444; margin-bottom: 10px; }
       .contact span { margin: 0 8px; }
-      .divider { border: none; border-top: 2.5px solid #0d2137; margin: 6px 0 10px; }
       h2 { font-size: 11.5pt; font-weight: 700; color: #0d2137; border-left: 4px solid #0d2137;
            padding: 2px 0 2px 8px; background: #eef4fb; margin: 12px 0 6px; letter-spacing: 1px; }
       h3 { font-size: 10.5pt; font-weight: 600; margin: 8px 0 2px; color: #1a1a1a; display: flex; justify-content: space-between; }
@@ -443,10 +442,8 @@ const PRINT_STYLES = {
       body { font-family: FONT; font-size: 11pt; color: #1a1a1a; margin: 0; padding: 0; background: white; }
       .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm 18mm; box-sizing: border-box; }
       h1 { font-size: 20pt; font-weight: 700; margin: 0 0 2px; color: #1a1a2e; letter-spacing: 1px; }
-      .name-zh { font-size: 14pt; color: #444; margin-bottom: 6px; }
       .contact { font-size: 9.5pt; color: #555; margin-bottom: 4px; }
       .contact span { margin-right: 14px; }
-      .divider { border: none; border-top: 1.5px solid #1a1a2e; margin: 8px 0; }
       h2 { font-size: 11pt; font-weight: 700; color: #1a1a2e; text-transform: uppercase;
            letter-spacing: 1.5px; border-bottom: 1px solid #ccd; padding-bottom: 3px; margin: 12px 0 6px; }
       h3 { font-size: 10.5pt; font-weight: 600; margin: 8px 0 2px; display: flex; justify-content: space-between; }
@@ -468,7 +465,6 @@ const PRINT_STYLES = {
       h1 { font-size: 20pt; font-weight: 700; margin: 0 0 4px; letter-spacing: 0.5px; }
       .contact { font-size: 9.5pt; color: #555; margin-bottom: 10px; }
       .contact span { margin-right: 12px; }
-      .divider { border: none; border-top: 1.5px solid #222; margin: 6px 0 10px; }
       h2 { font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
            border-bottom: 1px solid #aaa; padding-bottom: 2px; margin: 12px 0 5px; color: #111; }
       h3 { font-size: 10.5pt; font-weight: 600; margin: 7px 0 1px; display: flex; justify-content: space-between; }
@@ -610,6 +606,79 @@ function PrintViewButton({ content }) {
 
 function newId() { return `${Date.now()}_${Math.random().toString(36).slice(2,8)}`; }
 function fmtDate(iso) { if (!iso) return ''; return new Date(iso).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }
+
+// ════════════════════════════════════════════════════════════════
+// JD FIELD EXTRACTOR  (heuristic, no AI)
+// ════════════════════════════════════════════════════════════════
+
+function parseJdFields(text) {
+  const t = text || '';
+  const lines = t.split('\n').map(l => l.trim()).filter(Boolean);
+  const head  = lines.slice(0, 40).join('\n'); // focus on the top of the doc
+  const all   = t.slice(0, 6000);
+
+  // ── Helpers ──────────────────────────────────────────────────
+  const firstMatch = (patterns, src) => {
+    for (const p of patterns) {
+      const m = src.match(p);
+      if (m) return m[1]?.trim() || m[0]?.trim();
+    }
+    return '';
+  };
+  const clean = s => s ? s.replace(/\s+/g,' ').replace(/[|·–—:]+$/,'').trim() : '';
+
+  // ── Role ─────────────────────────────────────────────────────
+  // Try labelled fields first, then the first bold/heading-looking line
+  const roleRaw = firstMatch([
+    /(?:job title|position|role|title)\s*[:\-]\s*(.+)/i,
+    /^#+\s*(.+)$/m,         // markdown heading
+    /^\*\*(.+?)\*\*/m,      // bold
+  ], head) || clean(lines[0]);
+  // Remove "at Company", "@ Company" suffix if present
+  const role = clean(roleRaw.replace(/\s+(?:at|@)\s+.+$/i, '').slice(0, 80));
+
+  // ── Company ───────────────────────────────────────────────────
+  const company = clean(firstMatch([
+    /(?:company|employer|organisation|organization|hiring company)\s*[:\-]\s*(.+)/i,
+    /(?:about|join)\s+([A-Z][A-Za-z0-9 &.,'-]{1,50})(?:\s*[–—-]|\s*$)/m,
+    /(?:at|@)\s+([A-Z][A-Za-z0-9 &.,'-]{1,50})(?:\s|$)/,
+    /^([A-Z][A-Za-z0-9 &,.']+(?:Inc\.?|Ltd\.?|Corp\.?|Co\.?|Limited|Group|Bank|Technologies|Solutions|Consulting|Capital|Partners))(?:\s|$)/m,
+  ], head));
+
+  // ── Location ─────────────────────────────────────────────────
+  const location = clean(firstMatch([
+    /(?:location|city|based in|office)\s*[:\-]\s*(.+)/i,
+    /(?:remote|hybrid)\s*(?:[-–—,/|]\s*([A-Za-z ,]+))?/i,
+    // City, Province/State pattern
+    /([A-Z][a-z]+(?: [A-Z][a-z]+)?,\s*(?:BC|AB|ON|QC|MB|SK|NS|NB|PE|NL|NT|NU|YT|CA|NY|TX|WA|HK|SG|London|Tokyo|Shanghai|Beijing|Shenzhen|Hong Kong)[^,\n]{0,30})/,
+  ], head));
+
+  // ── Salary range ─────────────────────────────────────────────
+  const salary = clean(firstMatch([
+    /(?:salary|compensation|pay|remuneration|package)\s*[:\-]\s*(.+)/i,
+    // e.g. $80,000 – $120,000, $80k-$120k, CAD 80,000 – 120,000
+    /(?:CAD|HKD|CNY|USD|RMB|HK\$|\$|¥)\s*[\d,]+(?:k|K)?(?:\s*[-–—to]+\s*(?:CAD|HKD|CNY|USD|RMB|HK\$|\$|¥)?\s*[\d,]+(?:k|K)?)?/,
+    /[\d,]+(?:k|K)?\s*[-–—to]+\s*[\d,]+(?:k|K)?\s*(?:CAD|HKD|USD|CNY|per year|per month|annually|\/yr|\/mo)?/i,
+  ], all));
+
+  // ── Application deadline ──────────────────────────────────────
+  // Try to find a date near deadline-related language
+  const deadlineRaw = firstMatch([
+    /(?:apply by|deadline|closing date|application closes?|due date|submit by)\s*[:\-]?\s*([A-Za-z]+\s+\d{1,2}[,\s]+\d{2,4}|\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/i,
+    /(?:apply by|deadline)\s*[:\-]?\s*(\d{4}[\/.-]\d{1,2}[\/.-]\d{1,2})/i,
+  ], all);
+
+  // Try to parse deadline into YYYY-MM-DD for the date input
+  let deadline = '';
+  if (deadlineRaw) {
+    const d = new Date(deadlineRaw);
+    if (!isNaN(d.getTime()) && d.getFullYear() > 2020) {
+      deadline = d.toISOString().slice(0, 10);
+    }
+  }
+
+  return { role, company, location, salaryRange: salary, applicationDeadline: deadline };
+}
 
 // ════════════════════════════════════════════════════════════════
 // UI PRIMITIVES
@@ -1355,10 +1424,23 @@ function LibraryTab({ library, setLibrary, updateSections }) {
 
 function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved }) {
   const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'applied', jdText:'', notes:'' };
-  const [form, setForm] = useState(empty);
-  const [saved, setSaved] = useState(false);
+  const [form, setForm]       = useState(empty);
+  const [saved, setSaved]     = useState(false);
+  const [extracted, setExtracted] = useState(null); // fields extracted from upload, for the hint banner
 
   const set = (k, v) => setForm(f => ({...f, [k]:v}));
+
+  const handleJdUpload = (text, filename) => {
+    const parsed = parseJdFields(text);
+    // Compute which fields to fill using current form snapshot (single action — no stale state risk)
+    const update = { jdText: text };
+    const filled = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (v && !form[k]) { update[k] = v; filled[k] = v; }
+    }
+    setForm(f => ({ ...f, ...update }));
+    setExtracted(Object.keys(filled).length > 0 ? filled : null);
+  };
 
   const handleSave = async () => {
     if (!form.company.trim() && !form.role.trim()) { alert('Please enter at least a company name or role.'); return; }
@@ -1367,6 +1449,7 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
     setJobs(updated); await saveJson(`${region}:jobs`, updated);
     setSaved(true); setTimeout(()=>setSaved(false), 1200);
     setForm(empty);
+    setExtracted(null);
     onSaved?.(job.id);
   };
 
@@ -1374,14 +1457,35 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
     <div className="space-y-4">
       <Card className="p-4">
         <SectionHdr icon="➕" title="Add a job application" />
-        {/* JD textarea */}
+        {/* JD textarea with upload */}
         <div className="mb-4">
-          <label className="text-xs font-medium text-gray-700 mb-1 block">Job description (paste here — used for AI prompts)</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-medium text-gray-700">Job description</label>
+            <FileUploadButton
+              onFile={handleJdUpload}
+              label="Upload JD file"
+              accept=".txt,.md,.markdown,.docx,.pdf"
+            />
+          </div>
           <textarea value={form.jdText} onChange={e=>set('jdText',e.target.value)}
-            placeholder="Paste the full job description here…"
+            placeholder="Paste the full job description here, or upload a file above. Fields below will be auto-filled from the content."
             className="w-full h-36 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
           <div className="text-xs text-gray-400 mt-0.5">{form.jdText.length.toLocaleString()} chars</div>
         </div>
+
+        {/* Auto-fill hint banner */}
+        {extracted && (
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-xs text-green-900">
+            <strong>✅ Auto-filled from file:</strong>{' '}
+            {Object.entries(extracted).map(([k,v]) => (
+              <span key={k} className="inline-block mr-2">
+                <span className="font-medium capitalize">{k === 'salaryRange' ? 'salary' : k === 'applicationDeadline' ? 'deadline' : k}</span>: {v}
+              </span>
+            ))}
+            <span className="text-green-700 ml-1">— Review and correct any errors below.</span>
+          </div>
+        )}
+
         {/* Form fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           {[['company','Company *','Google'],['role','Job Title *','Software Engineer'],['location','Location','Toronto, ON / Remote'],['salaryRange','Salary Range','$120k – $150k']].map(([k,lbl,ph]) => (
