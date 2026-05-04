@@ -125,10 +125,9 @@ async function testGhConnection() {
 
 // ── Binary / data-URL file operations (for PDF and HTML resume files) ──
 
-// Convert pdfKey + dataUrl to a GitHub path: data/files/region_jobId_type.html|pdf
-function pdfGhPath(pdfKey, dataUrl) {
-  const ext = (dataUrl||'').startsWith('data:text/html') ? 'html' : 'pdf';
-  return `data/files/${pdfKey.replace(/:/g,'_')}.${ext}`;
+// Convert pdfKey to a GitHub path — always .pdf
+function pdfGhPath(pdfKey) {
+  return `data/files/${pdfKey.replace(/:/g,'_')}.pdf`;
 }
 
 // Write a data URL as a binary file to GitHub (raw base64, not re-encoded)
@@ -840,7 +839,8 @@ function PromptModal({ title, prompt, onClose }) {
             <div>1. Click <strong>Copy prompt</strong> below</div>
             <div>2. Click <strong>Open Claude.ai</strong> — it opens in a new tab</div>
             <div>3. Paste the prompt (⌘V / Ctrl+V) and press Send</div>
-            <div>4. Copy Claude's response and paste it back here in the relevant field</div>
+            <div>4. <strong>Tailor Resume / Cover Letter:</strong> save Claude's HTML output as a file → open in browser → Ctrl+P → Save as PDF → upload below</div>
+            <div>4. <strong>Other prompts:</strong> read and use Claude's response directly</div>
           </div>
           <textarea
             value={prompt}
@@ -960,7 +960,7 @@ function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, o
                 <div className="font-semibold">How to use:</div>
                 <div>1. Click <strong>Copy prompt</strong> → click <strong>Open Claude.ai</strong></div>
                 <div>2. Paste (⌘V / Ctrl+V) and press Send</div>
-                <div>3. Copy Claude's translation → paste it back into the Tailored Resume field</div>
+                <div>3. Copy Claude's translation → save as HTML file → open in browser → Ctrl+P → Save as PDF → upload below</div>
               </div>
               <textarea value={prompt} readOnly
                 className="w-full h-52 p-3 text-xs font-mono border border-gray-300 rounded-md bg-gray-50 resize-y focus:outline-none"
@@ -1010,9 +1010,10 @@ function AiPromptSection({ resumeDb, job, formatting, glossary, tailoredResume, 
       <SectionHdr icon="✨" title="AI Help via Claude.ai" />
       <p className="text-xs text-gray-600 mb-3">
         These buttons generate a ready-to-paste prompt for Claude.ai.
-        Paste the result back in the relevant field below to save it.
-        {!hasResume && <span className="text-amber-700 ml-1">Add your profile first for best results.</span>}
-        {!hasJd && hasResume && <span className="text-gray-500 ml-1">Add a JD for job-specific prompts.</span>}
+        For Resume and Cover Letter, convert Claude's HTML output to PDF and upload below.
+        Other prompts (Interview, Networking, Analysis) can be read directly in Claude.ai.
+        {!hasResume && <span className="block mt-1 text-amber-700">Add your profile first for best results.</span>}
+        {!hasJd && hasResume && <span className="block mt-1 text-gray-500">Add a JD for job-specific prompts.</span>}
       </p>
       <div className="flex flex-wrap gap-2 mb-3">
         {mainBtns.map(b => (
@@ -1464,7 +1465,7 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
 
   const handleSave = async () => {
     if (!form.company.trim() && !form.role.trim()) { alert('Please enter at least a company name or role.'); return; }
-    const job = { id: newId(), dateAdded: new Date().toISOString(), tailoredResume:'', coverLetter:'', ...form };
+    const job = { id: newId(), dateAdded: new Date().toISOString(), ...form };
     const updated = [job, ...jobs];
     setJobs(updated); await saveJson(`${region}:jobs`, updated);
     setSaved(true); setTimeout(()=>setSaved(false), 1200);
@@ -1639,10 +1640,11 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
   const ref = useRef(null);
 
   // On mount: if nothing cached locally, pull from GitHub (enables cross-device sync)
+  // Try .html first for backward compat with any previously stored files, then .pdf
   useEffect(() => {
     if (dataUrl || !ghConfigured()) return;
     (async () => {
-      for (const [ext, mime] of [['html','text/html'],['pdf','application/pdf']]) {
+      for (const [ext, mime] of [['pdf','application/pdf'],['html','text/html']]) {
         try {
           const path = `data/files/${pdfKey.replace(/:/g,'_')}.${ext}`;
           const url = await ghReadDataUrl(path, mime);
@@ -1656,7 +1658,7 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
     const ext = (file.name.split('.').pop() || '').toLowerCase();
-    if (!['pdf','html','htm'].includes(ext)) { setErr('Please upload a PDF or HTML file.'); return; }
+    if (ext !== 'pdf') { setErr('Please upload a PDF file. To convert: open the HTML from Claude in your browser → Ctrl+P (⌘P) → Save as PDF.'); return; }
     setBusy(true); setErr('');
     try {
       const url = await readFileAsDataUrl(file);
@@ -1665,11 +1667,10 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
       setDataUrl(url);
       // Then sync to GitHub
       setGhSaving(true);
-      await ghWriteDataUrl(pdfGhPath(pdfKey, url), url);
+      await ghWriteDataUrl(pdfGhPath(pdfKey), url);
     } catch(e) {
       const msg = e.message || 'Upload failed';
       if (msg.includes('GitHub') || msg.includes('configured')) {
-        // File is saved locally but GitHub sync failed — not fatal
         setErr(`Saved locally. GitHub sync failed: ${msg}`);
       } else {
         setErr(msg);
@@ -1681,8 +1682,8 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
   const handleDelete = () => {
     if (!window.confirm('Remove this file?')) return;
     deletePdfLocal(pdfKey);
-    // Delete from GitHub (best-effort, both possible extensions)
-    for (const ext of ['html','pdf']) {
+    // Delete from GitHub — try both extensions for backward compat
+    for (const ext of ['pdf','html']) {
       ghDeleteFile(`data/files/${pdfKey.replace(/:/g,'_')}.${ext}`).catch(()=>{});
     }
     setDataUrl(null);
@@ -1690,10 +1691,9 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
 
   const handleDownload = () => {
     if (!dataUrl) return;
-    const isHtml = dataUrl.includes('text/html');
     const a = document.createElement('a');
     a.href = dataUrl;
-    a.download = `${pdfKey.replace(/:/g,'_')}.${isHtml ? 'html' : 'pdf'}`;
+    a.download = `${pdfKey.replace(/:/g,'_')}.pdf`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
@@ -1703,10 +1703,10 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
         <h3 className="text-sm font-semibold text-gray-900">{icon} {label}</h3>
         <div className="flex gap-2 flex-wrap items-center">
           {ghSaving && <span className="text-xs text-blue-600 animate-pulse">⏳ Saving to GitHub…</span>}
-          {dataUrl && <Btn onClick={handleDownload}>⬇️ Download</Btn>}
-          <input ref={ref} type="file" accept=".pdf,.html,.htm" onChange={handleUpload} className="hidden" />
+          {dataUrl && <Btn onClick={handleDownload}>⬇️ Download PDF</Btn>}
+          <input ref={ref} type="file" accept=".pdf" onChange={handleUpload} className="hidden" />
           <Btn variant="primary" onClick={() => ref.current?.click()} disabled={busy || ghSaving}>
-            {busy ? '⏳ Reading…' : '⬆️ Upload file'}
+            {busy ? '⏳ Reading…' : '⬆️ Upload PDF'}
           </Btn>
           {dataUrl && <Btn variant="danger" onClick={handleDelete}>🗑</Btn>}
         </div>
@@ -1717,17 +1717,16 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
           src={dataUrl}
           className="w-full rounded-md border border-gray-200"
           style={{ height:'620px' }}
-          sandbox="allow-same-origin"
           title={label}
         />
       ) : (
         <div className="border-2 border-dashed border-gray-300 rounded-md p-8 text-center">
-          <p className="text-sm text-gray-500 mb-1">No file uploaded yet</p>
-          <p className="text-xs text-gray-400">After getting the HTML from Claude.ai, save it as a file and upload here — or export as PDF and upload the PDF</p>
+          <p className="text-sm text-gray-500 mb-1">No PDF uploaded yet</p>
+          <p className="text-xs text-gray-400">Upload a PDF file here</p>
         </div>
       )}
       <p className="mt-2 text-xs text-gray-400">
-        Saved to GitHub at <code className="bg-gray-100 px-1 rounded">data/files/</code> and cached locally for fast loading.
+        PDF saved to GitHub at <code className="bg-gray-100 px-1 rounded">data/files/</code> and cached locally for fast loading.
       </p>
     </Card>
   );
@@ -1818,9 +1817,12 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
       {/* How-to tip */}
       <Card className="p-3 bg-blue-50 border-blue-200">
         <p className="text-xs text-blue-900">
-          <strong>How to use AI prompts:</strong> Copy the prompt → paste into Claude.ai → Claude outputs a complete HTML file →
-          save it as <code>.html</code> (File → Save Page As in browser, or copy-paste into a text editor) → upload below.
-          To get a PDF: open the HTML file in your browser → Ctrl+P (⌘P) → Save as PDF → upload that PDF instead.
+          <strong>How to get a PDF from Claude:</strong>{' '}
+          Copy the prompt → paste into Claude.ai → Claude outputs an HTML file →
+          copy Claude's entire response into a text editor → save as <code className="bg-blue-100 px-0.5 rounded">.html</code> →
+          open that file in your browser → press <strong>Ctrl+P</strong> (⌘P) →
+          set Destination to <strong>Save as PDF</strong>, Margins to <strong>None</strong> → Save →
+          upload the PDF below.
         </p>
       </Card>
 
