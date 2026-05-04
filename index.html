@@ -174,8 +174,120 @@ const TABS = [
 const CLAUDE_URL = 'https://claude.ai/new';
 // Prompts are pasted into Claude.ai (200K token context) — no length limits needed.
 
+// HTML template that exactly matches the uploaded resume format:
+// - Name centered, all-caps, bold
+// - Contact line centered, smaller
+// - Section headers: bold all-caps with thin rule below
+// - Two-column entries: date left (74pt), content right
+// - Skills: label left (74pt, bold), value right
+// - Font: Calibri/Arial sans-serif (matches source PDF)
+const RESUME_HTML_TEMPLATE = '<!DOCTYPE html>\n' +
+'<html lang="en">\n' +
+'<head><meta charset="UTF-8">\n' +
+'<style>\n' +
+'* { margin:0; padding:0; box-sizing:border-box; }\n' +
+'body { font-family: Calibri, Arial, "Helvetica Neue", sans-serif; font-size:10pt; color:#000; background:#fff; }\n' +
+'.page { width:8.5in; margin:0 auto; padding:0.65in 0.8in; }\n' +
+'.name { text-align:center; font-size:16pt; font-weight:bold; letter-spacing:1.5pt; text-transform:uppercase; margin-bottom:2pt; }\n' +
+'.contact { text-align:center; font-size:9.5pt; margin-bottom:2pt; }\n' +
+'.section { margin-top:8pt; }\n' +
+'.sh { font-size:10pt; font-weight:bold; text-transform:uppercase; border-bottom:0.75pt solid #000; padding-bottom:1pt; margin-bottom:4pt; letter-spacing:0.3pt; }\n' +
+'.entry { display:flex; margin-bottom:5pt; }\n' +
+'.ed { min-width:74pt; max-width:74pt; font-size:9.5pt; line-height:1.35; padding-right:6pt; flex-shrink:0; }\n' +
+'.eb { flex:1; line-height:1.35; }\n' +
+'.et { font-weight:bold; font-size:10pt; }\n' +
+'.es { font-size:9.5pt; }\n' +
+'.el { font-size:9pt; }\n' +
+'.eb ul { padding-left:11pt; margin-top:1.5pt; }\n' +
+'.eb li { font-size:9.5pt; line-height:1.4; margin-bottom:1pt; list-style-type:disc; }\n' +
+'.sr { display:flex; margin-bottom:1.5pt; }\n' +
+'.sl { min-width:74pt; max-width:74pt; font-size:9.5pt; font-weight:bold; flex-shrink:0; padding-right:6pt; }\n' +
+'.sv { font-size:9.5pt; flex:1; }\n' +
+'@media print { @page { size:letter; margin:0; } body { -webkit-print-color-adjust:exact; } .page { padding:0.65in 0.8in; } }\n' +
+'</style></head>\n' +
+'<body><div class="page">\n\n' +
+'<div class="name">FULL NAME</div>\n' +
+'<div class="contact">+x xxx-xxx-xxxx · +x xxx-xxx-xxxx · email@example.com</div>\n\n' +
+'<div class="section">\n' +
+'  <div class="sh">EDUCATION</div>\n' +
+'  <div class="entry">\n' +
+'    <div class="ed">20XX–20XX</div>\n' +
+'    <div class="eb">\n' +
+'      <div class="et">Institution Name</div>\n' +
+'      <div class="es">Degree — Major</div>\n' +
+'      <ul>\n' +
+'        <li>Key Courses: ...</li>\n' +
+'        <li>Awards: ...</li>\n' +
+'      </ul>\n' +
+'    </div>\n' +
+'  </div>\n' +
+'</div>\n\n' +
+'<div class="section">\n' +
+'  <div class="sh">CERTIFICATIONS</div>\n' +
+'  <div class="entry">\n' +
+'    <div class="ed">Mon 20XX</div>\n' +
+'    <div class="eb">\n' +
+'      <div class="et">Certification Name — Issuer</div>\n' +
+'      <div class="es">One-line description</div>\n' +
+'    </div>\n' +
+'  </div>\n' +
+'</div>\n\n' +
+'<div class="section">\n' +
+'  <div class="sh">PROJECTS</div>\n' +
+'  <div class="entry">\n' +
+'    <div class="ed">20XX</div>\n' +
+'    <div class="eb">\n' +
+'      <div class="et">Project Name</div>\n' +
+'      <div class="es">Course/Context · Team info</div>\n' +
+'      <div class="el">github.com/...</div>\n' +
+'      <ul>\n' +
+'        <li>Achievement with metric</li>\n' +
+'        <li>Achievement with metric</li>\n' +
+'      </ul>\n' +
+'    </div>\n' +
+'  </div>\n' +
+'</div>\n\n' +
+'<div class="section">\n' +
+'  <div class="sh">EXPERIENCE</div>\n' +
+'  <div class="entry">\n' +
+'    <div class="ed">Season 20XX</div>\n' +
+'    <div class="eb">\n' +
+'      <div class="et">Company Name · City, Region, Country</div>\n' +
+'      <div class="es">Job Title</div>\n' +
+'      <ul>\n' +
+'        <li>Achievement with metric</li>\n' +
+'        <li>Achievement with metric</li>\n' +
+'      </ul>\n' +
+'    </div>\n' +
+'  </div>\n' +
+'</div>\n\n' +
+'<div class="section">\n' +
+'  <div class="sh">SKILLS</div>\n' +
+'  <div class="sr"><div class="sl">Technical</div><div class="sv">Python, R, SQL · Excel, PowerPoint</div></div>\n' +
+'  <div class="sr"><div class="sl">Professional</div><div class="sv">Research &amp; Analysis</div></div>\n' +
+'  <div class="sr"><div class="sl">Languages</div><div class="sv">English (IELTS 8.0) · Cantonese (Native) · Mandarin (Native)</div></div>\n' +
+'</div>\n\n' +
+'</div></body></html>';
+
+const COVER_HTML_TEMPLATE = '<!DOCTYPE html>\n' +
+'<html lang="en">\n' +
+'<head><meta charset="UTF-8">\n' +
+'<style>\n' +
+'* { margin:0; padding:0; box-sizing:border-box; }\n' +
+'body { font-family: Calibri, Arial, "Helvetica Neue", sans-serif; font-size:11pt; color:#000; background:#fff; }\n' +
+'.page { width:8.5in; margin:0 auto; padding:1in 1.1in; line-height:1.6; }\n' +
+'p { margin-bottom:14pt; text-align:justify; }\n' +
+'@media print { @page { size:letter; margin:0; } .page { padding:1in 1.1in; } }\n' +
+'</style></head>\n' +
+'<body><div class="page">\n' +
+'<p>[Opening paragraph]</p>\n' +
+'<p>[Body paragraph with 2-3 key achievements]</p>\n' +
+'<p>[Closing paragraph with call to action]</p>\n' +
+'</div></body></html>';
+
 function promptTailorResume(resumeDb, job, formatting) {
-  return `Please tailor my resume for this specific job application. Output in clean Markdown.
+  return `Please tailor my resume for this specific job application.
+Output a COMPLETE, SELF-CONTAINED HTML FILE — nothing else. No markdown fences, no explanation before or after, just the raw HTML starting with <!DOCTYPE html>.
 
 MY BACKGROUND:
 ${resumeDb||''}
@@ -187,17 +299,22 @@ ${job.salaryRange ? `SALARY RANGE: ${job.salaryRange}` : ''}
 JOB DESCRIPTION:
 ${job.jdText||''}
 
-INSTRUCTIONS:
-1. Rewrite my resume to highlight the most relevant experience for this role
-2. Mirror the language and keywords from the job description
+CONTENT INSTRUCTIONS:
+1. Tailor content to highlight the most relevant experience for this role
+2. Mirror language and keywords from the job description
 3. Quantify achievements wherever possible
-4. Start with a strong summary tailored to this specific role
-5. Output only the resume — no commentary before or after
-${(formatting||'').trim() ? `\nFORMATTING REQUIREMENTS (follow exactly):\n${formatting.trim()}` : '6. Keep content to approximately one page'}`.trim();
+4. One page maximum
+5. Include only sections that are relevant — skip CERTIFICATIONS if none present
+${(formatting||'').trim() ? `6. Additional requirements:\n${formatting.trim()}` : ''}
+
+FORMAT INSTRUCTIONS — use EXACTLY this HTML structure and CSS, do not modify the CSS or class names:
+
+${RESUME_HTML_TEMPLATE}`.trim();
 }
 
 function promptCoverLetter(resumeDb, job) {
-  return `Please write a professional cover letter for this job application. Output only the letter body (no header, no "Dear X", no sign-off placeholder).
+  return `Please write a professional cover letter for this job application.
+Output a COMPLETE, SELF-CONTAINED HTML FILE — nothing else. No markdown fences, no explanation before or after, just the raw HTML starting with <!DOCTYPE html>.
 
 MY BACKGROUND:
 ${resumeDb||''}
@@ -208,12 +325,17 @@ LOCATION: ${job.location||''}
 JOB DESCRIPTION:
 ${job.jdText||''}
 
-INSTRUCTIONS:
-- 3–4 paragraphs, 300–350 words
-- Opening: connect my background to this specific role
-- Middle: highlight 2–3 most relevant achievements with impact
+CONTENT INSTRUCTIONS:
+- 3 paragraphs, 300–350 words total
+- Opening: connect my specific background to this role
+- Middle: 2–3 most relevant quantified achievements
 - Closing: clear call to action
-- Tone: confident and professional, not generic`.trim();
+- Tone: confident and professional, not generic
+- No salutation, no sign-off — body paragraphs only
+
+FORMAT INSTRUCTIONS — use EXACTLY this HTML structure:
+
+${COVER_HTML_TEMPLATE}`.trim();
 }
 
 function promptInterviewPrep(resumeDb, job) {
@@ -401,6 +523,25 @@ function downloadText(filename, content, mime='text/plain') {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+// Read file as base64 data URL (for HTML/PDF binary storage)
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// PDF/HTML localStorage helpers (device-local, not synced to GitHub)
+const PDF_LS_PRE = 'jobapp-pdf:';
+function savePdfLocal(key, dataUrl) {
+  try { localStorage.setItem(PDF_LS_PRE + key, dataUrl); return true; }
+  catch(e) { console.warn('localStorage quota exceeded:', e); return false; }
+}
+function loadPdfLocal(key) { return localStorage.getItem(PDF_LS_PRE + key) || null; }
+function deletePdfLocal(key) { localStorage.removeItem(PDF_LS_PRE + key); }
+
 function safeName(s) { return (s||'file').replace(/[^\w\s-]/g,'').replace(/\s+/g,'_').slice(0,60) || 'file'; }
 function stripMd(md) {
   return (md||'').replace(/^#{1,6}\s+/gm,'').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1')
@@ -408,197 +549,7 @@ function stripMd(md) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// RESUME PRINT VIEW GENERATOR
-// ════════════════════════════════════════════════════════════════
-
-const PRINT_STYLES = {
-  mainland: {
-    label: '🇨🇳 Mainland China 简历',
-    fontUrl: 'https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap',
-    fontFamily: "'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', sans-serif",
-    css: `
-      body { font-family: FONT; font-size: 11pt; color: #1a1a1a; margin: 0; padding: 0; background: white; }
-      .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm 16mm; box-sizing: border-box; }
-      h1 { font-size: 22pt; font-weight: 700; text-align: center; margin: 0 0 4px; letter-spacing: 4px; color: #0d2137; }
-      .contact { text-align: center; font-size: 9.5pt; color: #444; margin-bottom: 10px; }
-      .contact span { margin: 0 8px; }
-      h2 { font-size: 11.5pt; font-weight: 700; color: #0d2137; border-left: 4px solid #0d2137;
-           padding: 2px 0 2px 8px; background: #eef4fb; margin: 12px 0 6px; letter-spacing: 1px; }
-      h3 { font-size: 10.5pt; font-weight: 600; margin: 8px 0 2px; color: #1a1a1a; display: flex; justify-content: space-between; }
-      .date { font-weight: 400; font-size: 9.5pt; color: #555; float: right; }
-      ul { margin: 2px 0 6px 0; padding-left: 16px; }
-      li { margin: 2px 0; font-size: 10pt; line-height: 1.5; }
-      p { margin: 3px 0; font-size: 10pt; line-height: 1.6; }
-      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .page { padding: 10mm 14mm; } @page { size: A4; margin: 0; } }
-    `,
-  },
-  hongkong: {
-    label: '🇭🇰 Hong Kong CV',
-    fontUrl: 'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap',
-    fontFamily: "'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif",
-    css: `
-      body { font-family: FONT; font-size: 11pt; color: #1a1a1a; margin: 0; padding: 0; background: white; }
-      .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm 18mm; box-sizing: border-box; }
-      h1 { font-size: 20pt; font-weight: 700; margin: 0 0 2px; color: #1a1a2e; letter-spacing: 1px; }
-      .contact { font-size: 9.5pt; color: #555; margin-bottom: 4px; }
-      .contact span { margin-right: 14px; }
-      h2 { font-size: 11pt; font-weight: 700; color: #1a1a2e; text-transform: uppercase;
-           letter-spacing: 1.5px; border-bottom: 1px solid #ccd; padding-bottom: 3px; margin: 12px 0 6px; }
-      h3 { font-size: 10.5pt; font-weight: 600; margin: 8px 0 2px; display: flex; justify-content: space-between; }
-      .date { font-weight: 400; font-size: 9.5pt; color: #666; }
-      ul { margin: 2px 0 6px 0; padding-left: 16px; }
-      li { margin: 2px 0; font-size: 10pt; line-height: 1.55; }
-      p { margin: 3px 0; font-size: 10pt; line-height: 1.65; }
-      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .page { padding: 10mm 16mm; } @page { size: A4; margin: 0; } }
-    `,
-  },
-  english: {
-    label: '📄 English (clean)',
-    fontUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
-    fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
-    css: `
-      body { font-family: FONT; font-size: 10.5pt; color: #1a1a1a; margin: 0; padding: 0; background: white; }
-      .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm 18mm; box-sizing: border-box; }
-      h1 { font-size: 20pt; font-weight: 700; margin: 0 0 4px; letter-spacing: 0.5px; }
-      .contact { font-size: 9.5pt; color: #555; margin-bottom: 10px; }
-      .contact span { margin-right: 12px; }
-      h2 { font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
-           border-bottom: 1px solid #aaa; padding-bottom: 2px; margin: 12px 0 5px; color: #111; }
-      h3 { font-size: 10.5pt; font-weight: 600; margin: 7px 0 1px; display: flex; justify-content: space-between; }
-      .date { font-weight: 400; font-size: 9.5pt; color: #555; }
-      ul { margin: 2px 0 5px 0; padding-left: 16px; }
-      li { margin: 1px 0; font-size: 10pt; line-height: 1.5; }
-      p { margin: 3px 0; font-size: 10pt; line-height: 1.6; }
-      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .page { padding: 10mm 16mm; } @page { size: A4; margin: 0; } }
-    `,
-  },
-};
-
-function mdToHtmlBody(text) {
-  const lines = (text || '').split('\n');
-  let html = '';
-  let inList = false;
-
-  const inline = s => s
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g,'<em>$1</em>')
-    .replace(/`([^`]+)`/g,'<code>$1</code>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2">$1</a>');
-
-  const flush = () => { if (inList) { html += '</ul>'; inList = false; } };
-
-  lines.forEach(raw => {
-    const l = raw.replace(/\r$/,'');
-    if (/^#\s/.test(l)) {
-      flush();
-      // h1 = name line — split contact info out
-      const name = l.replace(/^#\s/,'').trim();
-      html += `<h1>${inline(name)}</h1>`;
-    } else if (/^##\s/.test(l)) {
-      flush();
-      html += `<h2>${inline(l.replace(/^##\s/,'').trim())}</h2>`;
-    } else if (/^###\s/.test(l)) {
-      flush();
-      // Detect "Title — Company    Date" pattern and split date to right
-      const content = l.replace(/^###\s/,'').trim();
-      const dateMatch = content.match(/^(.*?)\s{2,}(\d{4}.{0,20})$/) || content.match(/^(.*?)\s*[·|]\s*([\d年月–\-].+)$/);
-      if (dateMatch) {
-        html += `<h3><span>${inline(dateMatch[1].trim())}</span><span class="date">${inline(dateMatch[2].trim())}</span></h3>`;
-      } else {
-        html += `<h3>${inline(content)}</h3>`;
-      }
-    } else if (/^\s*[-•·*]\s/.test(l)) {
-      if (!inList) { html += '<ul>'; inList = true; }
-      html += `<li>${inline(l.replace(/^\s*[-•·*]\s/,'').trim())}</li>`;
-    } else if (l.trim() === '') {
-      flush();
-      html += '<div style="height:4px"></div>';
-    } else {
-      flush();
-      // Contact line heuristic: if it contains · or | and no letters before first |/·, treat as contact
-      if (/[·|]/.test(l) && l.trim().length < 200) {
-        const parts = l.split(/\s*[·|]\s*/);
-        html += `<p class="contact">${parts.map(p => `<span>${inline(p.trim())}</span>`).join('')}</p>`;
-      } else {
-        html += `<p>${inline(l)}</p>`;
-      }
-    }
-  });
-  flush();
-  return html;
-}
-
-function openPrintView(content, styleKey) {
-  const s = PRINT_STYLES[styleKey];
-  const css = s.css.replace(/FONT/g, s.fontFamily);
-  const body = mdToHtmlBody(content);
-  const html = `<!DOCTYPE html>
-<html lang="${styleKey === 'mainland' ? 'zh-CN' : styleKey === 'hongkong' ? 'zh-HK' : 'en'}">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width">
-<title>Resume</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="${s.fontUrl}" rel="stylesheet">
-<style>${css}</style>
-</head>
-<body>
-<div class="page">
-${body}
-</div>
-<script>
-  document.fonts.ready.then(() => {
-    document.getElementById('printbar').style.display = 'flex';
-  });
-<\/script>
-<div id="printbar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#1a365d;color:white;padding:10px 20px;align-items:center;justify-content:space-between;font-family:sans-serif;font-size:13px;z-index:999">
-  <span>✅ Resume ready — press <strong>Ctrl+P</strong> (or ⌘P on Mac) to save as PDF. Set margins to None for best results.</span>
-  <button onclick="window.print()" style="background:white;color:#1a365d;border:none;padding:6px 16px;border-radius:4px;font-weight:600;cursor:pointer">🖨️ Print / Save PDF</button>
-</div>
-</body>
-</html>`;
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
-}
-
-// PrintView button component
-function PrintViewButton({ content }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [open]);
-
-  if (!(content||'').trim()) return null;
-
-  return (
-    <div className="relative inline-block" ref={ref}>
-      <Btn onClick={() => setOpen(o => !o)}>🖨️ Print view</Btn>
-      {open && (
-        <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-20">
-          <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-100">Choose visual style:</div>
-          {Object.entries(PRINT_STYLES).map(([key, s]) => (
-            <button key={key}
-              onClick={() => { openPrintView(content, key); setOpen(false); }}
-              className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 last:rounded-b-md">
-              {s.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
+// UTILITY HELPERS
 // ════════════════════════════════════════════════════════════════
 // UTILITY HELPERS
 // ════════════════════════════════════════════════════════════════
@@ -751,15 +702,6 @@ function Alert({ type='warning', children }) {
 // ════════════════════════════════════════════════════════════════
 // COPY / DOWNLOAD / UPLOAD BUTTONS
 // ════════════════════════════════════════════════════════════════
-
-function CopyButton({ text, label='Copy' }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Btn onClick={async () => { try { await navigator.clipboard.writeText(text||''); setCopied(true); setTimeout(()=>setCopied(false),1500); } catch {} }}>
-      {copied ? '✅ Copied' : `📋 ${label}`}
-    </Btn>
-  );
-}
 
 function DownloadMenu({ content, baseFilename }) {
   const [open, setOpen] = useState(false);
@@ -1558,6 +1500,9 @@ function TrackerTab({ region, jobs, setJobs, onOpen }) {
 
   const deleteJob = async id => {
     if (!window.confirm('Delete this application?')) return;
+    // Clean up any locally stored resume/cover letter PDFs
+    deletePdfLocal(`${region}:${id}:resume`);
+    deletePdfLocal(`${region}:${id}:cover`);
     const updated = jobs.filter(j=>j.id!==id); setJobs(updated); await saveJson(`${region}:jobs`, updated);
   };
 
@@ -1609,6 +1554,82 @@ function TrackerTab({ region, jobs, setJobs, onOpen }) {
 }
 
 // ════════════════════════════════════════════════════════════════
+// PDF / HTML UPLOAD + PREVIEW FIELD
+// ════════════════════════════════════════════════════════════════
+
+function PdfUploadField({ label, pdfKey, icon='📄' }) {
+  const [dataUrl, setDataUrl] = useState(() => loadPdfLocal(pdfKey));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr]   = useState('');
+  const ref = useRef(null);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!['pdf','html','htm'].includes(ext)) { setErr('Please upload a PDF or HTML file.'); return; }
+    setBusy(true); setErr('');
+    try {
+      const url = await readFileAsDataUrl(file);
+      if (!savePdfLocal(pdfKey, url)) {
+        setErr('File too large for browser storage. Try compressing the PDF first.');
+        return;
+      }
+      setDataUrl(url);
+    } catch(e) { setErr(e.message || 'Upload failed'); }
+    finally { setBusy(false); }
+  };
+
+  const handleDelete = () => {
+    if (!window.confirm('Remove this file?')) return;
+    deletePdfLocal(pdfKey);
+    setDataUrl(null);
+  };
+
+  const handleDownload = () => {
+    if (!dataUrl) return;
+    const isHtml = dataUrl.includes('text/html');
+    const ext = isHtml ? 'html' : 'pdf';
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `${pdfKey.replace(/:/g,'_')}.${ext}`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  };
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h3 className="text-sm font-semibold text-gray-900">{icon} {label}</h3>
+        <div className="flex gap-2 flex-wrap">
+          {dataUrl && <Btn onClick={handleDownload}>⬇️ Download</Btn>}
+          <input ref={ref} type="file" accept=".pdf,.html,.htm" onChange={handleUpload} className="hidden" />
+          <Btn variant="primary" onClick={() => ref.current?.click()} disabled={busy}>
+            {busy ? '⏳ Reading…' : '⬆️ Upload file'}
+          </Btn>
+          {dataUrl && <Btn variant="danger" onClick={handleDelete}>🗑</Btn>}
+        </div>
+      </div>
+      {err && <div className="text-xs text-red-700 mb-2 p-2 bg-red-50 border border-red-200 rounded">{err}</div>}
+      {dataUrl ? (
+        <iframe
+          src={dataUrl}
+          className="w-full rounded-md border border-gray-200"
+          style={{ height:'620px' }}
+          sandbox="allow-same-origin"
+          title={label}
+        />
+      ) : (
+        <div className="border-2 border-dashed border-gray-300 rounded-md p-8 text-center">
+          <p className="text-sm text-gray-500 mb-1">No file uploaded yet</p>
+          <p className="text-xs text-gray-400">After getting the HTML from Claude.ai, save it as a file and upload here — or export as PDF and upload the PDF</p>
+        </div>
+      )}
+      <p className="mt-2 text-xs text-gray-400">⚠️ Stored in this browser only — not synced to GitHub. Re-upload on other devices.</p>
+    </Card>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
 // JOB DETAIL
 // ════════════════════════════════════════════════════════════════
 
@@ -1631,7 +1652,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
   };
 
   const handleSaveNotes = async () => {
-    await updateJob({ notes: form.notes, tailoredResume: form.tailoredResume, coverLetter: form.coverLetter });
+    await updateJob({ notes: form.notes });
     setNotesSaved(true); setTimeout(()=>setNotesSaved(false),1500);
   };
 
@@ -1690,39 +1711,18 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
       {/* AI prompts */}
       <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} glossary={glossary} tailoredResume={form.tailoredResume||''} library={library} />
 
-      {/* Paste-back sections */}
-      <Card className="p-4">
-        <SectionHdr icon="📝" title="Tailored resume"
-          action={
-            <div className="flex gap-2 flex-wrap">
-              {form.tailoredResume && (
-                <>
-                  <CopyButton text={form.tailoredResume} />
-                  <DownloadMenu content={form.tailoredResume} baseFilename={`Resume_${form.company}_${form.role}`} />
-                  <PrintViewButton content={form.tailoredResume} />
-                </>
-              )}
-            </div>
-          }
-        />
-        <p className="text-xs text-gray-500 mb-2">Paste your Claude-generated tailored resume here to save it with this application.</p>
-        <textarea value={form.tailoredResume||''} onChange={e=>set('tailoredResume',e.target.value)}
-          placeholder="Paste your Claude-generated tailored resume here…"
-          className="w-full h-40 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
-        {form.tailoredResume && (
-          <div className="mt-2 p-3 bg-gray-50 rounded-md max-h-60 overflow-y-auto"><MdView text={form.tailoredResume} /></div>
-        )}
+      {/* How-to tip */}
+      <Card className="p-3 bg-blue-50 border-blue-200">
+        <p className="text-xs text-blue-900">
+          <strong>How to use AI prompts:</strong> Copy the prompt → paste into Claude.ai → Claude outputs a complete HTML file →
+          save it as <code>.html</code> (File → Save Page As in browser, or copy-paste into a text editor) → upload below.
+          To get a PDF: open the HTML file in your browser → Ctrl+P (⌘P) → Save as PDF → upload that PDF instead.
+        </p>
       </Card>
 
-      <Card className="p-4">
-        <SectionHdr icon="✉️" title="Cover letter"
-          action={form.coverLetter && <><CopyButton text={form.coverLetter} /><DownloadMenu content={form.coverLetter} baseFilename={`CoverLetter_${form.company}_${form.role}`} /></>}
-        />
-        <p className="text-xs text-gray-500 mb-2">Paste your Claude-generated cover letter here to save it with this application.</p>
-        <textarea value={form.coverLetter||''} onChange={e=>set('coverLetter',e.target.value)}
-          placeholder="Paste your Claude-generated cover letter here…"
-          className="w-full h-36 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
-      </Card>
+      {/* PDF upload fields */}
+      <PdfUploadField icon="📝" label="Tailored resume" pdfKey={`${region}:${job.id}:resume`} />
+      <PdfUploadField icon="✉️" label="Cover letter" pdfKey={`${region}:${job.id}:cover`} />
 
       <Card className="p-4">
         <SectionHdr icon="🗒" title="My notes"
