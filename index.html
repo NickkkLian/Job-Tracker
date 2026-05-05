@@ -354,8 +354,23 @@ const COVER_HTML_TEMPLATE = '<!DOCTYPE html>\n' +
 '</div></body></html>';
 
 function promptTailorResume(resumeDb, job, formatting) {
-  return `Please tailor my resume for this specific job application.
-Output a COMPLETE, SELF-CONTAINED HTML FILE — nothing else. No markdown fences, no explanation before or after, just the raw HTML starting with <!DOCTYPE html>.
+  return `IMPORTANT — OUTPUT FORMAT (read this first):
+Create an HTML artifact for my tailored resume. The artifact should contain a complete, self-contained HTML document starting with <!DOCTYPE html> and ending with </html>.
+
+DO NOT:
+- Output text explaining what you're going to do
+- Ask clarifying questions before starting
+- Tell me how to save the HTML or how to convert it to PDF
+- Wrap the HTML in markdown code fences (\`\`\`html)
+- Output anything outside the artifact
+
+DO:
+- Use Claude's artifact feature — this is exactly what artifacts are for
+- Title the artifact "Resume — [Company] — [Role]"
+- Generate the complete styled HTML inside the artifact, ready to render
+- After the artifact is created, you may add ONE short sentence confirming it's done. No more.
+
+NOW THE TASK — tailor my resume for this specific job:
 
 MY BACKGROUND:
 ${resumeDb||''}
@@ -385,14 +400,29 @@ TONE — CRITICAL:
 - No filler adjectives (cutting-edge, scalable, robust, comprehensive, end-to-end) unless the underlying claim is genuinely true and quantified.
 - It's OK for bullets to sound modest — recruiters trust specificity over hype.
 
-FORMAT INSTRUCTIONS — use EXACTLY this HTML structure and CSS, do not modify the CSS or class names:
+USE EXACTLY THIS HTML STRUCTURE AND CSS — do not modify the CSS or class names, only fill in the content:
 
 ${RESUME_HTML_TEMPLATE}`.trim();
 }
 
 function promptCoverLetter(resumeDb, job) {
-  return `Please write a professional cover letter for this job application.
-Output a COMPLETE, SELF-CONTAINED HTML FILE — nothing else. No markdown fences, no explanation before or after, just the raw HTML starting with <!DOCTYPE html>.
+  return `IMPORTANT — OUTPUT FORMAT (read this first):
+Create an HTML artifact for my cover letter. The artifact should contain a complete, self-contained HTML document starting with <!DOCTYPE html> and ending with </html>.
+
+DO NOT:
+- Output text explaining what you're going to do
+- Ask clarifying questions before starting
+- Tell me how to save the HTML or how to convert it to PDF
+- Wrap the HTML in markdown code fences (\`\`\`html)
+- Output anything outside the artifact
+
+DO:
+- Use Claude's artifact feature — this is exactly what artifacts are for
+- Title the artifact "Cover Letter — [Company] — [Role]"
+- Generate the complete styled HTML inside the artifact, ready to render
+- After the artifact is created, you may add ONE short sentence confirming it's done. No more.
+
+NOW THE TASK — write a cover letter for this job:
 
 MY BACKGROUND:
 ${resumeDb||''}
@@ -419,7 +449,7 @@ TONE — CRITICAL:
 - Plain language. Short sentences. No filler.
 - It's OK to acknowledge I'm early-career; what matters is showing concrete fit.
 
-FORMAT INSTRUCTIONS — use EXACTLY this HTML structure:
+USE EXACTLY THIS HTML STRUCTURE — do not modify the CSS, only fill in the paragraph content:
 
 ${COVER_HTML_TEMPLATE}`.trim();
 }
@@ -1856,12 +1886,12 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
       {/* How-to tip */}
       <Card className="p-3 bg-blue-50 border-blue-200">
         <p className="text-xs text-blue-900">
-          <strong>How to get a PDF from Claude:</strong>{' '}
-          Copy the prompt → paste into Claude.ai → Claude outputs an HTML file →
-          copy Claude's entire response into a text editor → save as <code className="bg-blue-100 px-0.5 rounded">.html</code> →
-          open that file in your browser → press <strong>Ctrl+P</strong> (⌘P) →
-          set Destination to <strong>Save as PDF</strong>, Margins to <strong>None</strong> → Save →
-          upload the PDF below.
+          <strong>How to get the PDF:</strong>{' '}
+          Copy prompt → paste into Claude.ai → Claude creates an <strong>HTML artifact</strong> (right side panel) →
+          click the artifact → click <strong>⋯ menu → Copy</strong> or open it in a new tab →
+          save the page as <code className="bg-blue-100 px-0.5 rounded">.html</code> →
+          open in your browser → <strong>Ctrl+P (⌘P)</strong> → set Margins to <strong>None</strong> → Save as PDF → upload below.
+          {' '}<em>Or:</em> if Claude shows the HTML inline, copy the entire HTML block, paste into a text editor, save as <code className="bg-blue-100 px-0.5 rounded">.html</code>, then print to PDF.
         </p>
       </Card>
 
