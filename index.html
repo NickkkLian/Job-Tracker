@@ -471,11 +471,19 @@ JOB DESCRIPTION:
 ${job.jdText||''}
 
 Please provide:
-1. 8 likely interview questions — mix of behavioral, technical, and role-specific
-2. For each question, one sentence on what they are really testing
-3. 3 specific areas I should study or prepare before the interview
-4. Any red flags or challenges to be aware of in this JD
-5. ${job.location ? `Any tips specific to interviewing in ${job.location}` : 'General interview etiquette tips for this type of role'}`.trim();
+
+1. **My strengths for this role** — summarize the concrete strengths from my background that match this role. Cover all four angles, with specific examples drawn from my actual experience:
+   - **Geographic / regional fit**: any work authorization, cultural familiarity, regional networks, or local language skills relevant to ${job.location ? job.location : 'this role\'s location'}
+   - **Language abilities**: which of my languages are useful here, and how (e.g. client-facing in Cantonese, internal Mandarin documentation, English business communication)
+   - **Interdisciplinary skills**: combinations across my domains (finance + AI, business + technical, etc.) that map to the role's stated needs
+   - **Practical / hands-on abilities**: specific tools, models, or deliverables I have actually produced — quoting concrete examples from my background
+   For each angle, also flag any *gap* honestly so I can prepare a thoughtful answer if asked.
+
+2. **8 likely interview questions** — mix of behavioral, technical, and role-specific
+3. For each question, one sentence on what they are really testing
+4. **3 specific areas I should study or prepare** before the interview
+5. **Any red flags or challenges** to be aware of in this JD
+6. ${job.location ? `Any tips specific to interviewing in ${job.location}` : 'General interview etiquette tips for this type of role'}`.trim();
 }
 
 function promptNetworking(resumeDb, job) {
