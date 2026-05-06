@@ -386,21 +386,25 @@ CONTENT INSTRUCTIONS:
 1. Tailor content to highlight the most relevant experience for this role
 2. Mirror language and keywords from the job description
 3. Quantify achievements with concrete numbers — but ONLY use numbers that are actually in my background; never invent metrics
-4. One page maximum
+4. ONE PAGE MAXIMUM (mandatory). The resume must fit on a single A4/Letter page when printed.
+   - If content is too long: first trim the weakest bullets and shorten verbose phrasing.
+   - If still too long: tighten the CSS — reduce ".section { margin-top }" from 8pt down to as low as 5pt, ".entry { margin-bottom }" from 5pt to as low as 3pt, "li { line-height }" from 1.4 to 1.3, body "font-size" from 10pt to 9.5pt as a last resort. Keep changes proportional and preserve the visual hierarchy.
+   - Never go to two pages.
 5. Include only sections that are relevant — skip CERTIFICATIONS if none present
 ${(formatting||'').trim() ? `6. Additional requirements:\n${formatting.trim()}` : ''}
 
 TONE — CRITICAL:
-- I am a NEW GRAD / INTERN candidate. Calibrate accordingly.
+- I am a RECENT GRADUATE (degree completed) seeking entry-level / new-grad positions. Calibrate accordingly.
+- Past tense for completed education and finished internships ("Built", "Analyzed"), present tense only if currently doing the work.
 - NO buzzwords or corporate fluff. Banned: leveraged, spearheaded, drove, transformed, revolutionized, championed, orchestrated, pioneered, synergized, optimized (vague usage), strategic, dynamic, innovative, passionate, results-driven, thought leader, go-getter, value-add.
-- Use plain, factual verbs that match what an intern actually did: built, wrote, analyzed, tested, presented, supported, contributed to, helped, researched, prepared, processed, modeled, documented, automated, implemented, debugged.
+- Use plain, factual verbs that match what an early-career candidate actually did: built, wrote, analyzed, tested, presented, supported, contributed to, helped, researched, prepared, processed, modeled, documented, automated, implemented, debugged.
 - Don't claim ownership of outcomes I only contributed to. "Built" not "led". "Helped develop" not "delivered". "Analyzed" not "owned". "Supported" not "drove".
 - Internships are 3 months — don't claim long-term strategic impact. Stick to specific deliverables produced during that window.
 - Don't inflate scope: if I worked on one feature, don't say "transformed the platform". If I supported a team, don't say "led".
 - No filler adjectives (cutting-edge, scalable, robust, comprehensive, end-to-end) unless the underlying claim is genuinely true and quantified.
 - It's OK for bullets to sound modest — recruiters trust specificity over hype.
 
-USE EXACTLY THIS HTML STRUCTURE AND CSS — do not modify the CSS or class names, only fill in the content:
+USE EXACTLY THIS HTML STRUCTURE — do not change class names, the visual hierarchy, or the overall layout. The only CSS values you may adjust are the spacing/sizing values listed in instruction 4 above (and only if needed to fit one page). Otherwise, fill in the content within the existing structure:
 
 ${RESUME_HTML_TEMPLATE}`.trim();
 }
@@ -441,7 +445,8 @@ CONTENT INSTRUCTIONS:
 - No salutation, no sign-off — body paragraphs only
 
 TONE — CRITICAL:
-- I am a NEW GRAD / INTERN candidate. Be honest about that level.
+- I am a RECENT GRADUATE (degree completed) seeking entry-level / new-grad positions. Be honest about that level.
+- Past tense for completed education and finished internships.
 - NO buzzwords. Banned: leveraged, spearheaded, drove, transformed, championed, passionate, results-driven, thought leader, dynamic, innovative, value-add, synergized.
 - Don't open with "I am writing to express my strong interest in..." or any other generic template phrase.
 - Don't claim leadership or ownership of outcomes I only contributed to.
