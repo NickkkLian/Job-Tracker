@@ -267,18 +267,81 @@ VERIFY (critical):
 VISUAL LAYOUT — match this exactly:
 
 * **Page**: Letter size (8.5" × 11"), portrait, margins: 0.5" top/bottom, 0.6" left/right
-* **Name**: 16pt Helvetica-Bold, ALL CAPS, centered, letter-spacing of about 1.5pt (you can simulate with extra spaces between letters or use \`canvas.drawString\` with character spacing)
+* **Name**: 16pt Helvetica-Bold, ALL CAPS, centered, letter-spacing of about 1.5pt (you can simulate with extra spaces between letters)
 * **Contact line**: 9.5pt Helvetica, centered, items separated by " · " (middle dot with spaces)
-* **Section headers** (EDUCATION, CERTIFICATIONS, PROJECTS, EXPERIENCE, SKILLS): 10pt Helvetica-Bold, ALL CAPS, left-aligned, with a thin horizontal rule (0.75pt black line) directly below. ~6pt of space above each header.
+* **Section headers** (EDUCATION, CERTIFICATIONS, PROJECTS, EXPERIENCE, SKILLS): 10pt Helvetica-Bold, ALL CAPS, left-aligned, with a thin horizontal rule (0.75pt black line) directly below the title text. ~6pt of space above each header. The rule must be BELOW the section title text — never overlapping it or any entry below it.
 * **Entries** (Education / Experience / Projects / Certifications): two columns
-  - Left column: dates, 9.5pt Helvetica, ~75pt wide (e.g. "2022–2026", "Summer 2025", "Feb 2026")
-  - Right column: content, flex remaining width
+  - Left column: dates, 9.5pt Helvetica, exactly 75pt wide
+  - Right column: content, fills remaining width
     - First line: institution/company/project name in 10pt Helvetica-Bold
     - Second line: degree/title/subtitle in 9.5pt Helvetica
     - Optional third line for projects: GitHub URL in 9pt Helvetica
     - Bullet points: 9.5pt Helvetica with • marker, 1.4 line-height, ~11pt left indent
 * **Skills section**: same two-column layout as entries, but left column shows category label (Helvetica-Bold 9.5pt) instead of date
-* **Spacing**: tight — 4pt below section header, 5pt between entries, 1pt between bullets
+* **Spacing**: tight — 4pt below section rule, 5pt between entries, 1pt between bullets
+
+CRITICAL STRUCTURAL REQUIREMENT — avoid the most common mistake:
+
+Use **reportlab's Platypus framework** (SimpleDocTemplate + Story). Each section MUST be built as a sequence of SEPARATE story items in this exact order:
+   1. Paragraph(section_title)         # e.g. "EDUCATION"
+   2. HRFlowable(...)                  # the horizontal rule below the title
+   3. Spacer(1, 4)                     # small gap between rule and entries
+   4. Table([[date, content], ...])    # the entries, two columns
+
+DO NOT:
+- Put the section header text INSIDE the entries Table (this causes the rule to overlap entry titles)
+- Mix manual canvas drawing with Platypus — use Platypus only
+- Use a single Table containing both the section header AND its entries
+- Draw the rule via canvas.line() — use HRFlowable so it flows correctly with content
+
+DO use this skeleton pattern for each section:
+
+\`\`\`python
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+
+# ... define styles ...
+
+story = []
+story.append(Paragraph('FULL NAME', name_style))
+story.append(Paragraph('phone · phone · email · location', contact_style))
+story.append(Spacer(1, 6))
+
+# === Each section follows this pattern ===
+story.append(Paragraph('EDUCATION', section_style))
+story.append(HRFlowable(width='100%', thickness=0.75, color=colors.black, spaceBefore=1, spaceAfter=4))
+
+entries = [
+    [
+        Paragraph('2022–2026', date_style),
+        [
+            Paragraph('UBC Sauder School of Business', entry_title_style),
+            Paragraph('Bachelor of Commerce — Major', entry_sub_style),
+            Paragraph('• Awards: ...', bullet_style),
+        ],
+    ],
+    # ... more entries
+]
+t = Table(entries, colWidths=[75, None])
+t.setStyle(TableStyle([
+    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+    ('LEFTPADDING', (0,0), (-1,-1), 0),
+    ('RIGHTPADDING', (0,0), (-1,-1), 0),
+    ('TOPPADDING', (0,0), (-1,-1), 0),
+    ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+]))
+story.append(t)
+story.append(Spacer(1, 4))
+
+# ... repeat for CERTIFICATIONS, PROJECTS, EXPERIENCE, SKILLS ...
+
+doc.build(story)
+\`\`\`
+
+Adapt this pattern for each section. Skills section uses the same Table structure but the left column contains the category label (e.g. "Technical:") instead of a date.
 
 NOW THE TASK — tailor my resume for this specific job:
 
