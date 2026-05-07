@@ -259,15 +259,21 @@ REPORTLAB LAYOUT (Platypus only — no canvas drawing for layout):
 • Header: name 16pt-bold ALL CAPS centered; contact line 9.5pt centered with " · " separator.
 • Each section = these story items IN ORDER (separate items, never inside a single Table):
     Paragraph(section_title)  →  HRFlowable(thickness=0.75, color=black)  →  Spacer(1,4)  →  Table(entries)
-• Section title: 10pt-bold ALL CAPS, spaceBefore=6, spaceAfter=2, leftIndent=0.
+• Section title: 10pt-bold ALL CAPS, spaceBefore=6, spaceAfter=2, leftIndent=0, firstLineIndent=0.
 • HRFlowable: width="100%", leftIndent=0 — must align flush with frame edge.
-• Entries Table: colWidths=[75, None]. Date col at frame edge (x=0), content col flex.
+• Entries Table: colWidths=[60, None]. Date col at frame edge (x=0), content col flex.
   TableStyle: VALIGN='TOP'; LEFTPADDING=RIGHTPADDING=TOPPADDING=0; BOTTOMPADDING=5.
 • Date column: 9.5pt; content column inner: title 10pt-bold, subtitle 9.5pt, link 9pt, bullets 9.5pt with "• " marker, leftIndent=11.
 • Skills section: same Table structure but left column is bold category label (e.g. "Technical:") instead of date.
 • Section order: EDUCATION, CERTIFICATIONS (skip if none), EXPERIENCE, PROJECTS, SKILLS.
 
-CRITICAL ALIGNMENT: section title text, the rule, and the date column must ALL start at the same x-position (the frame's left edge — leftIndent=0 everywhere). Do not indent the section title or rule relative to the table.
+CRITICAL ALIGNMENT (this is the #1 layout bug — read carefully):
+Section title text, the rule, and the date column must ALL start at the same x-position (the frame's left edge).
+• Define ALL ParagraphStyles from scratch — do NOT use getSampleStyleSheet() because its Heading styles have non-zero leftIndent/firstLineIndent that cause misalignment.
+• Every ParagraphStyle must explicitly set leftIndent=0 and firstLineIndent=0.
+• HRFlowable must have leftIndent=0 (or omit it — default is 0).
+• The Table's first column (dates) starts at x=0 (frame edge) with LEFTPADDING=0.
+• If the section titles appear indented from the dates when you preview, a style has non-zero indent — fix it.
 
 ONE PAGE — MANDATORY (two pages = failure):
 1. First, CUT weakest bullets entirely.
