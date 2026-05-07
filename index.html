@@ -221,6 +221,7 @@ const REGIONS = [
 ];
 
 const STATUSES = [
+  { id:'interested',  label:'Interested',   cls:'bg-purple-100 text-purple-800 border-purple-200' },
   { id:'applied',      label:'Applied',      cls:'bg-blue-100 text-blue-800 border-blue-200'   },
   { id:'interviewing', label:'Interviewing', cls:'bg-yellow-100 text-yellow-800 border-yellow-200' },
   { id:'offered',      label:'Offered',      cls:'bg-green-100 text-green-800 border-green-200'  },
@@ -243,206 +244,78 @@ const CLAUDE_URL = 'https://claude.ai/new';
 // Prompts are pasted into Claude.ai (200K token context) — no length limits needed.
 
 function promptTailorResume(resumeDb, job, formatting) {
-  return `IMPORTANT — OUTPUT FORMAT (read this first):
+  return `Generate a one-page Letter PDF resume using Claude's Analysis Tool (reportlab). Save to /mnt/user-data/outputs/resume.pdf and present it as a downloadable file. Do NOT output HTML, markdown, or wrap code in fences without running it. After the file is generated, add ONE short confirming sentence — no more.
 
-Use Claude's Analysis Tool / Code Execution feature to generate a one-page PDF file directly. The PDF must appear as a downloadable file in the chat.
-
-DO NOT:
-- Output HTML for me to convert to PDF
-- Wrap code in markdown fences without running it
-- Ask clarifying questions before starting
-- Tell me to print HTML to PDF myself
-
-DO:
-- Run Python in the analysis tool to build the PDF
-- Use \`reportlab\` (most reliable, pre-installed). If it's not available, fall back to \`fpdf2\`.
-- Save the file to a path like \`/mnt/user-data/outputs/resume.pdf\` or \`/tmp/resume.pdf\` and present it as a downloadable file
-- After the file is generated and presented, you may add ONE short sentence confirming. No more.
-
-VERIFY (critical):
-- The PDF is exactly ONE Letter page (8.5" × 11"). If the content overflows, trim bullets or reduce spacing and regenerate. Do not output a 2-page PDF.
-- The bottom of page 1 doesn't cut off mid-bullet.
-- All key sections (Education, Experience, Projects, Skills) are present and readable.
-
-VISUAL LAYOUT — match this exactly:
-
-* **Page**: Letter size (8.5" × 11"), portrait, margins: 0.5" top/bottom, 0.6" left/right
-* **Name**: 16pt Helvetica-Bold, ALL CAPS, centered, letter-spacing of about 1.5pt (you can simulate with extra spaces between letters)
-* **Contact line**: 9.5pt Helvetica, centered, items separated by " · " (middle dot with spaces)
-* **Section headers** (EDUCATION, CERTIFICATIONS, PROJECTS, EXPERIENCE, SKILLS): 10pt Helvetica-Bold, ALL CAPS, left-aligned, with a thin horizontal rule (0.75pt black line) directly below the title text. ~6pt of space above each header. The rule must be BELOW the section title text — never overlapping it or any entry below it.
-* **Entries** (Education / Experience / Projects / Certifications): two columns
-  - Left column: dates, 9.5pt Helvetica, exactly 75pt wide
-  - Right column: content, fills remaining width
-    - First line: institution/company/project name in 10pt Helvetica-Bold
-    - Second line: degree/title/subtitle in 9.5pt Helvetica
-    - Optional third line for projects: GitHub URL in 9pt Helvetica
-    - Bullet points: 9.5pt Helvetica with • marker, 1.4 line-height, ~11pt left indent
-* **Skills section**: same two-column layout as entries, but left column shows category label (Helvetica-Bold 9.5pt) instead of date
-* **Spacing**: tight — 4pt below section rule, 5pt between entries, 1pt between bullets
-
-CRITICAL STRUCTURAL REQUIREMENT — avoid the most common mistake:
-
-Use **reportlab's Platypus framework** (SimpleDocTemplate + Story). Each section MUST be built as a sequence of SEPARATE story items in this exact order:
-   1. Paragraph(section_title)         # e.g. "EDUCATION"
-   2. HRFlowable(...)                  # the horizontal rule below the title
-   3. Spacer(1, 4)                     # small gap between rule and entries
-   4. Table([[date, content], ...])    # the entries, two columns
-
-DO NOT:
-- Put the section header text INSIDE the entries Table (this causes the rule to overlap entry titles)
-- Mix manual canvas drawing with Platypus — use Platypus only
-- Use a single Table containing both the section header AND its entries
-- Draw the rule via canvas.line() — use HRFlowable so it flows correctly with content
-
-DO use this skeleton pattern for each section:
-
-\`\`\`python
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from reportlab.lib import colors
-from reportlab.lib.units import inch
-
-# ... define styles ...
-
-story = []
-story.append(Paragraph('FULL NAME', name_style))
-story.append(Paragraph('phone · phone · email · location', contact_style))
-story.append(Spacer(1, 6))
-
-# === Each section follows this pattern ===
-story.append(Paragraph('EDUCATION', section_style))
-story.append(HRFlowable(width='100%', thickness=0.75, color=colors.black, spaceBefore=1, spaceAfter=4))
-
-entries = [
-    [
-        Paragraph('2022–2026', date_style),
-        [
-            Paragraph('UBC Sauder School of Business', entry_title_style),
-            Paragraph('Bachelor of Commerce — Major', entry_sub_style),
-            Paragraph('• Awards: ...', bullet_style),
-        ],
-    ],
-    # ... more entries
-]
-t = Table(entries, colWidths=[75, None])
-t.setStyle(TableStyle([
-    ('VALIGN', (0,0), (-1,-1), 'TOP'),
-    ('LEFTPADDING', (0,0), (-1,-1), 0),
-    ('RIGHTPADDING', (0,0), (-1,-1), 0),
-    ('TOPPADDING', (0,0), (-1,-1), 0),
-    ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-]))
-story.append(t)
-story.append(Spacer(1, 4))
-
-# ... repeat for CERTIFICATIONS, PROJECTS, EXPERIENCE, SKILLS ...
-
-doc.build(story)
-\`\`\`
-
-Adapt this pattern for each section. Skills section uses the same Table structure but the left column contains the category label (e.g. "Technical:") instead of a date.
-
-NOW THE TASK — tailor my resume for this specific job:
-
-MY BACKGROUND:
+PROFILE:
 ${resumeDb||''}
 
-TARGET ROLE: ${job.role||'(role)'} at ${job.company||'(company)'}
-LOCATION: ${job.location||''}
-${job.salaryRange ? `SALARY RANGE: ${job.salaryRange}` : ''}
+JOB: ${job.role||'(role)'} at ${job.company||'(company)'}${job.location?` · ${job.location}`:''}${job.salaryRange?` · ${job.salaryRange}`:''}
 
-JOB DESCRIPTION:
+JD:
 ${job.jdText||''}
 
-CONTENT INSTRUCTIONS:
+REPORTLAB LAYOUT (Platypus only — no canvas drawing for layout):
+• Letter; margins L/R 0.6", T/B 0.5"; Helvetica throughout.
+• Header: name 16pt-bold ALL CAPS centered; contact line 9.5pt centered with " · " separator.
+• Each section = these story items IN ORDER (separate items, never inside a single Table):
+    Paragraph(section_title)  →  HRFlowable(thickness=0.75, color=black)  →  Spacer(1,4)  →  Table(entries)
+• Section title: 10pt-bold ALL CAPS, spaceBefore=6, spaceAfter=2, leftIndent=0.
+• HRFlowable: width="100%", leftIndent=0 — must align flush with frame edge.
+• Entries Table: colWidths=[75, None]. Date col at frame edge (x=0), content col flex.
+  TableStyle: VALIGN='TOP'; LEFTPADDING=RIGHTPADDING=TOPPADDING=0; BOTTOMPADDING=5.
+• Date column: 9.5pt; content column inner: title 10pt-bold, subtitle 9.5pt, link 9pt, bullets 9.5pt with "• " marker, leftIndent=11.
+• Skills section: same Table structure but left column is bold category label (e.g. "Technical:") instead of date.
+• Section order: EDUCATION, CERTIFICATIONS (skip if none), EXPERIENCE, PROJECTS, SKILLS.
 
-ABSOLUTE TOP PRIORITY — ONE PAGE:
-The PDF must be exactly ONE Letter-size page. Two pages = failure.
+CRITICAL ALIGNMENT: section title text, the rule, and the date column must ALL start at the same x-position (the frame's left edge — leftIndent=0 everywhere). Do not indent the section title or rule relative to the table.
 
-If content threatens to overflow, fix it in this order:
-   1. CUT content first. Remove the weakest bullets entirely. A section with 3 strong bullets beats one with 5 mediocre bullets.
-   2. SHORTEN phrasing. Cut filler words. Combine two weak bullets into one strong one.
-   3. ADJUST spacing as a last resort: reduce section spacing from 8pt down to 5pt minimum, entry spacing from 5pt to 3pt minimum, line-height from 1.4 to 1.3 minimum, font sizes from 10pt to 9.5pt minimum. Stay above these minimums.
+ONE PAGE — MANDATORY (two pages = failure):
+1. First, CUT weakest bullets entirely.
+2. Then, shorten phrasing.
+3. Last resort, tighten spacing: section spaceBefore 6→4, BOTTOMPADDING 5→3, leading 11→10, body fonts 9.5→9 (do not go smaller).
+Verify by checking the page count after doc.build().
 
-After generating, open the PDF and verify it's truly one page. If unsure, regenerate with tighter content.
+CONTENT:
+- Tailor to this JD; mirror its keywords.
+- Quantify with REAL numbers from my profile only — never invent metrics.
+- Past tense for completed roles and education.
+${(formatting||'').trim() ? `- Custom requirements: ${formatting.trim()}` : ''}
 
-OTHER CONTENT RULES:
-1. Tailor content to highlight the most relevant experience for this role
-2. Mirror language and keywords from the job description
-3. Quantify achievements with concrete numbers — but ONLY use numbers that are actually in my background; never invent metrics
-4. Include only sections that are relevant — skip CERTIFICATIONS if none present
-${(formatting||'').trim() ? `5. Additional requirements:\n${formatting.trim()}` : ''}
-
-TONE — CRITICAL:
-- I am a RECENT GRADUATE (degree completed) seeking entry-level / new-grad positions. Calibrate accordingly.
-- Past tense for completed education and finished internships ("Built", "Analyzed"), present tense only if currently doing the work.
-- NO buzzwords or corporate fluff. Banned: leveraged, spearheaded, drove, transformed, revolutionized, championed, orchestrated, pioneered, synergized, optimized (vague usage), strategic, dynamic, innovative, passionate, results-driven, thought leader, go-getter, value-add.
-- Use plain, factual verbs that match what an early-career candidate actually did: built, wrote, analyzed, tested, presented, supported, contributed to, helped, researched, prepared, processed, modeled, documented, automated, implemented, debugged.
-- Don't claim ownership of outcomes I only contributed to. "Built" not "led". "Helped develop" not "delivered". "Analyzed" not "owned". "Supported" not "drove".
-- Internships are 3 months — don't claim long-term strategic impact. Stick to specific deliverables produced during that window.
-- Don't inflate scope: if I worked on one feature, don't say "transformed the platform". If I supported a team, don't say "led".
-- No filler adjectives (cutting-edge, scalable, robust, comprehensive, end-to-end) unless the underlying claim is genuinely true and quantified.
-- It's OK for bullets to sound modest — recruiters trust specificity over hype.`.trim();
+TONE — I'm a recent graduate seeking entry-level roles:
+- BANNED words: leveraged, spearheaded, drove, transformed, revolutionized, championed, orchestrated, pioneered, optimized (vague), strategic, dynamic, innovative, passionate, results-driven, thought leader, go-getter, value-add.
+- USE plain verbs: built, wrote, analyzed, tested, presented, supported, contributed to, helped, researched, prepared, modeled, documented, automated, implemented, debugged.
+- "Built" not "led". "Helped develop" not "delivered". "Supported" not "drove".
+- Internships are 3 months — describe specific deliverables, not long-term strategic impact.
+- Don't inflate scope. Don't claim ownership of team outcomes.
+- Modest specificity beats inflated claims. Bullets sounding measured is fine.`.trim();
 }
 
 function promptCoverLetter(resumeDb, job) {
-  return `IMPORTANT — OUTPUT FORMAT (read this first):
+  return `Generate a one-page Letter PDF cover letter using Claude's Analysis Tool (reportlab). Save to /mnt/user-data/outputs/cover_letter.pdf and present it as a downloadable file. Do NOT output HTML or markdown — just run Python and produce the PDF. After the file is generated, add ONE short confirming sentence — no more.
 
-Use Claude's Analysis Tool / Code Execution feature to generate a one-page PDF file directly. The PDF must appear as a downloadable file in the chat.
-
-DO NOT:
-- Output HTML for me to convert to PDF
-- Wrap code in markdown fences without running it
-- Ask clarifying questions before starting
-- Tell me to print HTML to PDF myself
-
-DO:
-- Run Python in the analysis tool to build the PDF
-- Use \`reportlab\` (most reliable, pre-installed). If unavailable, fall back to \`fpdf2\`.
-- Save the file to a path like \`/mnt/user-data/outputs/cover_letter.pdf\` or \`/tmp/cover_letter.pdf\` and present it as a downloadable file
-- After the file is generated and presented, you may add ONE short sentence confirming. No more.
-
-VERIFY:
-- The PDF is exactly ONE Letter page (8.5" × 11")
-- Body text is fully readable and not cut off
-
-VISUAL LAYOUT — match this exactly:
-
-* **Page**: Letter size (8.5" × 11"), portrait, margins: 0.85" top/bottom, 0.95" left/right
-* **Font**: Helvetica or Times-Roman, 11pt body
-* **Line spacing**: 1.45–1.5
-* **Paragraph spacing**: 12–14pt between paragraphs
-* **Alignment**: justified or left-aligned (your choice; justified looks slightly more formal)
-* **No header, no salutation, no sign-off, no contact block** — just the 3 body paragraphs
-
-NOW THE TASK — write a cover letter for this job:
-
-MY BACKGROUND:
+PROFILE:
 ${resumeDb||''}
 
-TARGET ROLE: ${job.role||'(role)'} at ${job.company||'(company)'}
-LOCATION: ${job.location||''}
+JOB: ${job.role||'(role)'} at ${job.company||'(company)'}${job.location?` · ${job.location}`:''}
 
-JOB DESCRIPTION:
+JD:
 ${job.jdText||''}
 
-CONTENT INSTRUCTIONS:
-- 3 paragraphs, 250–320 words total
-- Opening: connect my specific background to this role — be concrete, not generic
-- Middle: 2 most relevant achievements with concrete numbers from my background (don't invent metrics)
-- Closing: clear, direct call to action
-- No salutation, no sign-off — body paragraphs only
+LAYOUT:
+- Letter; margins T/B 0.85", L/R 0.95"; Helvetica or Times-Roman; 11pt body; 1.45 leading; 13pt paragraph spacing.
+- 3 body paragraphs only — NO header, salutation, sign-off, contact block, or date.
 
-TONE — CRITICAL:
-- I am a RECENT GRADUATE (degree completed) seeking entry-level / new-grad positions. Be honest about that level.
-- Past tense for completed education and finished internships.
-- NO buzzwords. Banned: leveraged, spearheaded, drove, transformed, championed, passionate, results-driven, thought leader, dynamic, innovative, value-add, synergized.
-- Don't open with "I am writing to express my strong interest in..." or any other generic template phrase.
-- Don't claim leadership or ownership of outcomes I only contributed to.
-- Don't oversell — recruiters can tell. Modest specificity beats inflated claims every time.
-- Plain language. Short sentences. No filler.
-- It's OK to acknowledge I'm early-career; what matters is showing concrete fit.`.trim();
+CONTENT (250–320 words total):
+- Para 1: connect my specific background to this role concretely (not generic).
+- Para 2: 2 most relevant achievements with REAL numbers from my profile (never invent metrics).
+- Para 3: clear, direct call to action.
+
+TONE — I'm a recent graduate seeking entry-level roles:
+- BANNED: leveraged, spearheaded, drove, transformed, championed, passionate, results-driven, thought leader, dynamic, innovative, value-add, synergized.
+- Do NOT open with "I am writing to express my strong interest..." or any template phrase.
+- No claims of leadership / ownership of team outcomes.
+- Plain language, short sentences, no filler.
+- It's OK to be early-career — show concrete fit.`.trim();
 }
 
 function promptInterviewPrep(resumeDb, job) {
@@ -1491,7 +1364,7 @@ function LibraryTab({ library, setLibrary, updateSections }) {
 // ════════════════════════════════════════════════════════════════
 
 function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved }) {
-  const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'applied', jdText:'', notes:'' };
+  const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'interested', jdText:'', notes:'' };
   const [form, setForm]       = useState(empty);
   const [saved, setSaved]     = useState(false);
   const [extracted, setExtracted] = useState(null); // fields extracted from upload, for the hint banner
@@ -1924,15 +1797,16 @@ function InsightsTab({ jobs, regionName }) {
   const stats = useMemo(() => {
     const byStatus = STATUSES.map(s => ({...s, count: jobs.filter(j=>j.status===s.id).length}));
     const total = jobs.length;
-    const responseRate = total ? Math.round(jobs.filter(j=>['interviewing','offered'].includes(j.status)).length/total*100) : 0;
-    const offerRate    = total ? Math.round(jobs.filter(j=>j.status==='offered').length/total*100) : 0;
+    const applied = jobs.filter(j => j.status !== 'interested').length;
+    const responseRate = applied ? Math.round(jobs.filter(j=>['interviewing','offered'].includes(j.status)).length/applied*100) : 0;
+    const offerRate    = applied ? Math.round(jobs.filter(j=>j.status==='offered').length/applied*100) : 0;
     const now = Date.now();
     const last7  = jobs.filter(j=>now-new Date(j.dateAdded).getTime()<7*86400000).length;
     const last30 = jobs.filter(j=>now-new Date(j.dateAdded).getTime()<30*86400000).length;
     const coMap = {}; jobs.forEach(j=>{if(j.company) coMap[j.company]=(coMap[j.company]||0)+1;});
     const topCos = Object.entries(coMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
     const upcoming = jobs.filter(j=>j.applicationDeadline && new Date(j.applicationDeadline)>new Date()).sort((a,b)=>new Date(a.applicationDeadline)-new Date(b.applicationDeadline)).slice(0,5);
-    return { byStatus, responseRate, offerRate, last7, last30, topCos, total, upcoming };
+    return { byStatus, responseRate, offerRate, last7, last30, topCos, total, applied, upcoming };
   }, [jobs]);
 
   if (!jobs.length) return <Card className="p-8 text-center text-sm text-gray-500">No data yet — add some applications first.</Card>;
@@ -1964,7 +1838,7 @@ function InsightsTab({ jobs, regionName }) {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-gray-600">Response rate</span><strong>{stats.responseRate}%</strong></div>
             <div className="flex justify-between"><span className="text-gray-600">Offer rate</span><strong>{stats.offerRate}%</strong></div>
-            <div className="text-xs text-gray-400 mt-1">Response = interviewing or offered</div>
+            <div className="text-xs text-gray-400 mt-1">Based on {stats.applied} applied job{stats.applied !== 1 ? 's' : ''} (excludes Interested)</div>
           </div>
         </Card>
       </div>
