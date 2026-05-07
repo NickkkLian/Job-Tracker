@@ -242,133 +242,43 @@ const TABS = [
 const CLAUDE_URL = 'https://claude.ai/new';
 // Prompts are pasted into Claude.ai (200K token context) — no length limits needed.
 
-// HTML template that exactly matches the uploaded resume format:
-// - Name centered, all-caps, bold
-// - Contact line centered, smaller
-// - Section headers: bold all-caps with thin rule below
-// - Two-column entries: date left (74pt), content right
-// - Skills: label left (74pt, bold), value right
-// - Font: Calibri/Arial sans-serif (matches source PDF)
-const RESUME_HTML_TEMPLATE = '<!DOCTYPE html>\n' +
-'<html lang="en">\n' +
-'<head><meta charset="UTF-8">\n' +
-'<style>\n' +
-'* { margin:0; padding:0; box-sizing:border-box; }\n' +
-'body { font-family: Calibri, Arial, "Helvetica Neue", sans-serif; font-size:10pt; color:#000; background:#fff; }\n' +
-'.page { width:8.5in; margin:0 auto; padding:0.55in 0.7in; }\n' +
-'.name { text-align:center; font-size:16pt; font-weight:bold; letter-spacing:1.5pt; text-transform:uppercase; margin-bottom:2pt; }\n' +
-'.contact { text-align:center; font-size:9.5pt; margin-bottom:2pt; }\n' +
-'.section { margin-top:8pt; page-break-inside:avoid; break-inside:avoid; }\n' +
-'.sh { font-size:10pt; font-weight:bold; text-transform:uppercase; border-bottom:0.75pt solid #000; padding-bottom:1pt; margin-bottom:4pt; letter-spacing:0.3pt; }\n' +
-'.entry { display:flex; margin-bottom:5pt; page-break-inside:avoid; break-inside:avoid; }\n' +
-'.ed { min-width:74pt; max-width:74pt; font-size:9.5pt; line-height:1.35; padding-right:6pt; flex-shrink:0; }\n' +
-'.eb { flex:1; line-height:1.35; }\n' +
-'.et { font-weight:bold; font-size:10pt; }\n' +
-'.es { font-size:9.5pt; }\n' +
-'.el { font-size:9pt; }\n' +
-'.eb ul { padding-left:11pt; margin-top:1.5pt; }\n' +
-'.eb li { font-size:9.5pt; line-height:1.4; margin-bottom:1pt; list-style-type:disc; }\n' +
-'.sr { display:flex; margin-bottom:1.5pt; }\n' +
-'.sl { min-width:74pt; max-width:74pt; font-size:9.5pt; font-weight:bold; flex-shrink:0; padding-right:6pt; }\n' +
-'.sv { font-size:9.5pt; flex:1; }\n' +
-'@media print { html, body { margin:0; padding:0; } @page { size:letter; margin:0; } body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .page { padding:0.45in 0.6in; } }\n' +
-'</style></head>\n' +
-'<body><div class="page">\n\n' +
-'<div class="name">FULL NAME</div>\n' +
-'<div class="contact">+x xxx-xxx-xxxx · +x xxx-xxx-xxxx · email@example.com</div>\n\n' +
-'<div class="section">\n' +
-'  <div class="sh">EDUCATION</div>\n' +
-'  <div class="entry">\n' +
-'    <div class="ed">20XX–20XX</div>\n' +
-'    <div class="eb">\n' +
-'      <div class="et">Institution Name</div>\n' +
-'      <div class="es">Degree — Major</div>\n' +
-'      <ul>\n' +
-'        <li>Key Courses: ...</li>\n' +
-'        <li>Awards: ...</li>\n' +
-'      </ul>\n' +
-'    </div>\n' +
-'  </div>\n' +
-'</div>\n\n' +
-'<div class="section">\n' +
-'  <div class="sh">CERTIFICATIONS</div>\n' +
-'  <div class="entry">\n' +
-'    <div class="ed">Mon 20XX</div>\n' +
-'    <div class="eb">\n' +
-'      <div class="et">Certification Name — Issuer</div>\n' +
-'      <div class="es">One-line description</div>\n' +
-'    </div>\n' +
-'  </div>\n' +
-'</div>\n\n' +
-'<div class="section">\n' +
-'  <div class="sh">PROJECTS</div>\n' +
-'  <div class="entry">\n' +
-'    <div class="ed">20XX</div>\n' +
-'    <div class="eb">\n' +
-'      <div class="et">Project Name</div>\n' +
-'      <div class="es">Course/Context · Team info</div>\n' +
-'      <div class="el">github.com/...</div>\n' +
-'      <ul>\n' +
-'        <li>Achievement with metric</li>\n' +
-'        <li>Achievement with metric</li>\n' +
-'      </ul>\n' +
-'    </div>\n' +
-'  </div>\n' +
-'</div>\n\n' +
-'<div class="section">\n' +
-'  <div class="sh">EXPERIENCE</div>\n' +
-'  <div class="entry">\n' +
-'    <div class="ed">Season 20XX</div>\n' +
-'    <div class="eb">\n' +
-'      <div class="et">Company Name · City, Region, Country</div>\n' +
-'      <div class="es">Job Title</div>\n' +
-'      <ul>\n' +
-'        <li>Achievement with metric</li>\n' +
-'        <li>Achievement with metric</li>\n' +
-'      </ul>\n' +
-'    </div>\n' +
-'  </div>\n' +
-'</div>\n\n' +
-'<div class="section">\n' +
-'  <div class="sh">SKILLS</div>\n' +
-'  <div class="sr"><div class="sl">Technical</div><div class="sv">Python, R, SQL · Excel, PowerPoint</div></div>\n' +
-'  <div class="sr"><div class="sl">Professional</div><div class="sv">Research &amp; Analysis</div></div>\n' +
-'  <div class="sr"><div class="sl">Languages</div><div class="sv">English (IELTS 8.0) · Cantonese (Native) · Mandarin (Native)</div></div>\n' +
-'</div>\n\n' +
-'</div></body></html>';
-
-const COVER_HTML_TEMPLATE = '<!DOCTYPE html>\n' +
-'<html lang="en">\n' +
-'<head><meta charset="UTF-8">\n' +
-'<style>\n' +
-'* { margin:0; padding:0; box-sizing:border-box; }\n' +
-'body { font-family: Calibri, Arial, "Helvetica Neue", sans-serif; font-size:11pt; color:#000; background:#fff; }\n' +
-'.page { width:8.5in; margin:0 auto; padding:1in 1.1in; line-height:1.6; }\n' +
-'p { margin-bottom:14pt; text-align:justify; }\n' +
-'@media print { html, body { margin:0; padding:0; } @page { size:letter; margin:0; } body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .page { padding:0.8in 0.95in; } }\n' +
-'</style></head>\n' +
-'<body><div class="page">\n' +
-'<p>[Opening paragraph]</p>\n' +
-'<p>[Body paragraph with 2-3 key achievements]</p>\n' +
-'<p>[Closing paragraph with call to action]</p>\n' +
-'</div></body></html>';
-
 function promptTailorResume(resumeDb, job, formatting) {
   return `IMPORTANT — OUTPUT FORMAT (read this first):
-Create an HTML artifact for my tailored resume. The artifact should contain a complete, self-contained HTML document starting with <!DOCTYPE html> and ending with </html>.
+
+Use Claude's Analysis Tool / Code Execution feature to generate a one-page PDF file directly. The PDF must appear as a downloadable file in the chat.
 
 DO NOT:
-- Output text explaining what you're going to do
+- Output HTML for me to convert to PDF
+- Wrap code in markdown fences without running it
 - Ask clarifying questions before starting
-- Tell me how to save the HTML or how to convert it to PDF
-- Wrap the HTML in markdown code fences (\`\`\`html)
-- Output anything outside the artifact
+- Tell me to print HTML to PDF myself
 
 DO:
-- Use Claude's artifact feature — this is exactly what artifacts are for
-- Title the artifact "Resume — [Company] — [Role]"
-- Generate the complete styled HTML inside the artifact, ready to render
-- After the artifact is created, you may add ONE short sentence confirming it's done. No more.
+- Run Python in the analysis tool to build the PDF
+- Use \`reportlab\` (most reliable, pre-installed). If it's not available, fall back to \`fpdf2\`.
+- Save the file to a path like \`/mnt/user-data/outputs/resume.pdf\` or \`/tmp/resume.pdf\` and present it as a downloadable file
+- After the file is generated and presented, you may add ONE short sentence confirming. No more.
+
+VERIFY (critical):
+- The PDF is exactly ONE Letter page (8.5" × 11"). If the content overflows, trim bullets or reduce spacing and regenerate. Do not output a 2-page PDF.
+- The bottom of page 1 doesn't cut off mid-bullet.
+- All key sections (Education, Experience, Projects, Skills) are present and readable.
+
+VISUAL LAYOUT — match this exactly:
+
+* **Page**: Letter size (8.5" × 11"), portrait, margins: 0.5" top/bottom, 0.6" left/right
+* **Name**: 16pt Helvetica-Bold, ALL CAPS, centered, letter-spacing of about 1.5pt (you can simulate with extra spaces between letters or use \`canvas.drawString\` with character spacing)
+* **Contact line**: 9.5pt Helvetica, centered, items separated by " · " (middle dot with spaces)
+* **Section headers** (EDUCATION, CERTIFICATIONS, PROJECTS, EXPERIENCE, SKILLS): 10pt Helvetica-Bold, ALL CAPS, left-aligned, with a thin horizontal rule (0.75pt black line) directly below. ~6pt of space above each header.
+* **Entries** (Education / Experience / Projects / Certifications): two columns
+  - Left column: dates, 9.5pt Helvetica, ~75pt wide (e.g. "2022–2026", "Summer 2025", "Feb 2026")
+  - Right column: content, flex remaining width
+    - First line: institution/company/project name in 10pt Helvetica-Bold
+    - Second line: degree/title/subtitle in 9.5pt Helvetica
+    - Optional third line for projects: GitHub URL in 9pt Helvetica
+    - Bullet points: 9.5pt Helvetica with • marker, 1.4 line-height, ~11pt left indent
+* **Skills section**: same two-column layout as entries, but left column shows category label (Helvetica-Bold 9.5pt) instead of date
+* **Spacing**: tight — 4pt below section header, 5pt between entries, 1pt between bullets
 
 NOW THE TASK — tailor my resume for this specific job:
 
@@ -385,14 +295,14 @@ ${job.jdText||''}
 CONTENT INSTRUCTIONS:
 
 ABSOLUTE TOP PRIORITY — ONE PAGE:
-The HTML must render to exactly ONE Letter-size page when printed (8.5" × 11"). The usable content area inside .page is roughly 7.3" wide × 10.1" tall (after print padding). Two pages = failure.
+The PDF must be exactly ONE Letter-size page. Two pages = failure.
 
-If the resume looks like it would overflow, fix it in this order:
-   1. CUT content first. Remove the weakest bullets entirely. A 5-bullet section with 3 strong bullets beats one with 5 mediocre bullets.
+If content threatens to overflow, fix it in this order:
+   1. CUT content first. Remove the weakest bullets entirely. A section with 3 strong bullets beats one with 5 mediocre bullets.
    2. SHORTEN phrasing. Cut filler words. Combine two weak bullets into one strong one.
-   3. ADJUST CSS as a last resort: reduce ".section { margin-top }" from 8pt down to 5pt minimum, ".entry { margin-bottom }" from 5pt to 3pt minimum, "li { line-height }" from 1.4 to 1.3 minimum, body "font-size" from 10pt to 9.5pt minimum. Stay above the listed minimums — never go smaller.
+   3. ADJUST spacing as a last resort: reduce section spacing from 8pt down to 5pt minimum, entry spacing from 5pt to 3pt minimum, line-height from 1.4 to 1.3 minimum, font sizes from 10pt to 9.5pt minimum. Stay above these minimums.
 
-After generating, mentally verify: would this fit on one Letter page if I printed it with zero margins? If unsure, trim more.
+After generating, open the PDF and verify it's truly one page. If unsure, regenerate with tighter content.
 
 OTHER CONTENT RULES:
 1. Tailor content to highlight the most relevant experience for this role
@@ -410,29 +320,38 @@ TONE — CRITICAL:
 - Internships are 3 months — don't claim long-term strategic impact. Stick to specific deliverables produced during that window.
 - Don't inflate scope: if I worked on one feature, don't say "transformed the platform". If I supported a team, don't say "led".
 - No filler adjectives (cutting-edge, scalable, robust, comprehensive, end-to-end) unless the underlying claim is genuinely true and quantified.
-- It's OK for bullets to sound modest — recruiters trust specificity over hype.
-
-USE EXACTLY THIS HTML STRUCTURE — do not change class names, the visual hierarchy, or the overall layout. The only CSS values you may adjust are the spacing/sizing values listed in the ABSOLUTE TOP PRIORITY section above (and only if needed to fit one page). Otherwise, fill in the content within the existing structure:
-
-${RESUME_HTML_TEMPLATE}`.trim();
+- It's OK for bullets to sound modest — recruiters trust specificity over hype.`.trim();
 }
 
 function promptCoverLetter(resumeDb, job) {
   return `IMPORTANT — OUTPUT FORMAT (read this first):
-Create an HTML artifact for my cover letter. The artifact should contain a complete, self-contained HTML document starting with <!DOCTYPE html> and ending with </html>.
+
+Use Claude's Analysis Tool / Code Execution feature to generate a one-page PDF file directly. The PDF must appear as a downloadable file in the chat.
 
 DO NOT:
-- Output text explaining what you're going to do
+- Output HTML for me to convert to PDF
+- Wrap code in markdown fences without running it
 - Ask clarifying questions before starting
-- Tell me how to save the HTML or how to convert it to PDF
-- Wrap the HTML in markdown code fences (\`\`\`html)
-- Output anything outside the artifact
+- Tell me to print HTML to PDF myself
 
 DO:
-- Use Claude's artifact feature — this is exactly what artifacts are for
-- Title the artifact "Cover Letter — [Company] — [Role]"
-- Generate the complete styled HTML inside the artifact, ready to render
-- After the artifact is created, you may add ONE short sentence confirming it's done. No more.
+- Run Python in the analysis tool to build the PDF
+- Use \`reportlab\` (most reliable, pre-installed). If unavailable, fall back to \`fpdf2\`.
+- Save the file to a path like \`/mnt/user-data/outputs/cover_letter.pdf\` or \`/tmp/cover_letter.pdf\` and present it as a downloadable file
+- After the file is generated and presented, you may add ONE short sentence confirming. No more.
+
+VERIFY:
+- The PDF is exactly ONE Letter page (8.5" × 11")
+- Body text is fully readable and not cut off
+
+VISUAL LAYOUT — match this exactly:
+
+* **Page**: Letter size (8.5" × 11"), portrait, margins: 0.85" top/bottom, 0.95" left/right
+* **Font**: Helvetica or Times-Roman, 11pt body
+* **Line spacing**: 1.45–1.5
+* **Paragraph spacing**: 12–14pt between paragraphs
+* **Alignment**: justified or left-aligned (your choice; justified looks slightly more formal)
+* **No header, no salutation, no sign-off, no contact block** — just the 3 body paragraphs
 
 NOW THE TASK — write a cover letter for this job:
 
@@ -460,11 +379,7 @@ TONE — CRITICAL:
 - Don't claim leadership or ownership of outcomes I only contributed to.
 - Don't oversell — recruiters can tell. Modest specificity beats inflated claims every time.
 - Plain language. Short sentences. No filler.
-- It's OK to acknowledge I'm early-career; what matters is showing concrete fit.
-
-USE EXACTLY THIS HTML STRUCTURE — do not modify the CSS, only fill in the paragraph content:
-
-${COVER_HTML_TEMPLATE}`.trim();
+- It's OK to acknowledge I'm early-career; what matters is showing concrete fit.`.trim();
 }
 
 function promptInterviewPrep(resumeDb, job) {
@@ -908,8 +823,8 @@ function PromptModal({ title, prompt, onClose }) {
             <div>1. Click <strong>Copy prompt</strong> below</div>
             <div>2. Click <strong>Open Claude.ai</strong> — it opens in a new tab</div>
             <div>3. Paste the prompt (⌘V / Ctrl+V) and press Send</div>
-            <div>4. <strong>Tailor Resume / Cover Letter:</strong> save Claude's HTML output as a file → open in browser → Ctrl+P → Save as PDF → upload below</div>
-            <div>4. <strong>Other prompts:</strong> read and use Claude's response directly</div>
+            <div>4. <strong>Tailor Resume / Cover Letter:</strong> make sure the Analysis tool is on → Claude runs Python and generates a PDF file → click the file to download it → upload below</div>
+            <div>5. <strong>Other prompts:</strong> read and use Claude's response directly</div>
           </div>
           <textarea
             value={prompt}
@@ -1029,7 +944,7 @@ function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, o
                 <div className="font-semibold">How to use:</div>
                 <div>1. Click <strong>Copy prompt</strong> → click <strong>Open Claude.ai</strong></div>
                 <div>2. Paste (⌘V / Ctrl+V) and press Send</div>
-                <div>3. Copy Claude's translation → save as HTML file → open in browser → Ctrl+P → Save as PDF → upload below</div>
+                <div>3. Claude returns the translated resume in Markdown — copy and use it however you need (paste into a Word doc, format yourself, or run another prompt to convert to PDF)</div>
               </div>
               <textarea value={prompt} readOnly
                 className="w-full h-52 p-3 text-xs font-mono border border-gray-300 rounded-md bg-gray-50 resize-y focus:outline-none"
@@ -1079,7 +994,7 @@ function AiPromptSection({ resumeDb, job, formatting, glossary, tailoredResume, 
       <SectionHdr icon="✨" title="AI Help via Claude.ai" />
       <p className="text-xs text-gray-600 mb-3">
         These buttons generate a ready-to-paste prompt for Claude.ai.
-        For Resume and Cover Letter, convert Claude's HTML output to PDF and upload below.
+        For Resume and Cover Letter, Claude generates a PDF directly via the Analysis Tool — download and upload below.
         Other prompts (Interview, Networking, Analysis) can be read directly in Claude.ai.
         {!hasResume && <span className="block mt-1 text-amber-700">Add your profile first for best results.</span>}
         {!hasJd && hasResume && <span className="block mt-1 text-gray-500">Add a JD for job-specific prompts.</span>}
@@ -1744,7 +1659,7 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
     const ext = (file.name.split('.').pop() || '').toLowerCase();
-    if (ext !== 'pdf') { setErr('Please upload a PDF file. To convert: open the HTML from Claude in your browser → Ctrl+P (⌘P) → Save as PDF.'); return; }
+    if (ext !== 'pdf') { setErr('Please upload a PDF file. Tailor Resume / Cover Letter prompts ask Claude to generate a PDF directly via the Analysis Tool — that\'s the file to upload here.'); return; }
     setBusy(true); setErr('');
     try {
       const url = await readFileAsDataUrl(file);
@@ -1907,12 +1822,11 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
       {/* How-to tip */}
       <Card className="p-3 bg-blue-50 border-blue-200">
         <p className="text-xs text-blue-900 leading-relaxed">
-          <strong>How to get the PDF:</strong>{' '}
-          Copy prompt → paste into Claude.ai → Claude creates an HTML artifact →
-          open the artifact in a new tab → press <strong>Ctrl+P (⌘P)</strong> →
-          <strong className="text-red-700"> in the print dialog: set Margins to "None", Scale to 100%, uncheck "Headers and footers", check "Background graphics"</strong> →
-          Save as PDF → upload below.
-          {' '}<em>If the resume splits across 2 pages, the print dialog settings are the most likely cause — the HTML itself is designed to fit one page.</em>
+          <strong>How to get the PDF directly from Claude:</strong>{' '}
+          In Claude.ai, make sure the <strong>Analysis tool / Code execution</strong> is enabled (click the tools icon below the chat input → toggle it on).
+          Then copy the prompt → paste into Claude.ai → Claude runs Python (reportlab) and generates a PDF file directly →
+          click the file in Claude's response to download it → upload it below.
+          {' '}<em>No HTML, no print dialog, no margin settings — Claude builds the PDF with explicit Letter-size dimensions in code, so it's guaranteed to be one page.</em>
         </p>
       </Card>
 
