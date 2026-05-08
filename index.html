@@ -254,32 +254,46 @@ JOB: ${job.role||'(role)'} at ${job.company||'(company)'}${job.location?` · ${j
 JD:
 ${job.jdText||''}
 
-REPORTLAB LAYOUT (Platypus only — no canvas drawing for layout):
+REPORTLAB LAYOUT (Platypus — SimpleDocTemplate + story list):
 • Letter; margins L/R 0.6", T/B 0.5"; Helvetica throughout.
-• Header: name 16pt-bold ALL CAPS centered; contact line 9.5pt centered with " · " separator.
-• Each section = these story items IN ORDER (separate items, never inside a single Table):
-    Paragraph(section_title)  →  HRFlowable(thickness=0.75, color=black)  →  Spacer(1,4)  →  Table(entries)
-• Section title: 10pt-bold ALL CAPS, spaceBefore=6, spaceAfter=2, leftIndent=0, firstLineIndent=0.
-• HRFlowable: width="100%", leftIndent=0 — must align flush with frame edge.
-• Entries Table: colWidths=[60, None]. Date col at frame edge (x=0), content col flex.
-  TableStyle: VALIGN='TOP'; LEFTPADDING=RIGHTPADDING=TOPPADDING=0; BOTTOMPADDING=5.
-• Date column: 9.5pt; content column inner: title 10pt-bold, subtitle 9.5pt, link 9pt, bullets 9.5pt with "• " marker, leftIndent=11.
-• Skills section: same Table structure but left column is bold category label (e.g. "Technical:") instead of date.
+• Header: Paragraph(name, 16pt-bold ALL CAPS centered) then Paragraph(contact, 9.5pt centered, " · " separator).
+• Each section is ONE Table with the section title as a spanning first row:
+
+  data = [
+    [Paragraph("EDUCATION", section_style), ''],       # row 0: header
+    [Paragraph("2022–2026", date_style), content_list], # row 1+: entries
+  ]
+  t = Table(data, colWidths=[60, None])
+  t.setStyle(TableStyle([
+    ('SPAN', (0,0), (1,0)),
+    ('LINEBELOW', (0,0), (1,0), 0.75, colors.black),
+    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+    ('LEFTPADDING', (0,0), (-1,-1), 0),
+    ('RIGHTPADDING', (0,0), (-1,-1), 0),
+    ('TOPPADDING', (0,0), (-1,-1), 0),
+    ('BOTTOMPADDING', (0,0), (-1,0), 4),
+    ('BOTTOMPADDING', (0,1), (-1,-1), 5),
+  ]))
+  story.append(Spacer(1, 6))
+  story.append(t)
+
+This guarantees alignment — the section title and dates are in the same Table, so they share the same x=0. No separate HRFlowable needed (use LINEBELOW instead).
+
+• Define ALL ParagraphStyles from scratch — do NOT use getSampleStyleSheet(). Set leftIndent=0, firstLineIndent=0 on every style.
+• Section title: 10pt Helvetica-Bold ALL CAPS.
+• Date column: 9.5pt Helvetica, 60pt wide.
+• Content column: title 10pt-bold, subtitle 9.5pt, link 9pt, bullets 9.5pt with "• " prefix and leftIndent=11.
+• Skills section: same Table but left column has bold category label (e.g. "Technical:") instead of date.
 • Section order: EDUCATION, CERTIFICATIONS (skip if none), EXPERIENCE, PROJECTS, SKILLS.
 
-CRITICAL ALIGNMENT (this is the #1 layout bug — read carefully):
-Section title text, the rule, and the date column must ALL start at the same x-position (the frame's left edge).
-• Define ALL ParagraphStyles from scratch — do NOT use getSampleStyleSheet() because its Heading styles have non-zero leftIndent/firstLineIndent that cause misalignment.
-• Every ParagraphStyle must explicitly set leftIndent=0 and firstLineIndent=0.
-• HRFlowable must have leftIndent=0 (or omit it — default is 0).
-• The Table's first column (dates) starts at x=0 (frame edge) with LEFTPADDING=0.
-• If the section titles appear indented from the dates when you preview, a style has non-zero indent — fix it.
+IMPORTANT — avoid these common bugs:
+• Do NOT use HRFlowable (leftIndent is not a valid parameter and it misaligns with Tables). Use LINEBELOW in TableStyle instead.
+• Do NOT implement a "tighten" function that mutates TableStyle._cmds — it corrupts the PDF. Instead, just build the resume ONCE with already-trimmed content.
+• Do NOT call getSampleStyleSheet() — its Heading styles have hidden leftIndent that causes misalignment.
 
 ONE PAGE — MANDATORY (two pages = failure):
-1. First, CUT weakest bullets entirely.
-2. Then, shorten phrasing.
-3. Last resort, tighten spacing: section spaceBefore 6→4, BOTTOMPADDING 5→3, leading 11→10, body fonts 9.5→9 (do not go smaller).
-Verify by checking the page count after doc.build().
+Before writing code, mentally estimate if all content fits. If borderline, CUT the weakest bullets or remove one project entirely. Build the PDF ONCE with already-trimmed content — do NOT generate a 2-page PDF and then try to shrink it programmatically.
+Verify page count after doc.build() using len(PdfReader(buffer).pages).
 
 CONTENT:
 - Tailor to this JD; mirror its keywords.
