@@ -265,13 +265,14 @@ REPORTLAB LAYOUT (Platypus — SimpleDocTemplate + story list):
     [Paragraph("EDUCATION", section_style), ''],       # row 0: header
     [Paragraph("2022–2026", date_style), content_list], # row 1+: entries
   ]
-  t = Table(data, colWidths=[60, None])
+  t = Table(data, colWidths=[78, None])
   t.setStyle(TableStyle([
     ('SPAN', (0,0), (1,0)),
     ('LINEBELOW', (0,0), (1,0), 0.75, colors.black),
     ('VALIGN', (0,0), (-1,-1), 'TOP'),
     ('LEFTPADDING', (0,0), (-1,-1), 0),
     ('RIGHTPADDING', (0,0), (-1,-1), 0),
+    ('RIGHTPADDING', (0,1), (0,-1), 8),  # 8pt gap after date/label — prevents merging with content
     ('TOPPADDING', (0,0), (-1,-1), 0),
     ('BOTTOMPADDING', (0,0), (-1,0), 4),
     ('BOTTOMPADDING', (0,1), (-1,-1), 5),
@@ -283,9 +284,9 @@ This guarantees alignment — the section title and dates are in the same Table,
 
 • Define ALL ParagraphStyles from scratch — do NOT use getSampleStyleSheet(). Set leftIndent=0, firstLineIndent=0 on every style.
 • Section title: 10pt Helvetica-Bold ALL CAPS.
-• Date column: 9.5pt Helvetica, 60pt wide.
+• Date column: 9.5pt Helvetica, 78pt wide with 8pt right padding — ensures "Summer 2025" never visually runs into the content column.
 • Content column: title 10pt-bold, subtitle 9.5pt, link 9pt, bullets 9.5pt with "• " prefix and leftIndent=11.
-• Skills section: same Table but left column has bold category label (e.g. "Technical:") instead of date.
+• Skills section: same Table with colWidths=[78, None]. Left column is bold category label (e.g. "Technical:", "Professional:", "Languages:") — 78pt is wide enough that no label wraps mid-word or splits the colon onto a new line.
 • Section order: EDUCATION, CERTIFICATIONS (skip if none), EXPERIENCE, PROJECTS, SKILLS.
 
 IMPORTANT — avoid these common bugs:
