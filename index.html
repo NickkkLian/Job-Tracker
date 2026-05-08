@@ -297,8 +297,9 @@ IMPORTANT — avoid these common bugs:
 ONE PAGE — MANDATORY (two pages = failure):
 Before writing code, mentally estimate if all content fits. If borderline, CUT the weakest bullets or remove one project entirely. Build the PDF ONCE with already-trimmed content — do NOT generate a 2-page PDF and then try to shrink it programmatically.
 Verify page count after doc.build() using len(PdfReader(buffer).pages).
+If it overflows to 2 pages: binary-search the spacing — try BOTTOMPADDING=3, spaceBefore=4; if still 2 pages, cut one more bullet and retry. If it fits with room to spare, binary-search upward (see FILL THE PAGE below).
 
-FILL THE PAGE — if content fits comfortably with significant empty space at the bottom (more than ~0.8"), spread it out: rebuild with larger spacing values — increase section spaceBefore up to 16pt, entry BOTTOMPADDING up to 12pt, and Spacer before each section up to 10pt — until the content fills the page naturally. A resume that uses the full page looks more intentional than one that ends halfway down.
+FILL THE PAGE — if content fits with more than ~0.8" empty at the bottom, spread it out: binary-search larger spacing values — increase section spaceBefore up to 16pt, entry BOTTOMPADDING up to 12pt, Spacer before each section up to 10pt — rebuild and check until the content fills the page naturally. A resume that uses the full page looks more intentional than one that ends halfway down.
 
 CONTENT:
 - Tailor to this JD; mirror its keywords.
