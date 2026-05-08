@@ -244,7 +244,7 @@ const CLAUDE_URL = 'https://claude.ai/new';
 // Prompts are pasted into Claude.ai (200K token context) — no length limits needed.
 
 function promptTailorResume(resumeDb, job, formatting, region) {
-  return `Generate a one-page Letter PDF resume using Claude's Analysis Tool (reportlab). Save to /mnt/user-data/outputs/resume.pdf and present it as a downloadable file. Do NOT output HTML, markdown, or wrap code in fences without running it. After the file is generated, add ONE short confirming sentence — no more.
+  return `Generate a one-page Letter PDF resume using Claude's Analysis Tool (reportlab). Extract the candidate's first and last name from the PROFILE below and save the file as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Zixi_Lian_Resume.pdf). Present it as a downloadable file. Do NOT output HTML, markdown, or wrap code in fences without running it. After the file is generated, add ONE short confirming sentence — no more.
 
 PROFILE:
 ${resumeDb||''}
@@ -321,7 +321,7 @@ TONE — I'm a recent graduate seeking entry-level roles:
 }
 
 function promptCoverLetter(resumeDb, job) {
-  return `Generate a PDF cover letter using Claude's Analysis Tool (reportlab). Save to /mnt/user-data/outputs/cover_letter.pdf and present it as a downloadable file. ONE short confirming sentence after generating — no more.
+  return `Generate a PDF cover letter using Claude's Analysis Tool (reportlab). Extract the candidate's first and last name from the profile/conversation context and save the file as /mnt/user-data/outputs/{Firstname}_{Lastname}_Cover_Letter.pdf (e.g. Zixi_Lian_Cover_Letter.pdf). Present it as a downloadable file. ONE short confirming sentence after generating — no more.
 
 CONTEXT: If you already generated my tailored resume earlier in this conversation, use that resume content and background — you don't need to re-read the PROFILE below. If this is a fresh chat, use PROFILE:
 
@@ -344,8 +344,8 @@ CONTENT (300–380 words, 3–4 paragraphs):
 - Para 4 (only if Para 3 feels overloaded): short, direct call to action. Otherwise fold it into Para 3.
 
 COMBINED PDF (only if explicitly needed):
-If the application asks you to email everything together, or the job posting specifies one file: generate a single 2-page PDF — tailored resume on page 1, cover letter on page 2 — and save it as /mnt/user-data/outputs/resume_and_cover.pdf.
-Otherwise (most online portals have separate upload fields): generate only the cover letter as a standalone one-page PDF saved to /mnt/user-data/outputs/cover_letter.pdf.
+If the application asks you to email everything together, or the job posting specifies one file: generate a single 2-page PDF — tailored resume on page 1, cover letter on page 2 — and save it as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume_Cover_Letter.pdf.
+Otherwise (most online portals have separate upload fields): generate only the cover letter as a standalone one-page PDF saved to /mnt/user-data/outputs/{Firstname}_{Lastname}_Cover_Letter.pdf.
 
 TONE — recent graduate seeking entry-level roles:
 - BANNED: leveraged, spearheaded, drove, transformed, championed, passionate, results-driven, thought leader, dynamic, innovative, value-add, synergized.
