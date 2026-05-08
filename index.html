@@ -243,7 +243,7 @@ const TABS = [
 const CLAUDE_URL = 'https://claude.ai/new';
 // Prompts are pasted into Claude.ai (200K token context) — no length limits needed.
 
-function promptTailorResume(resumeDb, job, formatting) {
+function promptTailorResume(resumeDb, job, formatting, region) {
   return `Generate a one-page Letter PDF resume using Claude's Analysis Tool (reportlab). Save to /mnt/user-data/outputs/resume.pdf and present it as a downloadable file. Do NOT output HTML, markdown, or wrap code in fences without running it. After the file is generated, add ONE short confirming sentence — no more.
 
 PROFILE:
@@ -253,6 +253,8 @@ JOB: ${job.role||'(role)'} at ${job.company||'(company)'}${job.location?` · ${j
 
 JD:
 ${job.jdText||''}
+
+CONTACT LINE:${region==='canada' ? ' include Canadian phone (+1) and email only — do NOT include the +86 mainland China number.' : ' include all phone numbers, email, and location.'}
 
 REPORTLAB LAYOUT (Platypus — SimpleDocTemplate + story list):
 • Letter; margins L/R 0.6", T/B 0.5"; Helvetica throughout.
@@ -925,7 +927,7 @@ function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, o
 // AI PROMPT BUTTONS (reused in AddJobTab and JobDetail)
 // ════════════════════════════════════════════════════════════════
 
-function AiPromptSection({ resumeDb, job, formatting, glossary, tailoredResume, library }) {
+function AiPromptSection({ resumeDb, job, formatting, glossary, tailoredResume, library, region }) {
   const [modal, setModal]             = useState(null);
   const [translateLang, setTranslateLang] = useState(null); // 'simplified' | 'traditional'
 
@@ -938,7 +940,7 @@ function AiPromptSection({ resumeDb, job, formatting, glossary, tailoredResume, 
   };
 
   const mainBtns = [
-    { label:'📝 Tailor Resume',    fn: () => promptTailorResume(resumeDb, job, formatting) },
+    { label:'📝 Tailor Resume',    fn: () => promptTailorResume(resumeDb, job, formatting, region) },
     { label:'✉️ Cover Letter',     fn: () => promptCoverLetter(resumeDb, job)               },
     { label:'🎯 Interview Prep',   fn: () => promptInterviewPrep(resumeDb, job)             },
     { label:'👥 Networking',       fn: () => promptNetworking(resumeDb, job)                },
@@ -1483,7 +1485,7 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
       </Card>
 
       {/* AI Help section */}
-      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} glossary={glossary} tailoredResume="" library={library} />
+      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} glossary={glossary} tailoredResume="" library={library} region={region} />
     </div>
   );
 }
@@ -1773,7 +1775,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
       </Card>
 
       {/* AI prompts */}
-      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} glossary={glossary} tailoredResume={form.tailoredResume||''} library={library} />
+      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} glossary={glossary} tailoredResume={form.tailoredResume||''} library={library} region={region} />
 
       {/* How-to tip */}
       <Card className="p-3 bg-blue-50 border-blue-200">
