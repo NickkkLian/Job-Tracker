@@ -337,9 +337,9 @@ CONTENT (300–380 words, 3–4 paragraphs):
 - Para 3: Acknowledge briefly that I'm early-career, then redirect to what I bring — specific preparation (CFA, relevant coursework, hands-on projects), directly applicable skills, and genuine interest in this firm's specific approach. Don't apologize; reframe.
 - Para 4 (only if Para 3 feels overloaded): short, direct call to action. Otherwise fold it into Para 3.
 
-COMBINED PDF:
-If the resume is already in this conversation: generate a single 2-page PDF — tailored resume on page 1, cover letter on page 2 — and save it as /mnt/user-data/outputs/resume_and_cover.pdf.
-If this is a fresh chat: generate only the cover letter as a standalone one-page PDF.
+COMBINED PDF (only if explicitly needed):
+If the application asks you to email everything together, or the job posting specifies one file: generate a single 2-page PDF — tailored resume on page 1, cover letter on page 2 — and save it as /mnt/user-data/outputs/resume_and_cover.pdf.
+Otherwise (most online portals have separate upload fields): generate only the cover letter as a standalone one-page PDF saved to /mnt/user-data/outputs/cover_letter.pdf.
 
 TONE — recent graduate seeking entry-level roles:
 - BANNED: leveraged, spearheaded, drove, transformed, championed, passionate, results-driven, thought leader, dynamic, innovative, value-add, synergized.
@@ -1787,11 +1787,10 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
       {/* How-to tip */}
       <Card className="p-3 bg-blue-50 border-blue-200">
         <p className="text-xs text-blue-900 leading-relaxed">
-          <strong>How to get the PDF directly from Claude:</strong>{' '}
-          In Claude.ai, make sure the <strong>Analysis tool / Code execution</strong> is enabled (click the tools icon below the chat input → toggle it on).
-          Then copy the prompt → paste into Claude.ai → Claude runs Python (reportlab) and generates a PDF file directly →
-          click the file in Claude's response to download it → upload it below.
-          {' '}<em>No HTML, no print dialog, no margin settings — Claude builds the PDF with explicit Letter-size dimensions in code, so it's guaranteed to be one page.</em>
+          <strong>How to get the PDF from Claude:</strong>{' '}
+          Enable the <strong>Analysis tool</strong> in Claude.ai → copy prompt → paste → Claude generates a PDF via Python (reportlab) → download → upload below.
+          {' '}<strong>Separate vs combined:</strong> most online portals (LinkedIn, Workday, Greenhouse) have separate fields — upload resume and cover letter individually.
+          If applying by email or the posting asks for one file, tell Claude to combine them into a 2-page PDF (resume page 1, cover letter page 2) — it's already in the cover letter prompt instructions.
         </p>
       </Card>
 
