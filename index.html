@@ -282,11 +282,13 @@ REPORTLAB LAYOUT (Platypus — SimpleDocTemplate + story list):
 
 This guarantees alignment — the section title and dates are in the same Table, so they share the same x=0. No separate HRFlowable needed (use LINEBELOW instead).
 
+• ALL section tables — education, certifications, experience, projects, skills — must use colWidths=[78, None] without exception. Never let any table auto-size or use a different first-column width. Inconsistent colWidths across sections make the date column appear to jump left and right.
+• Date format: always "Month YYYY" or "Season YYYY" — e.g. "Summer 2025", "Feb 2026", "2022–2026". Never invert to "2025, Summer" or "2024, Summer".
 • Define ALL ParagraphStyles from scratch — do NOT use getSampleStyleSheet(). Set leftIndent=0, firstLineIndent=0 on every style.
 • Section title: 10pt Helvetica-Bold ALL CAPS.
 • Date column: 9.5pt Helvetica, 78pt wide with 8pt right padding — ensures "Summer 2025" never visually runs into the content column.
 • Content column: title 10pt-bold, subtitle 9.5pt, link 9pt, bullets 9.5pt with "• " prefix and leftIndent=11.
-• Skills section: same Table with colWidths=[78, None]. Left column is bold category label (e.g. "Technical:", "Professional:", "Languages:") — 78pt is wide enough that no label wraps mid-word or splits the colon onto a new line.
+• Skills section: same Table with colWidths=[78, None]. Each row is [Paragraph(category_label, bold_style), Paragraph(values, normal_style)] — the label MUST be in the LEFT cell and values in the RIGHT cell. Do NOT put both in a single cell. Do NOT use inline bold inside a single paragraph. Example row: [Paragraph('Technical:', label_style), Paragraph('Python, SQL, Excel...', body_style)].
 • Section order: EDUCATION, CERTIFICATIONS (skip if none), EXPERIENCE, PROJECTS, SKILLS.
 
 IMPORTANT — avoid these common bugs:
