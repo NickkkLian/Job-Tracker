@@ -315,9 +315,11 @@ TONE — I'm a recent graduate seeking entry-level roles:
 }
 
 function promptCoverLetter(resumeDb, job) {
-  return `Generate a one-page Letter PDF cover letter using Claude's Analysis Tool (reportlab). Save to /mnt/user-data/outputs/cover_letter.pdf and present it as a downloadable file. Do NOT output HTML or markdown — just run Python and produce the PDF. After the file is generated, add ONE short confirming sentence — no more.
+  return `Generate a PDF cover letter using Claude's Analysis Tool (reportlab). Save to /mnt/user-data/outputs/cover_letter.pdf and present it as a downloadable file. ONE short confirming sentence after generating — no more.
 
-PROFILE:
+CONTEXT: If you already generated my tailored resume earlier in this conversation, use that resume content and background — you don't need to re-read the PROFILE below. If this is a fresh chat, use PROFILE:
+
+PROFILE (skip if resume context already exists in this conversation):
 ${resumeDb||''}
 
 JOB: ${job.role||'(role)'} at ${job.company||'(company)'}${job.location?` · ${job.location}`:''}
@@ -327,19 +329,22 @@ ${job.jdText||''}
 
 LAYOUT:
 - Letter; margins T/B 0.85", L/R 0.95"; Helvetica or Times-Roman; 11pt body; 1.45 leading; 13pt paragraph spacing.
-- 3 body paragraphs only — NO header, salutation, sign-off, contact block, or date.
+- No header, salutation, sign-off, or contact block — body paragraphs only.
 
-CONTENT (250–320 words total):
-- Para 1: connect my specific background to this role concretely (not generic).
-- Para 2: 2 most relevant achievements with REAL numbers from my profile (never invent metrics).
-- Para 3: clear, direct call to action.
+CONTENT (300–380 words, 3–4 paragraphs):
+- Para 1: Open with something specific to ${job.company||'this firm'} — their strategy, investment philosophy, track record, firm size, or a recent initiative. Connect it directly and concretely to why my background fits. No generic openers. Never "I am writing to express my interest..."
+- Para 2: Pick 2 achievements that specifically match THIS role type (discretionary vs. quant, finance vs. engineering, client-facing vs. analytical). For each, explain the "so what" — not just the number but what it shows about my judgment, capability, or work style. Real numbers only — never invent.
+- Para 3: Acknowledge briefly that I'm early-career, then redirect to what I bring — specific preparation (CFA, relevant coursework, hands-on projects), directly applicable skills, and genuine interest in this firm's specific approach. Don't apologize; reframe.
+- Para 4 (only if Para 3 feels overloaded): short, direct call to action. Otherwise fold it into Para 3.
 
-TONE — I'm a recent graduate seeking entry-level roles:
+COMBINED PDF:
+If the resume is already in this conversation: generate a single 2-page PDF — tailored resume on page 1, cover letter on page 2 — and save it as /mnt/user-data/outputs/resume_and_cover.pdf.
+If this is a fresh chat: generate only the cover letter as a standalone one-page PDF.
+
+TONE — recent graduate seeking entry-level roles:
 - BANNED: leveraged, spearheaded, drove, transformed, championed, passionate, results-driven, thought leader, dynamic, innovative, value-add, synergized.
-- Do NOT open with "I am writing to express my strong interest..." or any template phrase.
-- No claims of leadership / ownership of team outcomes.
-- Plain language, short sentences, no filler.
-- It's OK to be early-career — show concrete fit.`.trim();
+- No claims of leadership or ownership of team outcomes.
+- Plain language, short sentences, no filler. It's OK to be early-career — show concrete fit.`.trim();
 }
 
 function promptInterviewPrep(resumeDb, job) {
@@ -1792,7 +1797,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
 
       {/* PDF upload fields */}
       <PdfUploadField icon="📝" label="Tailored resume" pdfKey={`${region}:${job.id}:resume`} />
-      <PdfUploadField icon="✉️" label="Cover letter" pdfKey={`${region}:${job.id}:cover`} />
+      <PdfUploadField icon="✉️" label="Cover letter (or combined resume+cover PDF)" pdfKey={`${region}:${job.id}:cover`} />
 
       <Card className="p-4">
         <SectionHdr icon="🗒" title="My notes"
