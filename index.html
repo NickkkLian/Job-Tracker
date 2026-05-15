@@ -258,7 +258,7 @@ CONTACT LINE:${region==='canada' ? ' include Canadian phone (+1) and email only 
 
 REPORTLAB LAYOUT (Platypus — SimpleDocTemplate + story list):
 • Letter; margins L/R 0.6", T/B 0.5"; Helvetica throughout.
-• Header: Paragraph(name, 16pt-bold ALL CAPS centered) then Paragraph(contact, 9.5pt centered, " · " separator).
+• Header: Paragraph(name, 16pt-bold ALL CAPS centered, spaceAfter=4) then Paragraph(contact, 9.5pt centered, " · " separator, spaceAfter=8). The spaceAfter=4 on the name style is mandatory — without it the name and contact line visually merge into one block.
 • Each section is ONE Table with the section title as a spanning first row:
 
   data = [
@@ -1830,40 +1830,83 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
 
 function InsightsTab({ jobs, regionName }) {
   const stats = useMemo(() => {
-    const byStatus = STATUSES.map(s => ({...s, count: jobs.filter(j=>j.status===s.id).length}));
-    const total = jobs.length;
+    // Cumulative pipeline — a job at "Interviewing" also counts toward "Applied"
+    const rank = { interested:0, applied:1, interviewing:2, offered:3, rejected:1 }; // rejected = treated as "applied" minimum
+    const atLeast = (stage) => jobs.filter(j => (rank[j.status]??0) >= rank[stage]).length;
+    const pipeline = [
+      { id:'interested',  label:'Interested',   count: jobs.filter(j=>j.status==='interested').length, color:'#a78bfa' },
+      { id:'applied',     label:'Applied',       count: atLeast('applied'),     color:'#60a5fa' },
+      { id:'interviewing',label:'Interviewing',  count: atLeast('interviewing'), color:'#fbbf24' },
+      { id:'offered',     label:'Offered',       count: atLeast('offered'),     color:'#34d399' },
+      { id:'rejected',    label:'Rejected',      count: jobs.filter(j=>j.status==='rejected').length, color:'#f87171' },
+    ];
+    const total  = jobs.length;
     const applied = jobs.filter(j => j.status !== 'interested').length;
     const responseRate = applied ? Math.round(jobs.filter(j=>['interviewing','offered'].includes(j.status)).length/applied*100) : 0;
     const offerRate    = applied ? Math.round(jobs.filter(j=>j.status==='offered').length/applied*100) : 0;
-    const now = Date.now();
+    const now  = Date.now();
     const last7  = jobs.filter(j=>now-new Date(j.dateAdded).getTime()<7*86400000).length;
     const last30 = jobs.filter(j=>now-new Date(j.dateAdded).getTime()<30*86400000).length;
     const coMap = {}; jobs.forEach(j=>{if(j.company) coMap[j.company]=(coMap[j.company]||0)+1;});
     const topCos = Object.entries(coMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
-    const upcoming = jobs.filter(j=>j.applicationDeadline && new Date(j.applicationDeadline)>new Date()).sort((a,b)=>new Date(a.applicationDeadline)-new Date(b.applicationDeadline)).slice(0,5);
-    return { byStatus, responseRate, offerRate, last7, last30, topCos, total, applied, upcoming };
+    const upcoming = jobs.filter(j=>j.applicationDeadline && new Date(j.applicationDeadline)>new Date())
+      .sort((a,b)=>new Date(a.applicationDeadline)-new Date(b.applicationDeadline)).slice(0,5);
+    return { pipeline, responseRate, offerRate, last7, last30, topCos, total, applied, upcoming };
   }, [jobs]);
 
   if (!jobs.length) return <Card className="p-8 text-center text-sm text-gray-500">No data yet — add some applications first.</Card>;
 
+  const funnelStages = stats.pipeline.filter(s => s.id !== 'rejected');
+  const maxCount = Math.max(1, ...funnelStages.map(s=>s.count));
+
   return (
     <div className="space-y-3">
+
+      {/* Funnel chart */}
       <Card className="p-4">
         <SectionHdr icon="📊" title={`${regionName} pipeline`} />
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {stats.byStatus.map(s=>(
-            <div key={s.id} className="p-3 bg-gray-50 rounded-md">
-              <div className="text-2xl font-bold text-gray-900">{s.count}</div>
-              <div className="text-xs text-gray-600">{s.label}</div>
+        <div className="space-y-2 mt-2">
+          {funnelStages.map(s => (
+            <div key={s.id} className="flex items-center gap-3">
+              <div className="w-24 text-xs text-gray-600 text-right shrink-0">{s.label}</div>
+              <div className="flex-1 bg-gray-100 rounded-full h-6 relative">
+                <div
+                  className="h-6 rounded-full transition-all duration-500 flex items-center justify-end pr-2"
+                  style={{ width: `${Math.max(s.count/maxCount*100, s.count>0?4:0)}%`, backgroundColor: s.color }}
+                >
+                  {s.count > 0 && <span className="text-xs font-bold text-white">{s.count}</span>}
+                </div>
+                {s.count === 0 && <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">0</span>}
+              </div>
             </div>
           ))}
+          {/* Rejected shown separately */}
+          <div className="flex items-center gap-3 mt-1 pt-1 border-t border-gray-100">
+            <div className="w-24 text-xs text-gray-400 text-right shrink-0">Rejected</div>
+            <div className="flex-1 bg-gray-100 rounded-full h-5 relative">
+              <div
+                className="h-5 rounded-full transition-all duration-500 flex items-center justify-end pr-2"
+                style={{ width: `${Math.max(stats.pipeline.find(s=>s.id==='rejected').count/maxCount*100, stats.pipeline.find(s=>s.id==='rejected').count>0?4:0)}%`, backgroundColor:'#f87171' }}
+              >
+                {stats.pipeline.find(s=>s.id==='rejected').count > 0 && (
+                  <span className="text-xs font-bold text-white">{stats.pipeline.find(s=>s.id==='rejected').count}</span>
+                )}
+              </div>
+              {stats.pipeline.find(s=>s.id==='rejected').count === 0 && (
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">0</span>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">Counts are cumulative — a job at Interviewing also counts in Applied.</p>
         </div>
       </Card>
+
+      {/* Stats row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Card className="p-4">
           <SectionHdr title="Activity" />
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-600">Total</span><strong>{stats.total}</strong></div>
+            <div className="flex justify-between"><span className="text-gray-600">Total tracked</span><strong>{stats.total}</strong></div>
             <div className="flex justify-between"><span className="text-gray-600">Last 7 days</span><strong>{stats.last7}</strong></div>
             <div className="flex justify-between"><span className="text-gray-600">Last 30 days</span><strong>{stats.last30}</strong></div>
           </div>
@@ -1877,6 +1920,7 @@ function InsightsTab({ jobs, regionName }) {
           </div>
         </Card>
       </div>
+
       {stats.upcoming.length>0 && (
         <Card className="p-4">
           <SectionHdr title="📅 Upcoming deadlines" />
