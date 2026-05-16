@@ -1857,23 +1857,22 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
 function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
   const [step, setStep]           = useState('setup');
   const [profile, setProfile]     = useState('');
-  const [days, setDays]           = useState(7);
+  const [urlText, setUrlText]     = useState('');
   const [found, setFound]         = useState([]);
   const [selected, setSelected]   = useState(new Set());
   const [msg, setMsg]             = useState('');
   const [adding, setAdding]       = useState(false);
   const [added, setAdded]         = useState([]);
-  const GMAIL_MCP = 'https://gmailmcp.googleapis.com/mcp/v1';
 
   useEffect(() => { setProfile(resumeDb || ''); }, [resumeDb]);
 
   const anthropicKey = () => lsGet('anthropicKey');
 
-  async function callClaude(messages, useMCP = false) {
+  async function callClaude(messages, useWebSearch = false) {
     const key = anthropicKey();
     if (!key) throw new Error('No Anthropic API key — add it in ⚙️ Settings.');
-    const body = { model:'claude-sonnet-4-5', max_tokens:4000, messages };
-    if (useMCP) body.mcp_servers = [{ type:'url', url:GMAIL_MCP, name:'gmail' }];
+    const body = { model:'claude-sonnet-4-5', max_tokens:8000, messages };
+    if (useWebSearch) body.tools = [{ type:'web_search_20250305', name:'web_search', max_uses: 20 }];
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method:'POST',
       headers:{
@@ -1895,33 +1894,48 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
     try { return JSON.parse(m[0]); } catch { return []; }
   }
 
-  async function scan() {
-    setStep('scanning'); setFound([]); setSelected(new Set());
-    setMsg(`Searching Gmail for LinkedIn alerts (last ${days} days)…`);
-    try {
-      const extractText = await callClaude([{ role:'user', content:
-        `Search Gmail for LinkedIn job alert emails from the last ${days} days. Look for emails from "jobalerts@linkedin.com" or subjects containing "jobs for you", "job alert", or "recommended jobs".
+  // Extract LinkedIn URLs from pasted text
+  function extractUrls(text) {
+    const matches = text.match(/https?:\/\/(?:www\.)?linkedin\.com\/(?:jobs\/view|comm\/jobs\/view|jobs\/collections\/recommended)[^\s"<>)}\]']*/gi) || [];
+    // Deduplicate
+    return [...new Set(matches.map(u => u.replace(/[?,]$/, '')))];
+  }
 
-For each email, extract ALL job listings. For each extract:
-- company, role, location
-- description (any snippet, max 200 chars)
-- url: LinkedIn job posting URL (from "View job" or "Apply" links)
-- apply_url: direct company application URL if different from url; otherwise same as url
+  async function scan() {
+    const urls = extractUrls(urlText);
+    if (!urls.length) { setMsg('No LinkedIn job URLs found in pasted text.'); return; }
+    setStep('scanning'); setFound([]); setSelected(new Set());
+    setMsg(`Found ${urls.length} LinkedIn URL${urls.length!==1?'s':''}. Fetching job details via web search…`);
+    try {
+      const lookupText = await callClaude([{ role:'user', content:
+        `I have ${urls.length} LinkedIn job listing URLs. For each, use web search to find the full job details.
+
+URLs:
+${urls.map((u,i) => `${i+1}. ${u}`).join('\n')}
+
+For each job you can find, extract:
+- company (string)
+- role / title (string)
+- location (string)
+- description (first 300 chars of the job description / requirements)
+- url (the original LinkedIn URL)
+- apply_url (the application link if different from the LinkedIn URL; otherwise use the LinkedIn URL)
+- salary (if found, otherwise empty string)
 
 Return ONLY a JSON array — no other text:
-[{"company":"Acme","role":"Data Analyst","location":"Toronto, ON","description":"...","url":"https://linkedin.com/jobs/view/...","apply_url":"https://..."}]
+[{"company":"Acme","role":"Data Analyst","location":"Toronto, ON","description":"Looking for a data analyst with 2+ years...","url":"https://linkedin.com/jobs/view/...","apply_url":"https://...","salary":""}]
 
-If no emails found: []` }], true);
+If you cannot find details for a URL, still include it with whatever info you can determine from the URL or search results.` }], true);
 
-      const rawJobs = parseArr(extractText);
+      const rawJobs = parseArr(lookupText);
       if (!rawJobs.length) {
-        setMsg(`No LinkedIn job alert emails found in the last ${days} days.`);
+        setMsg('Could not extract job details. LinkedIn may require authentication for these listings. Try copying the job details manually from LinkedIn.');
         setStep('review'); return;
       }
-      setMsg(`Found ${rawJobs.length} listing${rawJobs.length!==1?'s':''}. Scoring fit…`);
+      setMsg(`Got details for ${rawJobs.length} job${rawJobs.length!==1?'s':''}. Scoring fit…`);
 
       const scoreText = await callClaude([{ role:'user', content:
-        `MY PROFILE:\n${profile}\n\nScore each job for fit. Return ONLY JSON — no other text:\n[{"index":0,"score":8,"reason":"one sentence"}]\n\nScores: 9-10 excellent, 7-8 good, 5-6 partial, 1-4 poor.\n\nLISTINGS:\n${JSON.stringify(rawJobs.map((j,i)=>({index:i,company:j.company,role:j.role,location:j.location,description:j.description})),null,2)}` }]);
+        `MY PROFILE:\n${profile}\n\nScore each job for fit with my profile. Return ONLY JSON:\n[{"index":0,"score":8,"reason":"one sentence"}]\n\nScores: 9-10 excellent, 7-8 good, 5-6 partial, 1-4 poor.\n\nLISTINGS:\n${JSON.stringify(rawJobs.map((j,i)=>({index:i,company:j.company,role:j.role,location:j.location,description:j.description})),null,2)}` }]);
 
       const scores = parseArr(scoreText);
       const merged = rawJobs.map((j,i) => {
@@ -1931,7 +1945,7 @@ If no emails found: []` }], true);
 
       setFound(merged);
       setSelected(new Set(merged.filter(j=>j.score>=7).map(j=>j._id)));
-      setMsg(`${merged.length} jobs found — ${merged.filter(j=>j.score>=7).length} high-fit (≥7) pre-selected.`);
+      setMsg(`${merged.length} jobs enriched — ${merged.filter(j=>j.score>=7).length} high-fit (≥7) pre-selected.`);
       setStep('review');
     } catch(e) { setMsg(`Error: ${e.message}`); setStep('review'); }
   }
@@ -1945,7 +1959,8 @@ If no emails found: []` }], true);
       const notesParts = [];
       if (j.url) notesParts.push(`LinkedIn: ${j.url}`);
       if (j.apply_url && j.apply_url !== j.url) notesParts.push(`Apply: ${j.apply_url}`);
-      newJobs.push({ id:newId(), dateAdded:new Date().toISOString(), company:j.company||'', role:j.role||'', location:j.location||'', salaryRange:'', applicationDeadline:'', status:'interested', jdText:j.description||'', notes:notesParts.join('\n') });
+      if (j.salary) notesParts.push(`Salary: ${j.salary}`);
+      newJobs.push({ id:newId(), dateAdded:new Date().toISOString(), company:j.company||'', role:j.role||'', location:j.location||'', salaryRange:j.salary||'', applicationDeadline:'', status:'interested', jdText:j.description||'', notes:notesParts.join('\n') });
     }
     if (!newJobs.length) { setMsg('All selected jobs already in your tracker.'); setAdding(false); return; }
     const updated = [...jobs, ...newJobs];
@@ -1960,16 +1975,20 @@ If no emails found: []` }], true);
   const hasKey = !!anthropicKey();
   const scoreColor = s => s>=8 ? 'bg-green-100 text-green-800' : s>=6 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
   const toggle = id => { const s = new Set(selected); s.has(id)?s.delete(id):s.add(id); setSelected(s); };
+  const urlCount = extractUrls(urlText).length;
 
   return (
     <div className="space-y-3">
       <Card className="p-4">
         <SectionHdr icon="📧" title="LinkedIn job alert scanner" />
-        <p className="text-xs text-gray-500 mb-3">Scans your Gmail for LinkedIn alerts, scores each listing against your profile, and adds matches directly to this region's tracker.</p>
+        <p className="text-xs text-gray-500 mb-3">
+          Open a LinkedIn job alert email → copy the whole email (the links are embedded in the text) → paste below.
+          Claude searches the web for full details on each job and scores them against your profile.
+        </p>
 
         {!hasKey && (
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-800 mb-3">
-            ⚠ No Anthropic API key set. Add one in <strong>⚙️ Settings</strong> to use this feature (~$0.01–0.05 per scan).
+            ⚠ No Anthropic API key set. Add one in <strong>⚙️ Settings</strong> to use this feature.
           </div>
         )}
 
@@ -1977,27 +1996,33 @@ If no emails found: []` }], true);
           <div className="space-y-3">
             <div>
               <label className="block text-xs text-gray-600 mb-1 font-medium">Your profile (used for scoring)</label>
-              <textarea value={profile} onChange={e=>setProfile(e.target.value)} rows={4}
+              <textarea value={profile} onChange={e=>setProfile(e.target.value)} rows={3}
                 className="w-full text-xs border border-gray-200 rounded-md p-2 resize-none text-gray-700 focus:outline-none focus:border-gray-400"
                 placeholder="Auto-filled from My Profile tab…" />
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-xs text-gray-600">Search window:</span>
-              {[3,7,14].map(d => (
-                <button key={d} onClick={()=>setDays(d)}
-                  className={`px-3 py-1 text-xs rounded-full border transition-colors ${days===d?'bg-gray-900 text-white border-gray-900':'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                  {d} days
-                </button>
-              ))}
+            <div>
+              <label className="block text-xs text-gray-600 mb-1 font-medium">
+                Paste LinkedIn alert email or job URLs
+              </label>
+              <textarea value={urlText} onChange={e=>setUrlText(e.target.value)} rows={6}
+                className="w-full text-xs border border-gray-200 rounded-md p-2 resize-y text-gray-700 focus:outline-none focus:border-gray-400 font-mono"
+                placeholder={"Paste the LinkedIn job alert email here (Ctrl+A → Ctrl+C from the email),\nor paste LinkedIn job URLs directly, one per line:\n\nhttps://www.linkedin.com/jobs/view/1234567890\nhttps://www.linkedin.com/jobs/view/9876543210"} />
+              <p className="text-xs text-gray-400 mt-1">
+                {urlCount > 0
+                  ? <span className="text-green-600 font-medium">{urlCount} LinkedIn URL{urlCount!==1?'s':''} detected</span>
+                  : 'No LinkedIn URLs detected yet — paste the email or URLs above'}
+              </p>
             </div>
-            <Btn variant="primary" onClick={scan} disabled={!profile.trim()||!hasKey}>🔍 Scan emails</Btn>
+            <Btn variant="primary" onClick={scan} disabled={!profile.trim()||urlCount===0||!hasKey}>
+              🔍 Fetch details &amp; score ({urlCount} job{urlCount!==1?'s':''})
+            </Btn>
           </div>
         )}
 
         {step === 'scanning' && (
           <div className="flex flex-col items-center gap-3 py-8">
             <div className="w-7 h-7 border-2 border-gray-200 border-t-gray-700 rounded-full animate-spin" />
-            <p className="text-sm text-gray-500 text-center">{msg}</p>
+            <p className="text-sm text-gray-500 text-center max-w-sm">{msg}</p>
           </div>
         )}
 
@@ -2024,9 +2049,10 @@ If no emails found: []` }], true);
                           <p className="text-sm font-medium text-gray-900">{j.role} <span className="font-normal text-gray-500">· {j.company}</span></p>
                           <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${scoreColor(j.score)}`}>{j.score}/10</span>
                         </div>
-                        {j.location && <p className="text-xs text-gray-400 mb-1">{j.location}</p>}
+                        {j.location && <p className="text-xs text-gray-400 mb-0.5">{j.location}</p>}
+                        {j.salary && <p className="text-xs text-gray-500 mb-0.5">💰 {j.salary}</p>}
                         <p className="text-xs text-gray-500 mb-1">{j.reason}</p>
-                        {j.description && <p className="text-xs text-gray-400 italic mb-1">{j.description.slice(0,120)}{j.description.length>120?'…':''}</p>}
+                        {j.description && <p className="text-xs text-gray-400 italic mb-1">{j.description.slice(0,200)}{j.description.length>200?'…':''}</p>}
                         {(j.apply_url||j.url) && (
                           <a href={j.apply_url||j.url} target="_blank" rel="noreferrer"
                             onClick={e=>e.stopPropagation()}
@@ -2059,7 +2085,9 @@ If no emails found: []` }], true);
                 </div>
               ))}
             </div>
-            <Btn onClick={()=>{setStep('setup');setFound([]);setAdded([]);setMsg('');setSelected(new Set());}}>🔍 Scan again</Btn>
+            <div className="flex gap-2">
+              <Btn onClick={()=>{setStep('setup');setFound([]);setAdded([]);setMsg('');setSelected(new Set());}}>📧 Scan more jobs</Btn>
+            </div>
           </div>
         )}
       </Card>
