@@ -1873,7 +1873,7 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
   async function callClaude(messages, useWebSearch = false) {
     const key = anthropicKey();
     if (!key) throw new Error('No Anthropic API key — add it in ⚙️ Settings.');
-    const body = { model:'claude-haiku-4-5-20251001', max_tokens:4000, messages };
+    const body = { model:'claude-haiku-4-5-20251001', max_tokens:8000, messages };
     if (useWebSearch) body.tools = [{ type:'web_search_20250305', name:'web_search', max_uses: 5 }];
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method:'POST',
@@ -1917,19 +1917,25 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
       const trimmedText = pastedText.slice(0, 4000);
       const trimmedProfile = profile.slice(0, 500);
 
-      // Single API call: extract jobs + web search + score — all in one
+      // Single API call: extract jobs + web search company career pages + score
       const resultText = await callClaude([{ role:'user', content:
-        `TASK: Extract job listings from the email text below, search the web for full details on each, and score each for fit with my profile. Do everything in one pass.
+        `TASK: Extract job listings from the email text below, then search the web for the FULL job description on each company's own career page (not LinkedIn — companies post full JDs on their Workday/Greenhouse/Lever/career pages which are publicly accessible).
 
 MY PROFILE (for scoring):
 ${trimmedProfile}
 
 Scoring: 9-10 excellent fit, 7-8 good, 5-6 partial, 1-4 poor.
 
-For each job found, return: company, role, location, description (max 150 chars from the posting), url (job posting URL from search), salary (if found, else ""), score (1-10), reason (one sentence).
+For each job:
+1. Search for "[company name] [job title] careers" or "[company name] jobs [job title]" to find the company's own job posting page
+2. Extract the full job description/requirements from the search results (as much as you can get — include key responsibilities, qualifications, and requirements)
+3. Get the company's direct application URL (the careers page link, NOT linkedin.com)
+4. Score against my profile
 
 Return ONLY a JSON array:
-[{"company":"Acme","role":"Analyst","location":"Toronto","description":"...","url":"https://...","salary":"","score":8,"reason":"Strong match for finance background"}]
+[{"company":"Acme","role":"Analyst","location":"Toronto","description":"FULL job description text from the company career page — include responsibilities, qualifications, requirements...","url":"https://careers.acme.com/jobs/12345","salary":"","score":8,"reason":"Strong match for finance background"}]
+
+Include as much description text as possible — it will be used to tailor resumes later.
 
 EMAIL TEXT:
 ${trimmedText}` }], true);
@@ -1957,11 +1963,7 @@ ${trimmedText}` }], true);
     const newJobs = [];
     for (const j of toAdd) {
       if (jobs.some(e => e.company?.toLowerCase()===j.company?.toLowerCase() && e.role?.toLowerCase()===j.role?.toLowerCase())) continue;
-      const notesParts = [];
-      if (j.url) notesParts.push(`LinkedIn: ${j.url}`);
-      if (j.apply_url && j.apply_url !== j.url) notesParts.push(`Apply: ${j.apply_url}`);
-      if (j.salary) notesParts.push(`Salary: ${j.salary}`);
-      newJobs.push({ id:newId(), dateAdded:new Date().toISOString(), company:j.company||'', role:j.role||'', location:j.location||'', salaryRange:j.salary||'', applicationDeadline:'', status:'interested', jdText:j.description||'', notes:notesParts.join('\n') });
+      newJobs.push({ id:newId(), dateAdded:new Date().toISOString(), company:j.company||'', role:j.role||'', location:j.location||'', salaryRange:j.salary||'', applicationDeadline:'', status:'interested', jdText:j.description||'', notes:[j.url?`Apply: ${j.url}`:'', j.salary?`Salary: ${j.salary}`:''].filter(Boolean).join('\n') });
     }
     if (!newJobs.length) { setMsg('All selected jobs already in your tracker.'); setAdding(false); return; }
     const updated = [...jobs, ...newJobs];
@@ -1982,7 +1984,7 @@ ${trimmedText}` }], true);
       <Card className="p-4">
         <SectionHdr icon="📧" title="LinkedIn job alert scanner" />
         <p className="text-xs text-gray-500 mb-3">
-          Paste text from a LinkedIn job alert email (titles &amp; companies). Claude searches the web for full job details, scores each against your profile, and lets you batch-add matches to your tracker.
+          Paste a LinkedIn job alert email → Claude searches each company's career page for the full JD → scores against your profile → batch-add to tracker with descriptions ready for resume tailoring.
         </p>
 
         {!hasKey && (
@@ -2047,7 +2049,7 @@ ${trimmedText}` }], true);
                         {j.location && <p className="text-xs text-gray-400 mb-0.5">{j.location}</p>}
                         {j.salary && <p className="text-xs text-gray-500 mb-0.5">💰 {j.salary}</p>}
                         <p className="text-xs text-gray-500 mb-1">{j.reason}</p>
-                        {j.description && <p className="text-xs text-gray-400 italic mb-1">{j.description.slice(0,200)}{j.description.length>200?'…':''}</p>}
+                        {j.description && <p className="text-xs text-gray-400 italic mb-1">{j.description.slice(0,300)}{j.description.length>300?'…':''}</p>}
                         {(j.apply_url||j.url) && (
                           <a href={j.apply_url||j.url} target="_blank" rel="noreferrer"
                             onClick={e=>e.stopPropagation()}
