@@ -32,6 +32,7 @@ const PATHS = {
   resumeSections: 'data/resumeSections.json',
   formatting:     'data/formatting.txt',
   glossary:       'data/glossary.txt',
+  watchdogProfile:'data/watchdogProfile.txt',
   library:        'data/library.json',
   canadaJobs:     'data/canada_jobs.json',
   hongkongJobs:   'data/hongkong_jobs.json',
@@ -43,6 +44,7 @@ const KEY_TO_PATH = {
   resumeSections:  PATHS.resumeSections,
   formatting:      PATHS.formatting,
   glossary:        PATHS.glossary,
+  watchdogProfile: PATHS.watchdogProfile,
   library:         PATHS.library,
   'canada:jobs':   PATHS.canadaJobs,
   'hongkong:jobs': PATHS.hongkongJobs,
@@ -1866,7 +1868,11 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
 
   const DEFAULT_PROFILE = 'Recent UBC Sauder BCom graduate (Business Analytics & Finance), CFA Level I. IB intern at China Guangfa Bank. Python/SQL/Excel. Projects: ML trading signal, SEC filings RAG, earnings call sentiment. Seeking entry-level AM/IB/quant/data roles in Canada, HK, China. English, Cantonese, Mandarin.';
 
-  useEffect(() => { setProfile(p => p || DEFAULT_PROFILE); }, []);
+  useEffect(() => {
+    if (!ghConfigured()) { setProfile(DEFAULT_PROFILE); return; }
+    loadText('watchdogProfile').then(t => setProfile(t || DEFAULT_PROFILE));
+  }, []);
+  const saveProfile = (val) => { setProfile(val); saveText('watchdogProfile', val); };
 
   const anthropicKey = () => lsGet('anthropicKey');
 
@@ -1957,6 +1963,56 @@ ${trimmedText}` }], true);
     } catch(e) { setMsg(`Error: ${e.message}`); setStep('review'); }
   }
 
+  const REGION_LABELS = { canada:'Canada', hongkong:'Hong Kong', china:'Mainland China' };
+
+  async function manualSearch() {
+    setStep('scanning'); setFound([]); setSelected(new Set());
+    const loc = REGION_LABELS[region] || 'Canada';
+    setMsg(`Searching for new jobs in ${loc} matching your profile…`);
+    try {
+      const trimmedProfile = profile.slice(0, 500);
+      const resultText = await callClaude([{ role:'user', content:
+        `TASK: Search the web for entry-level / new-grad job postings in ${loc} that were posted within the last 24 hours (or are currently active and recent) matching this candidate's profile.
+
+CANDIDATE PROFILE:
+${trimmedProfile}
+
+Search strategy:
+1. Search for recent job postings matching the candidate's background — try queries like:
+   - "entry level investment analyst ${loc} posted today"
+   - "new grad financial analyst ${loc} jobs 2026"
+   - "junior data analyst finance ${loc} recent"
+   - "business analyst ${loc} new grad 2026"
+   - Adapt search terms based on the candidate's specific skills and target roles
+2. For each job found, search for the company's career page to get the full job description
+3. Score each job for fit with the candidate's profile
+
+For each job return: company, role, location, description (as much JD text as possible from the career page), url (company career page link), salary (if found, else ""), score (1-10 fit), reason (one sentence).
+
+Scoring: 9-10 excellent fit, 7-8 good, 5-6 partial, 1-4 poor.
+
+Return ONLY a JSON array:
+[{"company":"Acme","role":"Analyst","location":"Toronto","description":"Full JD text...","url":"https://careers.acme.com/...","salary":"","score":8,"reason":"Strong match"}]
+
+Find at least 5 jobs if possible. Only include jobs that score 5 or above.` }], true);
+
+      const rawJobs = parseArr(resultText);
+      if (!rawJobs.length) {
+        setMsg(`No matching new jobs found in ${loc}. Try again tomorrow — new postings appear daily.`);
+        setStep('review'); return;
+      }
+
+      const merged = rawJobs.map((j,i) => ({
+        ...j, score:j.score||5, reason:j.reason||'', _id:`j${i}_${Date.now()}`
+      })).sort((a,b) => b.score - a.score);
+
+      setFound(merged);
+      setSelected(new Set(merged.filter(j=>j.score>=7).map(j=>j._id)));
+      setMsg(`${merged.length} jobs found in ${loc} — ${merged.filter(j=>j.score>=7).length} high-fit (≥7) pre-selected.`);
+      setStep('review');
+    } catch(e) { setMsg(`Error: ${e.message}`); setStep('review'); }
+  }
+
   async function addToTracker() {
     setAdding(true);
     const toAdd = found.filter(j => selected.has(j._id));
@@ -1978,6 +2034,8 @@ ${trimmedText}` }], true);
   const hasKey = !!anthropicKey();
   const scoreColor = s => s>=8 ? 'bg-green-100 text-green-800' : s>=6 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
   const toggle = id => { const s = new Set(selected); s.has(id)?s.delete(id):s.add(id); setSelected(s); };
+  const [editingId, setEditingId] = useState(null);
+  const updateJob = (id, field, value) => setFound(f => f.map(j => j._id===id ? {...j, [field]:value} : j));
 
   return (
     <div className="space-y-3">
@@ -1996,10 +2054,14 @@ ${trimmedText}` }], true);
         {step === 'setup' && (
           <div className="space-y-3">
             <div>
-              <label className="block text-xs text-gray-600 mb-1 font-medium">Your profile (used for scoring)</label>
-              <textarea value={profile} onChange={e=>setProfile(e.target.value)} rows={3}
+              <label className="block text-xs text-gray-600 mb-1 font-medium">Your profile (used for matching &amp; scoring)</label>
+              <textarea value={profile} onChange={e=>setProfile(e.target.value)} onBlur={e=>saveText('watchdogProfile', e.target.value)} rows={3}
                 className="w-full text-xs border border-gray-200 rounded-md p-2 resize-none text-gray-700 focus:outline-none focus:border-gray-400"
-                placeholder="Auto-filled from My Profile tab…" />
+                placeholder="Describe yourself in 2-3 sentences for job matching…" />
+              <div className="flex justify-between items-center mt-1">
+                <p className="text-xs text-gray-400">Saved to GitHub when you click away.</p>
+                <button onClick={()=>saveProfile(DEFAULT_PROFILE)} className="text-xs text-gray-400 hover:text-gray-600 hover:underline">Reset to default</button>
+              </div>
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1 font-medium">
@@ -2012,6 +2074,23 @@ ${trimmedText}` }], true);
             <Btn variant="primary" onClick={scan} disabled={!profile.trim()||!pastedText.trim()||!hasKey}>
               🔍 Search &amp; score jobs
             </Btn>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 pt-1">
+              <div className="flex-1 border-t border-gray-200" />
+              <span className="text-xs text-gray-400">or</span>
+              <div className="flex-1 border-t border-gray-200" />
+            </div>
+
+            {/* Manual search */}
+            <div className="bg-gray-50 rounded-md p-3 border border-gray-200">
+              <p className="text-xs text-gray-600 mb-2">
+                <strong>🌐 Discover new jobs</strong> — Claude searches the web for fresh postings in <strong>{REGION_LABELS[region]||region}</strong> matching your profile. No email needed.
+              </p>
+              <Btn onClick={manualSearch} disabled={!profile.trim()||!hasKey}>
+                🌐 Search new jobs (last 24h)
+              </Btn>
+            </div>
           </div>
         )}
 
@@ -2037,29 +2116,59 @@ ${trimmedText}` }], true);
                   </div>
                 </div>
                 <div className="space-y-2 mb-3">
-                  {found.map(j => (
-                    <div key={j._id} onClick={()=>toggle(j._id)}
-                      className={`flex gap-2 p-3 rounded-md border cursor-pointer transition-colors ${selected.has(j._id)?'border-blue-200 bg-blue-50':'border-gray-200 bg-white hover:bg-gray-50'}`}>
-                      <input type="checkbox" checked={selected.has(j._id)} onChange={()=>{}} className="mt-0.5 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start gap-2 mb-0.5">
-                          <p className="text-sm font-medium text-gray-900">{j.role} <span className="font-normal text-gray-500">· {j.company}</span></p>
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${scoreColor(j.score)}`}>{j.score}/10</span>
+                  {found.map(j => {
+                    const isSel = selected.has(j._id);
+                    const isEdit = editingId === j._id;
+                    return (
+                    <div key={j._id} className={`rounded-md border transition-colors ${isSel?'border-blue-200 bg-blue-50':'border-gray-200 bg-white'}`}>
+                      <div className="flex gap-2 p-3 cursor-pointer" onClick={()=>{ if(!isEdit) toggle(j._id); }}>
+                        <input type="checkbox" checked={isSel} onChange={()=>{}} className="mt-0.5 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start gap-2 mb-0.5">
+                            <p className="text-sm font-medium text-gray-900">{j.role} <span className="font-normal text-gray-500">· {j.company}</span></p>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${scoreColor(j.score)}`}>{j.score}/10</span>
+                              <button onClick={e=>{e.stopPropagation(); setEditingId(isEdit?null:j._id);}}
+                                className={`text-xs px-1.5 py-0.5 rounded border ${isEdit?'bg-gray-200 border-gray-300':'border-gray-200 hover:bg-gray-100'}`}
+                                title="Edit">✏️</button>
+                            </div>
+                          </div>
+                          {!isEdit && j.location && <p className="text-xs text-gray-400 mb-0.5">{j.location}</p>}
+                          {!isEdit && j.salary && <p className="text-xs text-gray-500 mb-0.5">💰 {j.salary}</p>}
+                          {!isEdit && <p className="text-xs text-gray-500 mb-1">{j.reason}</p>}
+                          {!isEdit && j.description && <p className="text-xs text-gray-400 italic mb-1">{j.description.slice(0,300)}{j.description.length>300?'…':''}</p>}
+                          {!isEdit && (j.url) && (
+                            <a href={j.url} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()}
+                              className="text-xs text-blue-500 hover:underline inline-flex items-center gap-1">↗ View &amp; apply</a>
+                          )}
                         </div>
-                        {j.location && <p className="text-xs text-gray-400 mb-0.5">{j.location}</p>}
-                        {j.salary && <p className="text-xs text-gray-500 mb-0.5">💰 {j.salary}</p>}
-                        <p className="text-xs text-gray-500 mb-1">{j.reason}</p>
-                        {j.description && <p className="text-xs text-gray-400 italic mb-1">{j.description.slice(0,300)}{j.description.length>300?'…':''}</p>}
-                        {(j.apply_url||j.url) && (
-                          <a href={j.apply_url||j.url} target="_blank" rel="noreferrer"
-                            onClick={e=>e.stopPropagation()}
-                            className="text-xs text-blue-500 hover:underline inline-flex items-center gap-1">
-                            ↗ View &amp; apply
-                          </a>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                      {isEdit && (
+                        <div className="px-3 pb-3 pt-1 space-y-2 border-t border-gray-100 ml-6" onClick={e=>e.stopPropagation()}>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div><label className="text-xs text-gray-500 mb-0.5 block">Company</label>
+                              <input value={j.company||''} onChange={e=>updateJob(j._id,'company',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-gray-400" /></div>
+                            <div><label className="text-xs text-gray-500 mb-0.5 block">Role</label>
+                              <input value={j.role||''} onChange={e=>updateJob(j._id,'role',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-gray-400" /></div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div><label className="text-xs text-gray-500 mb-0.5 block">Location</label>
+                              <input value={j.location||''} onChange={e=>updateJob(j._id,'location',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-gray-400" /></div>
+                            <div><label className="text-xs text-gray-500 mb-0.5 block">Salary</label>
+                              <input value={j.salary||''} onChange={e=>updateJob(j._id,'salary',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-gray-400" /></div>
+                          </div>
+                          <div><label className="text-xs text-gray-500 mb-0.5 block">Apply URL</label>
+                            <input value={j.url||''} onChange={e=>updateJob(j._id,'url',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 font-mono focus:outline-none focus:border-gray-400" /></div>
+                          <div><label className="text-xs text-gray-500 mb-0.5 block">Job description</label>
+                            <textarea value={j.description||''} onChange={e=>updateJob(j._id,'description',e.target.value)} rows={6}
+                              className="w-full text-xs border border-gray-200 rounded px-2 py-1 resize-y focus:outline-none focus:border-gray-400" /></div>
+                          <div className="flex justify-end">
+                            <button onClick={()=>setEditingId(null)} className="text-xs px-3 py-1 rounded bg-gray-900 text-white hover:bg-gray-700">Done</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>);
+                  })}
                 </div>
                 <Btn variant="primary" onClick={addToTracker} disabled={!selected.size||adding}>
                   {adding?'⏳ Adding…':`➕ Add ${selected.size} job${selected.size!==1?'s':''} to tracker`}
