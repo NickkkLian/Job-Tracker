@@ -1,173 +1,188 @@
-# 💼 Job Application Command Center
+# Job Application Command Center
 
-A personal job search tracker for **Canada**, **Hong Kong**, and **Mainland China** — with AI-assisted resume tailoring, cover letter drafting, interview prep, and networking strategy via Claude.ai.
+A single-file job tracker and AI-powered application toolkit. Track applications across three regions, generate tailored resumes and cover letters via Claude.ai, and scan LinkedIn alerts for new opportunities — all from one static HTML page hosted on GitHub Pages.
 
-**No API key. No build step. No backend. One HTML file.**
+## Live App
 
----
+**https://NickkkLian.github.io/Job-Tracker**
+
+No backend, no build step, no server. Just one `index.html` on GitHub Pages.
+
+## Quick Start
+
+### 1. Create a private data repo
+
+Go to GitHub → New repository → name it `jobapp-data` → set to **Private** → Create.
+
+This repo stores all your data (jobs, profile, resumes, PDFs) as JSON and text files.
+
+### 2. Generate a GitHub token
+
+Go to [github.com/settings/tokens/new](https://github.com/settings/tokens/new) → check **repo** scope → Generate → copy the token immediately.
+
+### 3. Configure the app
+
+Open the app → click ⚙️ Settings → paste your token and repo name (`username/jobapp-data`) → Save → Test connection.
+
+### 4. (Optional) Set up LinkedIn Alerts
+
+To use the 📧 Alerts tab, you also need an Anthropic API key. Go to [console.anthropic.com](https://console.anthropic.com) → API Keys → Create → paste it in ⚙️ Settings. Costs ~$0.002 per scan.
 
 ## Features
 
-**Job Tracker**
-- Add applications manually — company, role, location, salary, deadline, notes
-- Track status across the full pipeline: Applied → Interviewing → Offered / Rejected
-- Filter and search across all applications
-- Upcoming deadline reminders in the Insights dashboard
-- Three fully isolated regions — Canada, Hong Kong, Mainland China — data never crosses between them
+### 📋 Three Regions
 
-**AI Help via Claude.ai**
-- Seven ready-to-use prompts generated from your resume + job description:
-  - 📝 Tailor Resume — tailors your profile to the specific role and JD
-  - ✉️ Cover Letter — writes a targeted 300-word cover letter
-  - 🎯 Interview Prep — 8 likely questions, what they test, areas to study
-  - 👥 Networking Strategy — specific LinkedIn targets and outreach approach
-  - 🔍 Analyze This Job — day-to-day reality, red flags, salary estimate, competition
-  - 🇨🇳 Translate to Simplified Chinese — translates and reformats into Mainland China 简历 structure
-  - 🇭🇰 Translate to Traditional Chinese — translates and reformats into Hong Kong CV structure
-- Translation prompts open a source picker — choose from the saved tailored resume, any resume in your library, or paste your own text
-- Works with the free or Pro Claude.ai plan — no API key, no extra cost
+Track applications separately for Canada 🇨🇦, Hong Kong 🇭🇰, and Mainland China 🇨🇳. Each region has its own job list, insights, and alerts. Profile, resume library, formatting rules, and glossary are shared across all regions.
 
-**Print View (PDF export)**
-- Once a tailored resume is saved, a 🖨️ Print view button appears next to Copy and Download
-- Choose from three visual styles: 🇨🇳 Mainland China 简历, 🇭🇰 Hong Kong CV, 📄 English (clean)
-- Opens a fully styled A4 HTML page in a new tab — press Ctrl+P (⌘P) and save as PDF
-- Chinese styles use Noto Sans SC / TC fonts loaded from Google Fonts
-- No install required — runs entirely in your browser
+### ➕ Add Job
 
-**Resume Management**
-- My Profile — upload multiple files as separate named sections (resume versions, skills docs, anything you want Claude to reference); all sections are combined when building AI prompts
-- Resume library — store, preview, rename, and download your polished finished resumes separately from the profile
-- Formatting requirements — describe your preferred resume layout once; automatically injected into every Tailor Resume prompt so Claude always follows your structure
-- Upload support: `.txt`, `.md`, `.docx`, `.pdf`
-- Download tailored resumes and cover letters as `.md` or `.txt`
+- Upload a JD file (PDF, DOCX, TXT, MD) and the parser auto-fills role, company, location, salary, and deadline
+- Noise filtering strips boilerplate (EEO statements, contact info, copyright lines) before extraction
+- Or fill fields manually
 
-**Insights Dashboard**
-- Pipeline counts by status
-- Response rate and offer rate
-- Activity over the last 7 and 30 days
-- Top companies and upcoming deadlines
+### 📋 Tracker
 
----
+- Filter by status, search by keyword
+- Status pipeline: **Interested → Applied → Interviewing → Offered / Rejected**
+- Open any job to view details, edit fields, save notes, upload tailored resume/cover letter PDFs, and generate AI prompts
 
-## How it works
+### 📝 My Profile (3 cards)
 
-| What | Where |
-|------|-------|
-| The app itself | A single `index.html` — hosted on GitHub Pages |
-| Your data (resume, jobs, library) | Your own **private** GitHub repo, via the GitHub API |
-| GitHub token | Your browser's `localStorage` only — never committed anywhere |
+**Multi-section profile manager** — Upload your background as separate named sections (education, experience, projects, skills, etc.) from `.txt`, `.md`, `.docx`, or `.pdf` files. Sections are combined into a single profile used by all AI prompts.
 
-The app never sends your data to any third-party server. Your GitHub token is used only to read and write files in your own private repo.
+**Translation glossary** — `English → Chinese` term mappings injected into the translate prompts for consistent terminology.
 
----
+**Resume formatting requirements** — Additional layout rules (e.g., "sections in this order", "use British English") injected into the Tailor Resume prompt.
 
-## Setup
+### 📚 Resume Library
 
-> Takes about 10 minutes. No terminal or coding required.
+Store and preview multiple resume versions as Markdown. Download as `.md` or `.txt`. Use any library resume as a translation source.
 
-### 1. Fork or download
+### 📊 Insights
 
-- **Fork** this repo to your GitHub account, or
-- Download `index.html` and create a new public repo to host it
+- **Cumulative pipeline funnel chart** — a job at "Interviewing" also counts in "Applied" (moving forward never decreases previous stage counts)
+- Color-coded horizontal bars: purple (Interested), blue (Applied), yellow (Interviewing), green (Offered), red (Rejected)
+- Response rate and offer rate based on applied jobs (excludes Interested)
+- Activity metrics (last 7/30 days), top companies, upcoming deadlines
 
-### 2. Create a private repo for your data
+### 📧 Alerts (LinkedIn Watchdog)
 
-Go to [github.com/new](https://github.com/new) and create a **private** repo — name it anything, e.g. `jobapp-data`. Leave it empty.
+Two modes for discovering jobs:
 
-### 3. Enable GitHub Pages on this repo
+**Email scan** — Paste a LinkedIn job alert email (titles + company names). Claude Haiku uses web search to find each job on the company's own career page (Workday, Greenhouse, Lever, etc.), extracts the full JD, scores it against your profile, and lets you batch-add matches to the tracker.
 
-- Repo → **Settings → Pages**
-- Source: **Deploy from a branch** → branch: `main` · folder: `/ (root)`
-- Click **Save**
+**Manual search** — Click "Search new jobs (last 24h)" and Claude searches the web for fresh postings in your current region matching your profile. No email input needed.
 
-Your app will be live at `https://your-username.github.io/your-repo-name` within about a minute.
+Both modes show results as interactive cards with fit scores (1-10), descriptions, salary info, and clickable "View & apply" links. Each card is editable (✏️) — fix company names, paste in a better JD, or add the real apply URL before adding to the tracker.
 
-### 4. Create a GitHub Personal Access Token
+Requires an **Anthropic API key** (add in ⚙️ Settings). Costs ~$0.002 per scan using Haiku.
 
-- Go to [github.com/settings/tokens/new](https://github.com/settings/tokens/new)
-- Give it a name (e.g. "Job Tracker")
-- Tick the **repo** scope
-- Click **Generate token** — copy it immediately (you only see it once)
+## AI Prompts (Copy-Paste to Claude.ai)
 
-### 5. Configure the app
+The app generates ready-to-paste prompts — no API key needed for these. Copy the prompt, paste into [claude.ai](https://claude.ai/new), and Claude does the work.
 
-- Open your GitHub Pages URL
-- A settings dialog opens automatically on first visit
-- Enter your **GitHub token** and **private data repo** (format: `your-username/jobapp-data`)
-- Click **Test connection**, then **Save**
+| Prompt | Output | Method |
+|--------|--------|--------|
+| Tailor Resume | One-page PDF | Claude Analysis Tool (reportlab) |
+| Cover Letter | PDF (standalone or combined with resume) | Claude Analysis Tool (reportlab) |
+| Interview Prep | Markdown (read in Claude.ai) | Direct response |
+| Networking | Markdown | Direct response |
+| Job Analysis | Markdown | Direct response |
+| Translate Resume | Markdown (Simplified or Traditional Chinese) | Direct response |
 
-Done. Your data now saves to your private repo on every change.
+### Tailor Resume
 
----
+Generates a one-page PDF resume directly via Claude's Analysis Tool (Python + reportlab). Features include:
 
-## How the AI features work
+- Region-aware contact line (Canada excludes the +86 phone number)
+- Structural layout fixes: SPAN-based section headers, colWidths=[78, None], RIGHTPADDING=8pt
+- Anti-pattern guards: no HRFlowable, no getSampleStyleSheet, no tighten functions
+- Binary-search spacing to fill the page when content is sparse, trim content first when too long
+- Adjacent courses and skills included for transferable capability
+- Courses listed by relevance, never by grade (grades never shown)
+- Output file: `Firstname_Lastname_Resume.pdf`
 
-The app does not call any AI API directly. Instead, it builds a prompt from your profile and the job description, then opens Claude.ai for you.
+**Tone calibration**: Recent graduate. Banned buzzwords (leveraged, spearheaded, drove, transformed, etc.). Allowed verbs (built, wrote, analyzed, tested, supported, etc.). No inflated claims — "Built" not "led", "Supported" not "drove". Internships are 3 months — no long-term strategic impact claims.
 
-```
-Click "Tailor Resume"
-  → App combines all your profile sections into one reference document
-  → Adds your formatting requirements (if set)
-  → Embeds the job description
-  → Copy the prompt → paste into Claude.ai → send
-  → Copy Claude's response → paste it into the Tailored Resume field → Save
+### Cover Letter
 
-Click "→ 简体中文" or "→ 繁體中文"
-  → Source picker opens — choose from:
-       · Saved tailored resume for this job
-       · Any resume in your library
-       · Paste your own text
-  → Generate prompt → copy → open Claude.ai → paste → send
-  → Paste translation back into the Tailored Resume field → Save
+Also generates PDF via Analysis Tool. Key features:
 
-Click "🖨️ Print view" (appears once a tailored resume is saved)
-  → Choose a visual style:
-       · 🇨🇳 Mainland China 简历  (dark navy accents, Noto Sans SC)
-       · 🇭🇰 Hong Kong CV        (clean uppercase headers, Noto Sans TC)
-       · 📄 English clean        (minimal Inter font)
-  → Styled A4 HTML opens in a new tab
-  → Press Ctrl+P (⌘P) → Destination: Save as PDF → set Margins to None
-```
+- 3–4 paragraphs, 300–380 words
+- Para 1 must reference something specific about the company (strategy, philosophy, track record)
+- Para 2 picks achievements that match the specific role type (discretionary vs. quant, finance vs. engineering)
+- Para 3 acknowledges early-career status and redirects to strengths — "Don't apologize; reframe"
+- No dashes (— or –) in body text
+- Skips the profile block if resume was already generated in the same Claude.ai conversation (saves tokens)
+- Optional combined 2-page PDF (resume + cover letter) for email applications
+- Output file: `Firstname_Lastname_Cover_Letter.pdf`
 
-Uses your existing [Claude.ai](https://claude.ai) account — no additional API charges.
+### Interview Prep
 
-**Tip:** Set your formatting requirements in **My Profile → 🎨 Resume formatting requirements** once. Every Tailor Resume prompt will include your rules automatically — section order, bullet style, page length, date format, language, etc.
+Starts with a 4-angle strengths summary:
+1. Geographic / regional fit
+2. Language abilities
+3. Interdisciplinary skills
+4. Practical / hands-on abilities
 
----
+Each angle includes honest gap flagging. Followed by 8 likely questions, what they test, 3 study areas, red flags, and location-specific tips.
 
-## Your data in GitHub
+### Translate Resume
 
-After first use, your private data repo will contain:
+Supports Simplified Chinese (Mainland 简历 format) and Traditional Chinese (Hong Kong CV format). Injects the personal translation glossary for consistent terminology.
+
+## Architecture
 
 ```
-data/
-  resumeSections.json   ← your profile sections (uploaded files)
-  resumeDb.txt          ← combined profile text (auto-generated)
-  formatting.txt        ← your resume formatting requirements
-  library.json          ← your resume library
-  canada_jobs.json      ← Canada applications
-  hongkong_jobs.json    ← Hong Kong applications
-  china_jobs.json       ← Mainland China applications
+NickkkLian.github.io/Job-Tracker/
+  index.html              ← the entire app (single file, ~130KB)
+
+NickkkLian/jobapp-data/   (private repo)
+  data/
+    resumeDb.txt              ← combined profile text
+    resumeSections.json       ← profile sections (multi-file)
+    formatting.txt            ← resume formatting rules
+    glossary.txt              ← Chinese translation glossary
+    watchdogProfile.txt       ← alerts tab scoring profile
+    library.json              ← resume library
+    canada_jobs.json          ← job data per region
+    hongkong_jobs.json
+    china_jobs.json
+    files/
+      canada_<jobId>_resume.pdf    ← tailored resume PDFs
+      canada_<jobId>_cover.pdf     ← cover letter PDFs
+      ...
 ```
 
-Each save creates a commit, so you have a full history of your data. `resumeDb.txt` is auto-generated from your sections on every save — you don't need to edit it directly.
+### Stack
 
----
+| Layer | Technology |
+|-------|-----------|
+| UI | React 18 + Babel Standalone (JSX in browser, no build step) |
+| Styling | Tailwind CSS via CDN |
+| File parsing | Mammoth.js (DOCX), PDF.js (PDF text extraction) |
+| Storage | GitHub Contents API (private repo, 409 SHA-conflict retry) |
+| AI (Alerts only) | Anthropic API (Claude Haiku) with web search |
+| Local cache | localStorage for PDF preview blobs and credentials |
 
-## Tech stack
+### Storage Model
 
-- [React 18](https://react.dev) + [Babel Standalone](https://babeljs.io/docs/babel-standalone) — JSX runs in the browser, no build step needed
-- [Tailwind CSS](https://tailwindcss.com) Play CDN
-- [Mammoth.js](https://github.com/mwilliamson/mammoth.js) — `.docx` parsing
-- [PDF.js](https://mozilla.github.io/pdf.js/) — `.pdf` parsing (lazy-loaded)
-- [GitHub Contents API](https://docs.github.com/en/rest/repos/contents) — data storage
+All data persists in your private GitHub repo via the Contents API. The app handles SHA conflicts with automatic retry. PDF files (tailored resumes, cover letters) are stored as base64 in `data/files/` and cached in localStorage for fast preview (blob URL conversion for cross-browser iframe rendering).
 
-No framework CLI, no bundler, no `npm install`.
+### Status Model
 
----
+```
+Interested → Applied → Interviewing → Offered
+                                    ↘ Rejected
+```
 
----
+Default status for new jobs: **Interested**. Insights pipeline counts are cumulative. Response/offer rates exclude Interested jobs from the denominator.
 
-## License
+## Security
 
-MIT — fork it, modify it, make it your own.
+- GitHub token and Anthropic API key stay in `localStorage` — never transmitted except to their respective APIs
+- All job data is in your **private** GitHub repo
+- No backend, no database, no analytics, no tracking
+- The app is a static HTML file with no dependencies beyond CDN scripts
+- Anthropic API calls include `anthropic-dangerous-direct-browser-access: true` (required for browser-to-API calls; API key is visible in browser devtools — acceptable for a personal tool)
+- PDF previews use blob URLs (`URL.createObjectURL`) for cross-browser compatibility, with proper cleanup on unmount
