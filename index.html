@@ -1972,34 +1972,40 @@ ${trimmedText}` }], true);
     }
     setStep('scanning'); setFound([]); setSelected(new Set());
     const loc = REGION_LABELS[region] || 'Canada';
-    setMsg(`Searching LinkedIn and Indeed for jobs in ${loc}…`);
+    setMsg(`Searching for jobs in ${loc}…`);
     try {
       const trimmedProfile = profile.slice(0, 500);
       const resultText = await callClaude([{ role:'user', content:
-        `Search for recent job postings on LinkedIn and Indeed that match this candidate. Run at least 5 different web searches.
+        `You are a job search assistant. Your task: search the web for job postings and return them as JSON.
 
-CANDIDATE: ${trimmedProfile}
+Person: ${trimmedProfile}
+Location: ${loc}
 
-LOCATION: ${loc}
+Run these web searches one by one:
+1. analyst jobs ${loc}
+2. finance entry level jobs ${loc}
+3. data analyst jobs ${loc}
+4. business analyst ${loc} hiring
+5. junior investment jobs ${loc}
 
-SEARCH QUERIES TO TRY (adapt based on the candidate's skills):
-- "analyst jobs ${loc} linkedin.com"
-- "entry level finance jobs ${loc} indeed.com"
-- "data analyst ${loc} new grad"
-- "investment analyst ${loc} 2026"
-- "junior financial analyst ${loc}"
-- Add more queries based on the candidate's specific skills and target roles
+Look through the search results. Each search result that is an actual job posting (not a job board homepage) should be included. Extract from each result:
+- company name
+- job title / role
+- location
+- description (the snippet from the search result)
+- url (link to the posting)
 
-For each job you find in the search results, extract: company, role, location, description (whatever snippet is in the search result), url (the job posting link), salary (if visible), score (1-10 fit with the candidate), reason (one sentence).
+Then score each job 1-10 for fit with the person above.
 
-Return ONLY a JSON array:
-[{"company":"Acme","role":"Analyst","location":"Toronto","description":"...","url":"https://...","salary":"","score":8,"reason":"Strong match"}]
+You MUST return a JSON array. Even if you only find 2-3 jobs, return them. Example format:
+[{"company":"TD Bank","role":"Financial Analyst","location":"Toronto","description":"Analyzing financial data...","url":"https://td.com/careers/12345","salary":"","score":7,"reason":"Finance background fits"}]
 
-Include every relevant job you find across all searches. Minimum 5 results if possible.` }], true);
+Do NOT return an empty array unless you literally found zero job postings in all 5 searches. That would be extremely unlikely.` }], true);
 
       const rawJobs = parseArr(resultText);
       if (!rawJobs.length) {
-        setMsg(`No matching new jobs found in ${loc}. Try again tomorrow — new postings appear daily.`);
+        const preview = (resultText || '(empty response)').slice(0, 400);
+        setMsg(`Could not parse jobs from Claude's response. Raw output: "${preview}"`);
         setStep('review'); return;
       }
 
