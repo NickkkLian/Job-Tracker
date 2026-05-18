@@ -1879,8 +1879,8 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
   async function callClaude(messages, useWebSearch = false) {
     const key = anthropicKey();
     if (!key) throw new Error('No Anthropic API key — add it in ⚙️ Settings.');
-    const body = { model:'claude-haiku-4-5-20251001', max_tokens:8000, messages };
-    if (useWebSearch) body.tools = [{ type:'web_search_20250305', name:'web_search', max_uses: 10 }];
+    const body = { model:'claude-haiku-4-5-20251001', max_tokens:2000, messages };
+    if (useWebSearch) body.tools = [{ type:'web_search_20250305', name:'web_search', max_uses: 3 }];
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method:'POST',
       headers:{
@@ -1976,31 +1976,19 @@ ${trimmedText}` }], true);
     try {
       const trimmedProfile = profile.slice(0, 500);
       const resultText = await callClaude([{ role:'user', content:
-        `You are a job search assistant. Your task: search the web for job postings and return them as JSON.
+        `Search the web for job postings matching this person. Run 3 searches.
 
 Person: ${trimmedProfile}
 Location: ${loc}
 
-Run these web searches one by one:
-1. analyst jobs ${loc}
-2. finance entry level jobs ${loc}
-3. data analyst jobs ${loc}
-4. business analyst ${loc} hiring
-5. junior investment jobs ${loc}
+Search queries:
+1. entry level analyst finance jobs ${loc}
+2. data analyst business analyst ${loc} hiring
+3. junior investment research jobs ${loc}
 
-Look through the search results. Each search result that is an actual job posting (not a job board homepage) should be included. Extract from each result:
-- company name
-- job title / role
-- location
-- description (the snippet from the search result)
-- url (link to the posting)
+From the results, extract each actual job posting (skip job board homepages). For each: company, role, location, description (short snippet), url, salary (or ""), score (1-10 fit), reason (one sentence).
 
-Then score each job 1-10 for fit with the person above.
-
-You MUST return a JSON array. Even if you only find 2-3 jobs, return them. Example format:
-[{"company":"TD Bank","role":"Financial Analyst","location":"Toronto","description":"Analyzing financial data...","url":"https://td.com/careers/12345","salary":"","score":7,"reason":"Finance background fits"}]
-
-Do NOT return an empty array unless you literally found zero job postings in all 5 searches. That would be extremely unlikely.` }], true);
+Return ONLY JSON: [{"company":"...","role":"...","location":"...","description":"...","url":"...","salary":"","score":7,"reason":"..."}]` }], true);
 
       const rawJobs = parseArr(resultText);
       if (!rawJobs.length) {
