@@ -1976,21 +1976,21 @@ ${trimmedText}` }], true);
     try {
       const trimmedProfile = profile.slice(0, 500);
       const resultText = await callClaude([{ role:'user', content:
-        `Find real job postings for this person. You have 5 web searches — use them wisely.
+        `Find real job postings for this person. You have 5 web searches. ONLY return jobs located in ${loc} — skip any US, UK, or other country results.
 
 Person: ${trimmedProfile}
-Location: ${loc}
+Location: MUST be in ${loc} only. Cities like ${loc === 'Canada' ? 'Toronto, Vancouver, Montreal, Calgary, Ottawa' : loc === 'Hong Kong' ? 'Hong Kong, Central, Kowloon' : 'Shanghai, Beijing, Shenzhen, Guangzhou, Nanjing'}.
 
-STRATEGY (important — generic job searches return aggregator homepages, not actual jobs):
+STRATEGY:
 
-Phase 1 (search 1): Search "${loc} companies hiring analyst finance 2025 2026" to find which companies are actively posting.
+Phase 1 (search 1): Search "companies hiring analyst finance ${loc} 2025" to find which ${loc}-based companies are actively posting.
 
-Phase 2 (searches 2-5): For each promising company from phase 1, search "[company name] careers [relevant role]" to find their actual career page. Company career pages (Workday, Greenhouse, Lever URLs) have real job details.
+Phase 2 (searches 2-5): For each company found, search "[company name] careers [role] ${loc}" to find their career page. Company career pages (Workday, Greenhouse, Lever) have real job details.
 
-Good phase 2 queries look like: "RBC careers financial analyst", "Deloitte Toronto analyst job posting", "Manulife data analyst careers"
+CRITICAL: Every job you return MUST have a ${loc} location. Do NOT include US jobs, remote-US jobs, or jobs from any other country.
 
-Return every real job posting you find as JSON:
-[{"company":"RBC","role":"Financial Analyst","location":"Toronto","description":"snippet from career page","url":"https://careers.rbc.com/...","salary":"","score":7,"reason":"Finance background fits"}]` }], true);
+Return JSON only:
+[{"company":"...","role":"...","location":"Toronto, ON","description":"...","url":"https://...","salary":"","score":7,"reason":"..."}]` }], true);
 
       const rawJobs = parseArr(resultText);
       if (!rawJobs.length) {
