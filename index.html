@@ -247,7 +247,7 @@ const CLAUDE_URL = 'https://claude.ai/new';
 // Prompts are pasted into Claude.ai (200K token context) — no length limits needed.
 
 function promptTailorResume(resumeDb, job, formatting, region) {
-  return `Generate a one-page Letter PDF resume using Claude's Analysis Tool (reportlab). Extract the candidate's first and last name from the PROFILE below and save the file as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Zixi_Lian_Resume.pdf). Present it as a downloadable file. Do NOT output HTML, markdown, or wrap code in fences without running it. After the file is generated, add ONE short confirming sentence — no more.
+  return `Generate a one-page Letter PDF resume using Claude's Analysis Tool (reportlab). Extract the candidate's first and last name from the PROFILE below and save the file as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf). Present it as a downloadable file. Do NOT output HTML, markdown, or wrap code in fences without running it. After the file is generated, add ONE short confirming sentence — no more.
 
 PROFILE:
 ${resumeDb||''}
@@ -324,7 +324,7 @@ TONE — I'm a recent graduate seeking entry-level roles:
 }
 
 function promptCoverLetter(resumeDb, job) {
-  return `Generate a PDF cover letter using Claude's Analysis Tool (reportlab). Extract the candidate's first and last name from the profile/conversation context and save the file as /mnt/user-data/outputs/{Firstname}_{Lastname}_Cover_Letter.pdf (e.g. Zixi_Lian_Cover_Letter.pdf). Present it as a downloadable file. ONE short confirming sentence after generating — no more.
+  return `Generate a PDF cover letter using Claude's Analysis Tool (reportlab). Extract the candidate's first and last name from the profile/conversation context and save the file as /mnt/user-data/outputs/{Firstname}_{Lastname}_Cover_Letter.pdf (e.g. Jane_Doe_Cover_Letter.pdf). Present it as a downloadable file. ONE short confirming sentence after generating — no more.
 
 CONTEXT: If you already generated my tailored resume earlier in this conversation, use that resume content and background — you don't need to re-read the PROFILE below. If this is a fresh chat, use PROFILE:
 
@@ -1311,7 +1311,7 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
         <textarea
           value={glsDraft}
           onChange={e => setGlsDraft(e.target.value)}
-          placeholder={`One entry per line, format: English term → Chinese translation\n\nExamples:\nZixi Lian → 连子熙\nUBC Sauder School of Business → 英属哥伦比亚大学商学院\nChina Guangfa Bank → 广发银行\nGhost Job Detection & Trading Signal → 幽灵职位检测与交易信号\nVancouver → 温哥华`}
+          placeholder={`One entry per line, format: English term → Chinese translation\n\nExamples:\nYour Name → 你的中文名\nYour University → 大学名称\nYour Company → 公司名称\nProject Name → 项目名称\nVancouver → 温哥华`}
           className="w-full h-40 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
         />
         <p className="mt-1 text-xs text-gray-400">
@@ -1866,7 +1866,7 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
   const [adding, setAdding]       = useState(false);
   const [added, setAdded]         = useState([]);
 
-  const DEFAULT_PROFILE = 'Recent UBC Sauder BCom graduate (Business Analytics & Finance), CFA Level I. IB intern at China Guangfa Bank. Python/SQL/Excel. Projects: ML trading signal, SEC filings RAG, earnings call sentiment. Seeking entry-level AM/IB/quant/data roles in Canada, HK, China. English, Cantonese, Mandarin.';
+  const DEFAULT_PROFILE = 'Edit this profile to describe yourself in 2-3 sentences. Include: degree, key skills, relevant experience, target roles, and languages. This is used to score and match jobs — the more specific, the better the results.';
 
   useEffect(() => {
     if (!ghConfigured()) { setProfile(DEFAULT_PROFILE); return; }
@@ -1972,29 +1972,27 @@ ${trimmedText}` }], true);
     try {
       const trimmedProfile = profile.slice(0, 500);
       const resultText = await callClaude([{ role:'user', content:
-        `TASK: Search the web for entry-level / new-grad job postings in ${loc} that were posted within the last 24 hours (or are currently active and recent) matching this candidate's profile.
+        `TASK: Search LinkedIn and Indeed for recent job postings in ${loc} that match this candidate's profile. Focus on jobs posted in the last few days.
 
 CANDIDATE PROFILE:
 ${trimmedProfile}
 
-Search strategy:
-1. Search for recent job postings matching the candidate's background — try queries like:
-   - "entry level investment analyst ${loc} posted today"
-   - "new grad financial analyst ${loc} jobs 2026"
-   - "junior data analyst finance ${loc} recent"
-   - "business analyst ${loc} new grad 2026"
-   - Adapt search terms based on the candidate's specific skills and target roles
-2. For each job found, search for the company's career page to get the full job description
-3. Score each job for fit with the candidate's profile
+Search strategy — run multiple searches:
+1. Search LinkedIn: "site:linkedin.com/jobs ${loc}" + role keywords from the profile (e.g. "analyst", "finance", "data")
+2. Search Indeed: "site:indeed.com ${loc}" + role keywords
+3. Also try: "${loc} entry level [role] jobs 2026" without site filter
+4. Try at least 4-5 different search queries to cover different role types the candidate fits
 
-For each job return: company, role, location, description (as much JD text as possible from the career page), url (company career page link), salary (if found, else ""), score (1-10 fit), reason (one sentence).
+For each job found, try to find the company's own career page for the full description.
+
+For each job return: company, role, location, description (as much JD text as possible), url (career page or job board link), salary (if found, else ""), score (1-10 fit), reason (one sentence).
 
 Scoring: 9-10 excellent fit, 7-8 good, 5-6 partial, 1-4 poor.
 
 Return ONLY a JSON array:
-[{"company":"Acme","role":"Analyst","location":"Toronto","description":"Full JD text...","url":"https://careers.acme.com/...","salary":"","score":8,"reason":"Strong match"}]
+[{"company":"Acme","role":"Analyst","location":"Toronto","description":"Full JD text...","url":"https://...","salary":"","score":8,"reason":"Strong match"}]
 
-Find at least 5 jobs if possible. Only include jobs that score 5 or above.` }], true);
+Find at least 5 jobs. Only include jobs that score 5 or above.` }], true);
 
       const rawJobs = parseArr(resultText);
       if (!rawJobs.length) {
