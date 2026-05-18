@@ -4,7 +4,7 @@ A single-file job tracker and AI-powered application toolkit. Track applications
 
 ## Live App
 
-**https://NickkkLian.github.io/Job-Tracker**
+**https://your-username.github.io/Job-Tracker**
 
 No backend, no build step, no server. Just one `index.html` on GitHub Pages.
 
@@ -134,10 +134,10 @@ Supports Simplified Chinese (Mainland 简历 format) and Traditional Chinese (Ho
 ## Architecture
 
 ```
-NickkkLian.github.io/Job-Tracker/
+your-username.github.io/Job-Tracker/
   index.html              ← the entire app (single file, ~130KB)
 
-NickkkLian/jobapp-data/   (private repo)
+your-username/jobapp-data/   (private repo)
   data/
     resumeDb.txt              ← combined profile text
     resumeSections.json       ← profile sections (multi-file)
