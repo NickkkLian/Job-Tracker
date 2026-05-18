@@ -1880,7 +1880,7 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
     const key = anthropicKey();
     if (!key) throw new Error('No Anthropic API key — add it in ⚙️ Settings.');
     const body = { model:'claude-haiku-4-5-20251001', max_tokens:8000, messages };
-    if (useWebSearch) body.tools = [{ type:'web_search_20250305', name:'web_search', max_uses: 5 }];
+    if (useWebSearch) body.tools = [{ type:'web_search_20250305', name:'web_search', max_uses: 10 }];
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method:'POST',
       headers:{
@@ -1966,33 +1966,36 @@ ${trimmedText}` }], true);
   const REGION_LABELS = { canada:'Canada', hongkong:'Hong Kong', china:'Mainland China' };
 
   async function manualSearch() {
+    if (!profile || profile.startsWith('Edit this profile')) {
+      setMsg('⚠ Please write your profile summary first — Claude needs it to know what jobs to search for.');
+      return;
+    }
     setStep('scanning'); setFound([]); setSelected(new Set());
     const loc = REGION_LABELS[region] || 'Canada';
-    setMsg(`Searching for new jobs in ${loc} matching your profile…`);
+    setMsg(`Searching LinkedIn and Indeed for jobs in ${loc}…`);
     try {
       const trimmedProfile = profile.slice(0, 500);
       const resultText = await callClaude([{ role:'user', content:
-        `TASK: Search LinkedIn and Indeed for recent job postings in ${loc} that match this candidate's profile. Focus on jobs posted in the last few days.
+        `Search for recent job postings on LinkedIn and Indeed that match this candidate. Run at least 5 different web searches.
 
-CANDIDATE PROFILE:
-${trimmedProfile}
+CANDIDATE: ${trimmedProfile}
 
-Search strategy — run multiple searches:
-1. Search LinkedIn: "site:linkedin.com/jobs ${loc}" + role keywords from the profile (e.g. "analyst", "finance", "data")
-2. Search Indeed: "site:indeed.com ${loc}" + role keywords
-3. Also try: "${loc} entry level [role] jobs 2026" without site filter
-4. Try at least 4-5 different search queries to cover different role types the candidate fits
+LOCATION: ${loc}
 
-For each job found, try to find the company's own career page for the full description.
+SEARCH QUERIES TO TRY (adapt based on the candidate's skills):
+- "analyst jobs ${loc} linkedin.com"
+- "entry level finance jobs ${loc} indeed.com"
+- "data analyst ${loc} new grad"
+- "investment analyst ${loc} 2026"
+- "junior financial analyst ${loc}"
+- Add more queries based on the candidate's specific skills and target roles
 
-For each job return: company, role, location, description (as much JD text as possible), url (career page or job board link), salary (if found, else ""), score (1-10 fit), reason (one sentence).
-
-Scoring: 9-10 excellent fit, 7-8 good, 5-6 partial, 1-4 poor.
+For each job you find in the search results, extract: company, role, location, description (whatever snippet is in the search result), url (the job posting link), salary (if visible), score (1-10 fit with the candidate), reason (one sentence).
 
 Return ONLY a JSON array:
-[{"company":"Acme","role":"Analyst","location":"Toronto","description":"Full JD text...","url":"https://...","salary":"","score":8,"reason":"Strong match"}]
+[{"company":"Acme","role":"Analyst","location":"Toronto","description":"...","url":"https://...","salary":"","score":8,"reason":"Strong match"}]
 
-Find at least 5 jobs. Only include jobs that score 5 or above.` }], true);
+Include every relevant job you find across all searches. Minimum 5 results if possible.` }], true);
 
       const rawJobs = parseArr(resultText);
       if (!rawJobs.length) {
