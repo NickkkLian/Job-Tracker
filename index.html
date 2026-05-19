@@ -1979,11 +1979,11 @@ ${trimmedText}` }], true);
         `Find real job postings for this person. You have 5 web searches. ONLY return jobs located in ${loc} — skip any US, UK, or other country results.
 
 Person: ${trimmedProfile}
-Location: MUST be in ${loc} only. Cities like ${loc === 'Canada' ? 'Toronto, Vancouver, Montreal, Calgary, Ottawa' : loc === 'Hong Kong' ? 'Hong Kong, Central, Kowloon' : 'Shanghai, Beijing, Shenzhen, Guangzhou, Nanjing'}.
+Location: MUST be in ${loc} only. ${loc === 'Canada' ? 'PRIORITY: Greater Vancouver Area (Vancouver, Burnaby, Richmond, Surrey, New Westminster) first. If not enough Vancouver jobs, include Toronto. Other Canadian cities only if very strong fit.' : loc === 'Hong Kong' ? 'Cities: Hong Kong, Central, Kowloon' : 'Cities: Shanghai, Beijing, Shenzhen, Guangzhou, Nanjing'}.
 
 STRATEGY:
 
-Phase 1 (search 1): Search "companies hiring analyst finance ${loc} 2025" to find which ${loc}-based companies are actively posting.
+Phase 1 (search 1): Search "${loc === 'Canada' ? 'Vancouver' : loc} companies hiring analyst finance 2025" to find which ${loc}-based companies are actively posting.
 
 Phase 2 (searches 2-5): For each company found, search "[company name] careers [role] ${loc}" to find their career page. Company career pages (Workday, Greenhouse, Lever) have real job details.
 
