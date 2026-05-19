@@ -2240,48 +2240,124 @@ function InsightsTab({ jobs, regionName }) {
 
   if (!jobs.length) return <Card className="p-8 text-center text-sm text-gray-500">No data yet — add some applications first.</Card>;
 
-  const funnelStages = stats.pipeline.filter(s => s.id !== 'rejected');
-  const maxCount = Math.max(1, ...funnelStages.map(s=>s.count));
+  // ── Sankey data ──────────────────────────────────────────
+  const c = {};
+  jobs.forEach(j => { c[j.status] = (c[j.status]||0) + 1; });
+  const interested   = c.interested || 0;
+  const appliedTotal = jobs.length - interested;
+  const noAnswer     = c.applied || 0;
+  const rejected     = c.rejected || 0;
+  const interviews   = (c.interviewing||0) + (c.offered||0) + (c.interview_rejected||0);
+  const offered      = c.offered || 0;
+  const inProgress   = c.interviewing || 0;
+  const noOffer      = c.interview_rejected || 0;
+
+  // ── Sankey layout ────────────────────────────────────────
+  function SankeyChart() {
+    if (appliedTotal === 0 && interested === 0) return null;
+    const W = 600, H = 320, nw = 14;
+    const cols = [30, 250, 470];
+    const gap = 6;
+
+    // Scale factor: map appliedTotal to available height
+    const usableH = H - 60;
+    const scale = appliedTotal > 0 ? Math.min(usableH / appliedTotal, 40) : 10;
+    const minH = 6;
+    const h = (n) => Math.max(n * scale, n > 0 ? minH : 0);
+
+    // Column 0: Applications
+    const appH = h(appliedTotal);
+    const appY = (H - appH) / 2;
+
+    // Column 1: No Answer, Rejected, Interviews (stacked from top of appNode)
+    const c1 = [];
+    let y1 = appY;
+    if (noAnswer > 0)   { c1.push({ id:'noanswer',  y:y1, h:h(noAnswer),   n:noAnswer,   label:'No Answer',  color:'#f4b8c1' }); y1 += h(noAnswer) + gap; }
+    if (rejected > 0)   { c1.push({ id:'rejected',  y:y1, h:h(rejected),   n:rejected,   label:'Rejected',   color:'#c9a0c9' }); y1 += h(rejected) + gap; }
+    if (interviews > 0) { c1.push({ id:'interviews', y:y1, h:h(interviews), n:interviews, label:'Interviews', color:'#8fbc8f' }); y1 += h(interviews) + gap; }
+
+    // Column 2: Offers, In Progress, No Offer (stacked from Interviews node)
+    const intNode = c1.find(n => n.id === 'interviews');
+    const c2 = [];
+    if (intNode) {
+      const intScale = intNode.h / Math.max(interviews, 1);
+      let y2 = intNode.y;
+      if (offered > 0)    { c2.push({ id:'offered',    y:y2, h:Math.max(offered*intScale, minH),    n:offered,    label:'Offers',      color:'#a8d5a2' }); y2 += Math.max(offered*intScale, minH) + gap; }
+      if (inProgress > 0) { c2.push({ id:'inprogress', y:y2, h:Math.max(inProgress*intScale, minH), n:inProgress, label:'In Progress', color:'#b8c9b8' }); y2 += Math.max(inProgress*intScale, minH) + gap; }
+      if (noOffer > 0)    { c2.push({ id:'nooffer',    y:y2, h:Math.max(noOffer*intScale, minH),    n:noOffer,    label:'No Offer',    color:'#f4a0a0' }); }
+    }
+
+    // Curved band path
+    const band = (x1, y1t, h1, x2, y2t, h2) => {
+      const mx = (x1 + x2) / 2;
+      return `M${x1},${y1t} C${mx},${y1t} ${mx},${y2t} ${x2},${y2t} L${x2},${y2t+h2} C${mx},${y2t+h2} ${mx},${y1t+h1} ${x1},${y1t+h1}Z`;
+    };
+
+    // Build links from col0 → col1
+    const links1 = [];
+    let srcY = appY;
+    c1.forEach(node => {
+      links1.push({ d: band(cols[0]+nw, srcY, node.h, cols[1], node.y, node.h), color: node.color });
+      srcY += node.h + gap;
+    });
+
+    // Build links from col1(interviews) → col2
+    const links2 = [];
+    if (intNode) {
+      let srcY2 = intNode.y;
+      c2.forEach(node => {
+        links2.push({ d: band(cols[1]+nw, srcY2, node.h, cols[2], node.y, node.h), color: node.color });
+        srcY2 += node.h + gap;
+      });
+    }
+
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{maxHeight:360}}>
+        {/* Links col0→col1 */}
+        {links1.map((l,i) => <path key={'l1'+i} d={l.d} fill={l.color} opacity={0.45} />)}
+        {/* Links col1→col2 */}
+        {links2.map((l,i) => <path key={'l2'+i} d={l.d} fill={l.color} opacity={0.45} />)}
+
+        {/* Node: Applications */}
+        <rect x={cols[0]} y={appY} width={nw} height={appH} fill="#4a9ebb" rx={2} />
+        <text x={cols[0]-4} y={appY + appH/2 - 8} textAnchor="end" fontSize={18} fontWeight={700} fill="#333">{appliedTotal}</text>
+        <text x={cols[0]-4} y={appY + appH/2 + 10} textAnchor="end" fontSize={11} fill="#666">Applications</text>
+
+        {/* Nodes col1 */}
+        {c1.map(node => (
+          <React.Fragment key={node.id}>
+            <rect x={cols[1]} y={node.y} width={nw} height={node.h} fill={node.color} rx={2} />
+            <text x={cols[1]+nw+8} y={node.y + Math.min(node.h/2, 12) - 2} fontSize={15} fontWeight={700} fill="#333">{node.n}</text>
+            <text x={cols[1]+nw+8} y={node.y + Math.min(node.h/2, 12) + 13} fontSize={10} fill="#666">{node.label}</text>
+          </React.Fragment>
+        ))}
+
+        {/* Nodes col2 */}
+        {c2.map(node => (
+          <React.Fragment key={node.id}>
+            <rect x={cols[2]} y={node.y} width={nw} height={node.h} fill={node.color} rx={2} />
+            <text x={cols[2]+nw+8} y={node.y + Math.min(node.h/2, 12) - 2} fontSize={15} fontWeight={700} fill="#333">{node.n}</text>
+            <text x={cols[2]+nw+8} y={node.y + Math.min(node.h/2, 12) + 13} fontSize={10} fill="#666">{node.label}</text>
+          </React.Fragment>
+        ))}
+
+        {/* Interested note */}
+        {interested > 0 && (
+          <text x={cols[0]} y={20} fontSize={11} fill="#8b5cf6">+ {interested} interested (not yet applied)</text>
+        )}
+      </svg>
+    );
+  }
 
   return (
     <div className="space-y-3">
 
-      {/* Funnel chart */}
+      {/* Sankey flow chart */}
       <Card className="p-4">
         <SectionHdr icon="📊" title={`${regionName} pipeline`} />
-        <div className="space-y-2 mt-2">
-          {funnelStages.map(s => (
-            <div key={s.id} className="flex items-center gap-3">
-              <div className="w-24 text-xs text-gray-600 text-right shrink-0">{s.label}</div>
-              <div className="flex-1 bg-gray-100 rounded-full h-6 relative">
-                <div
-                  className="h-6 rounded-full transition-all duration-500 flex items-center justify-end pr-2"
-                  style={{ width: `${Math.max(s.count/maxCount*100, s.count>0?4:0)}%`, backgroundColor: s.color }}
-                >
-                  {s.count > 0 && <span className="text-xs font-bold text-white">{s.count}</span>}
-                </div>
-                {s.count === 0 && <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">0</span>}
-              </div>
-            </div>
-          ))}
-          {/* Rejected shown separately */}
-          <div className="flex items-center gap-3 mt-1 pt-1 border-t border-gray-100">
-            <div className="w-24 text-xs text-gray-400 text-right shrink-0">Rejected</div>
-            <div className="flex-1 bg-gray-100 rounded-full h-5 relative">
-              <div
-                className="h-5 rounded-full transition-all duration-500 flex items-center justify-end pr-2"
-                style={{ width: `${Math.max(stats.pipeline.find(s=>s.id==='rejected').count/maxCount*100, stats.pipeline.find(s=>s.id==='rejected').count>0?4:0)}%`, backgroundColor:'#f87171' }}
-              >
-                {stats.pipeline.find(s=>s.id==='rejected').count > 0 && (
-                  <span className="text-xs font-bold text-white">{stats.pipeline.find(s=>s.id==='rejected').count}</span>
-                )}
-              </div>
-              {stats.pipeline.find(s=>s.id==='rejected').count === 0 && (
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">0</span>
-              )}
-            </div>
-          </div>
-          <p className="text-xs text-gray-400 mt-1">Counts are cumulative — a job at Interviewing also counts in Applied.</p>
+        <div className="mt-2">
+          <SankeyChart />
+          <p className="text-xs text-gray-400 mt-2">Flows show how applications move through your pipeline.</p>
         </div>
       </Card>
 
