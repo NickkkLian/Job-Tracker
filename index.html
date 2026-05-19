@@ -1931,28 +1931,23 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
     setMsg('Reading pasted text and searching for full job details…');
     try {
       // Truncate inputs to stay under rate limits
-      const trimmedText = pastedText.slice(0, 4000);
+      const trimmedText = pastedText.slice(0, 8000);
       const trimmedProfile = profile.slice(0, 500);
 
       // Single API call: extract jobs + web search company career pages + score
       const resultText = await callClaude([{ role:'user', content:
-        `TASK: Extract job listings from the email text below, then search the web for the FULL job description on each company's own career page (not LinkedIn — companies post full JDs on their Workday/Greenhouse/Lever/career pages which are publicly accessible).
+        `Extract ALL job listings from the email text below. Then search the web for full descriptions.
 
-MY PROFILE (for scoring):
-${trimmedProfile}
+RULES:
+- Extract EVERY job listing in the email — do not skip any
+- Use the EXACT job title and company name from the company's career page — these are the official titles used in applications
+- Search the company's career page (Workday/Greenhouse/Lever) for the full JD, not LinkedIn
 
-Scoring: 9-10 excellent fit, 7-8 good, 5-6 partial, 1-4 poor.
+MY PROFILE (for scoring 1-10): ${trimmedProfile}
 
-For each job:
-1. Search for "[company name] [job title] careers" or "[company name] jobs [job title]" to find the company's own job posting page
-2. Extract the full job description/requirements from the search results (as much as you can get — include key responsibilities, qualifications, and requirements)
-3. Get the company's direct application URL (the careers page link, NOT linkedin.com)
-4. Score against my profile
+For each job return: company (from career page), role (exact title from career page), location, description (from career page search), url (career page link), salary (or ""), score (1-10), reason.
 
-Return ONLY a JSON array:
-[{"company":"Acme","role":"Analyst","location":"Toronto","description":"FULL job description text from the company career page — include responsibilities, qualifications, requirements...","url":"https://careers.acme.com/jobs/12345","salary":"","score":8,"reason":"Strong match for finance background"}]
-
-Include as much description text as possible — it will be used to tailor resumes later.
+JSON only: [{"company":"...","role":"...","location":"...","description":"...","url":"...","salary":"","score":7,"reason":"..."}]
 
 EMAIL TEXT:
 ${trimmedText}` }], true);
@@ -2022,20 +2017,25 @@ Return JSON only:
     } catch(e) { setMsg(`Error: ${e.message}`); setStep('review'); }
   }
 
+  // Fuzzy match for duplicate detection — handles "RBC" vs "Royal Bank of Canada", "Analyst" vs "Financial Analyst I"
+  const norm = s => (s||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+  const fuzzy = (a, b) => { const na=norm(a), nb=norm(b); if (!na||!nb) return false; return na===nb || (na.length>3 && nb.length>3 && (na.includes(nb) || nb.includes(na))); };
+
   async function addToTracker() {
     setAdding(true);
     const toAdd = found.filter(j => selected.has(j._id));
     const newJobs = [];
+    let skipped = 0;
     for (const j of toAdd) {
-      if (jobs.some(e => e.company?.toLowerCase()===j.company?.toLowerCase() && e.role?.toLowerCase()===j.role?.toLowerCase())) continue;
+      if (jobs.some(e => fuzzy(e.company, j.company) && fuzzy(e.role, j.role))) { skipped++; continue; }
       newJobs.push({ id:newId(), dateAdded:new Date().toISOString(), company:j.company||'', role:j.role||'', location:j.location||'', salaryRange:j.salary||'', applicationDeadline:'', status:'interested', jdText:j.description||'', notes:[j.url?`Apply: ${j.url}`:'', j.salary?`Salary: ${j.salary}`:''].filter(Boolean).join('\n') });
     }
-    if (!newJobs.length) { setMsg('All selected jobs already in your tracker.'); setAdding(false); return; }
+    if (!newJobs.length) { setMsg(`All ${skipped} selected job${skipped!==1?'s':''} already in your tracker (fuzzy-matched by company + role).`); setAdding(false); return; }
     const updated = [...jobs, ...newJobs];
     setJobs(updated);
     await saveJson(`${region}:jobs`, updated);
     setAdded(newJobs);
-    setMsg(`${newJobs.length} job${newJobs.length!==1?'s':''} added to your tracker.`);
+    setMsg(`${newJobs.length} job${newJobs.length!==1?'s':''} added.${skipped ? ` ${skipped} skipped (already in tracker).` : ''}`);
     setStep('done');
     setAdding(false);
   }
@@ -2128,8 +2128,9 @@ Return JSON only:
                   {found.map(j => {
                     const isSel = selected.has(j._id);
                     const isEdit = editingId === j._id;
+                    const isDup = jobs.some(e => fuzzy(e.company, j.company) && fuzzy(e.role, j.role));
                     return (
-                    <div key={j._id} className={`rounded-md border transition-colors ${isSel?'border-blue-200 bg-blue-50':'border-gray-200 bg-white'}`}>
+                    <div key={j._id} className={`rounded-md border transition-colors ${isDup?'border-orange-200 bg-orange-50/50':isSel?'border-blue-200 bg-blue-50':'border-gray-200 bg-white'}`}>
                       <div className="flex gap-2 p-3 cursor-pointer" onClick={()=>{ if(!isEdit) toggle(j._id); }}>
                         <input type="checkbox" checked={isSel} onChange={()=>{}} className="mt-0.5 shrink-0" />
                         <div className="flex-1 min-w-0">
@@ -2137,6 +2138,7 @@ Return JSON only:
                             <p className="text-sm font-medium text-gray-900">{j.role} <span className="font-normal text-gray-500">· {j.company}</span></p>
                             <div className="flex items-center gap-1.5 shrink-0">
                               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${scoreColor(j.score)}`}>{j.score}/10</span>
+                              {isDup && <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">In tracker</span>}
                               <button onClick={e=>{e.stopPropagation(); setEditingId(isEdit?null:j._id);}}
                                 className={`text-xs px-1.5 py-0.5 rounded border ${isEdit?'bg-gray-200 border-gray-300':'border-gray-200 hover:bg-gray-100'}`}
                                 title="Edit">✏️</button>
