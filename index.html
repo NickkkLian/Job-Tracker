@@ -223,11 +223,12 @@ const REGIONS = [
 ];
 
 const STATUSES = [
-  { id:'interested',  label:'Interested',   cls:'bg-purple-100 text-purple-800 border-purple-200' },
-  { id:'applied',      label:'Applied',      cls:'bg-blue-100 text-blue-800 border-blue-200'   },
-  { id:'interviewing', label:'Interviewing', cls:'bg-yellow-100 text-yellow-800 border-yellow-200' },
-  { id:'offered',      label:'Offered',      cls:'bg-green-100 text-green-800 border-green-200'  },
-  { id:'rejected',     label:'Rejected',     cls:'bg-red-100 text-red-800 border-red-200'      },
+  { id:'interested',       label:'Interested',          cls:'bg-purple-100 text-purple-800 border-purple-200' },
+  { id:'applied',          label:'Applied',             cls:'bg-blue-100 text-blue-800 border-blue-200'   },
+  { id:'interviewing',     label:'Interviewing',        cls:'bg-yellow-100 text-yellow-800 border-yellow-200' },
+  { id:'offered',          label:'Offered',             cls:'bg-green-100 text-green-800 border-green-200'  },
+  { id:'rejected',         label:'Rejected',            cls:'bg-red-100 text-red-800 border-red-200'      },
+  { id:'interview_rejected', label:'Interviewed, Rejected', cls:'bg-orange-100 text-orange-800 border-orange-200' },
 ];
 
 const TABS = [
@@ -2214,18 +2215,18 @@ Return JSON only:
 function InsightsTab({ jobs, regionName }) {
   const stats = useMemo(() => {
     // Cumulative pipeline — a job at "Interviewing" also counts toward "Applied"
-    const rank = { interested:0, applied:1, interviewing:2, offered:3, rejected:1 }; // rejected = treated as "applied" minimum
+    const rank = { interested:0, applied:1, interviewing:2, offered:3, rejected:1, interview_rejected:2 };
     const atLeast = (stage) => jobs.filter(j => (rank[j.status]??0) >= rank[stage]).length;
     const pipeline = [
-      { id:'interested',  label:'Interested',   count: jobs.filter(j=>j.status==='interested').length, color:'#a78bfa' },
-      { id:'applied',     label:'Applied',       count: atLeast('applied'),     color:'#60a5fa' },
-      { id:'interviewing',label:'Interviewing',  count: atLeast('interviewing'), color:'#fbbf24' },
-      { id:'offered',     label:'Offered',       count: atLeast('offered'),     color:'#34d399' },
-      { id:'rejected',    label:'Rejected',      count: jobs.filter(j=>j.status==='rejected').length, color:'#f87171' },
+      { id:'interested',   label:'Interested',   count: jobs.filter(j=>j.status==='interested').length, color:'#a78bfa' },
+      { id:'applied',      label:'Applied',       count: atLeast('applied'),      color:'#60a5fa' },
+      { id:'interviewing', label:'Interviewing',  count: atLeast('interviewing'), color:'#fbbf24' },
+      { id:'offered',      label:'Offered',       count: atLeast('offered'),      color:'#34d399' },
+      { id:'rejected',     label:'Rejected',      count: jobs.filter(j=>j.status==='rejected'||j.status==='interview_rejected').length, color:'#f87171' },
     ];
     const total  = jobs.length;
     const applied = jobs.filter(j => j.status !== 'interested').length;
-    const responseRate = applied ? Math.round(jobs.filter(j=>['interviewing','offered'].includes(j.status)).length/applied*100) : 0;
+    const responseRate = applied ? Math.round(jobs.filter(j=>['interviewing','offered','interview_rejected'].includes(j.status)).length/applied*100) : 0;
     const offerRate    = applied ? Math.round(jobs.filter(j=>j.status==='offered').length/applied*100) : 0;
     const now  = Date.now();
     const last7  = jobs.filter(j=>now-new Date(j.dateAdded).getTime()<7*86400000).length;
