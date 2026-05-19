@@ -1879,7 +1879,12 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
   async function callClaude(messages, useWebSearch = false) {
     const key = anthropicKey();
     if (!key) throw new Error('No Anthropic API key — add it in ⚙️ Settings.');
-    const body = { model:'claude-haiku-4-5-20251001', max_tokens:2000, messages };
+    const body = {
+      model:'claude-haiku-4-5-20251001',
+      max_tokens:8192,
+      system: 'You are a job search API. Return ONLY a JSON array. No narration, no explanation, no preamble. Start your response with [ and end with ].',
+      messages,
+    };
     if (useWebSearch) body.tools = [{ type:'web_search_20250305', name:'web_search', max_uses: 5 }];
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method:'POST',
@@ -1909,9 +1914,14 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
   }
 
   function parseArr(text) {
-    const m = text.match(/\[[\s\S]*\]/);
-    if (!m) return [];
-    try { return JSON.parse(m[0]); } catch { return []; }
+    if (!text) return [];
+    // Try to find a JSON array — look for [{ to }] pattern
+    const m = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+    if (m) { try { return JSON.parse(m[0]); } catch {} }
+    // Fallback: try any [ to ] match
+    const m2 = text.match(/\[[\s\S]*\]/);
+    if (m2) { try { return JSON.parse(m2[0]); } catch {} }
+    return [];
   }
 
   async function scan() {
@@ -1994,8 +2004,9 @@ Return JSON only:
 
       const rawJobs = parseArr(resultText);
       if (!rawJobs.length) {
-        const preview = (resultText || '(empty response)').slice(0, 400);
-        setMsg(`Could not parse jobs from Claude's response. Raw output: "${preview}"`);
+        const len = (resultText||'').length;
+        const tail = (resultText || '(empty)').slice(-500);
+        setMsg(`Could not parse JSON from response (${len} chars). End of response: "…${tail}"`);
         setStep('review'); return;
       }
 
