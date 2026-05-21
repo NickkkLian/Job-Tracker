@@ -1159,7 +1159,7 @@ function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
 // PROFILE TAB
 // ════════════════════════════════════════════════════════════════
 
-function ProfileTab({ sections, updateSections, formatting, setFormatting, glossary, setGlossary }) {
+function ProfileTab({ sections, updateSections, formatting, setFormatting, glossary, setGlossary, region, resumeDb }) {
   const [expandedId, setExpandedId] = useState(null);
   const [editingId, setEditingId]   = useState(null);
   const [editName, setEditName]     = useState('');
@@ -1350,6 +1350,100 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
             : 'No formatting rules set yet — Claude will use its default layout.'}
         </p>
       </Card>
+
+      {/* Generate General Resume */}
+      <Card className="p-4">
+        <SectionHdr icon="📄" title="Generate general resume" />
+        <GeneralResumeSection resumeDb={resumeDb} formatting={formatting} glossary={glossary} region={region} />
+      </Card>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// GENERAL RESUME GENERATOR
+// ════════════════════════════════════════════════════════════════
+
+function GeneralResumeSection({ resumeDb, formatting, glossary, region }) {
+  const [showModal, setShowModal] = useState(false);
+  const REGION_CFG = {
+    canada:   { lang:'English',              label:'🇨🇦 English Resume' },
+    hongkong: { lang:'Traditional Chinese',  label:'🇭🇰 繁體中文履歷' },
+    china:    { lang:'Simplified Chinese',   label:'🇨🇳 简体中文简历' },
+  };
+  const cfg = REGION_CFG[region] || REGION_CFG.canada;
+
+  function buildPrompt() {
+    if (region === 'canada') {
+      return `Generate a one-page Letter PDF general resume (NOT tailored to any specific job) using Claude's Analysis Tool (reportlab). Extract the candidate's name and save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
+
+PROFILE:
+${resumeDb||''}
+
+REPORTLAB LAYOUT (Platypus — SimpleDocTemplate + story list):
+• Letter; margins L/R 0.6", T/B 0.5"; Helvetica throughout.
+• Header: Paragraph(name, 16pt-bold ALL CAPS centered, spaceAfter=4) then Paragraph(contact, 9.5pt centered, " · " separator, spaceAfter=8).
+• ALL section tables use colWidths=[78, None] without exception.
+• Each section is ONE Table with section title as spanning first row:
+  ('SPAN', (0,0), (1,0)), ('LINEBELOW', (0,0), (1,0), 0.75, colors.black)
+  ('RIGHTPADDING', (0,1), (0,-1), 8)
+• Define ALL ParagraphStyles from scratch — no getSampleStyleSheet(). leftIndent=0, firstLineIndent=0 on every style.
+• Date format: "Month YYYY" or "Season YYYY" — never inverted.
+• Skills: each row is [Paragraph(label, bold), Paragraph(values, normal)] — label in LEFT cell.
+• Section order: EDUCATION, CERTIFICATIONS (skip if none), EXPERIENCE, PROJECTS, SKILLS.
+• No HRFlowable. No tighten functions. Verify page count with PdfReader.
+• FILL THE PAGE if extra space — binary-search spacing upward.
+
+CONTENT:
+- This is a general resume — not tailored to any specific job. Showcase breadth and strongest work.
+- Select the most impressive and representative content from the profile. Cut weaker items to fit one page.
+- Keep the strongest 2-3 bullets per entry. Drop entire entries if needed to fit.
+- Courses: select broadly across disciplines to show range. Never show grades.
+- Include adjacent/transferable skills broadly.
+${(formatting||'').trim() ? `- Custom: ${formatting.trim()}` : ''}
+
+ONE PAGE — MANDATORY:
+Before writing code, estimate if content fits. Cut weakest bullets first, then shorten phrasing. Build once with already-trimmed content. FILL THE PAGE if space remains — binary-search spacing upward. Verify page count with PdfReader.
+
+TONE: Recent graduate. No buzzwords. Plain verbs. Modest specificity.`.trim();
+    } else {
+      const isSimplified = region === 'china';
+      const charType = isSimplified ? 'Simplified Chinese (简体)' : 'Traditional Chinese (繁體)';
+      const fmt = isSimplified
+        ? '简历 format: 求职意向, 教育背景, 实习经历, 项目经历, 技能, 语言'
+        : 'CV format: 個人簡介, 學歷, 工作經驗, 項目經驗, 技能, 語言';
+      return `Generate a one-page A4 PDF resume in ${charType} using Claude's Analysis Tool (reportlab). General resume, not tailored to any job. Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
+
+PROFILE:
+${resumeDb||''}
+${glossary ? `\nTRANSLATION GLOSSARY (use these exact translations):\n${glossary}\n` : ''}
+REQUIREMENTS:
+- Write entirely in ${charType} — keep English only for proper nouns and technical terms commonly kept in English
+- ${fmt}
+- Use reportlab with a Chinese-capable font (register CJK font via reportlab.pdfbase.cidfonts — e.g. STSong-Light for simplified, MSung-Light for traditional)
+- A4 page, margins 2cm all sides
+- Name: 14pt bold centered; section headers: 11pt bold; body: 10pt
+- Clean layout with horizontal rules between sections
+- Select the most impressive and representative content. Cut weaker items to fit one page — strongest 2-3 bullets per entry.
+- Courses: never show grades
+- ONE PAGE MANDATORY — estimate before coding, cut content first, FILL THE PAGE if space remains
+${(formatting||'').trim() ? `- Custom: ${formatting.trim()}` : ''}
+
+TONE: ${isSimplified ? '应届毕业生' : '應屆畢業生'}. Factual, modest, no inflated claims.`.trim();
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-xs text-gray-500 mb-3">Generate a general-purpose resume from your full profile — not tailored to any specific job. Language and format match your current region.</p>
+      <div className="flex items-center gap-3">
+        <Btn variant="primary" onClick={()=>setShowModal(true)} disabled={!resumeDb?.trim()}>
+          📄 {cfg.label}
+        </Btn>
+        <span className="text-xs text-gray-400">Copy-paste to Claude.ai</span>
+      </div>
+      {!resumeDb?.trim() && <p className="text-xs text-amber-700 mt-2">Add your profile sections first.</p>}
+      {showModal && <PromptModal title={cfg.label} prompt={buildPrompt()} onClose={()=>setShowModal(false)} />}
     </div>
   );
 }
@@ -2458,7 +2552,7 @@ function RegionApp({ region, resumeDb, sections, updateSections, formatting, set
       {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>{switchTab('tracker'); setOpenJobId(id);}} />}
       {tab==='tracker' && !openJob && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} onOpen={id=>{setOpenJobId(id);}} />}
       {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>setOpenJobId(null)} />}
-      {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} glossary={glossary} setGlossary={setGlossary} />}
+      {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} glossary={glossary} setGlossary={setGlossary} region={region} resumeDb={resumeDb} />}
       {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}
       {tab==='insights'&& <InsightsTab jobs={jobs} regionName={regionMeta.name} />}
       {tab==='watchdog'&& <WatchdogTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} />}
