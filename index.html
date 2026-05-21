@@ -1410,32 +1410,31 @@ TONE: Recent graduate. No buzzwords. Plain verbs. Modest specificity.`.trim();
       const isSimplified = region === 'china';
       const charType = isSimplified ? 'Simplified Chinese (简体)' : 'Traditional Chinese (繁體)';
       const fmt = isSimplified
-        ? '简历 format: 求职意向, 教育背景, 实习经历, 项目经历, 技能, 语言'
-        : 'CV format: 個人簡介, 學歷, 工作經驗, 項目經驗, 技能, 語言';
-      return `Generate a one-page A4 PDF resume in ${charType} using Claude's Analysis Tool (reportlab). General resume, not tailored to any job. Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
+        ? '简历格式，按此顺序排列：个人信息、求职意向、教育背景、实习经历、项目经历、技能特长、语言能力'
+        : 'CV格式，按此順序排列：個人資料、求職目標、學歷、工作經驗、項目經驗、技能、語言能力';
+      return `Write a general-purpose one-page resume in ${charType}. Output clean Markdown — no PDF, no code, no commentary.
 
 PROFILE:
 ${resumeDb||''}
-${glossary ? `\nTRANSLATION GLOSSARY (use these exact translations):\n${glossary}\n` : ''}
+${glossary ? `\nTRANSLATION GLOSSARY (use these exact translations for proper nouns):\n${glossary}\n` : ''}
 REQUIREMENTS:
-- Write entirely in ${charType} — keep English only for proper nouns and technical terms commonly kept in English
+- Write ENTIRELY in ${charType}. Keep English ONLY for: proper nouns (UBC, CFA, Python, Excel), company names commonly kept in English, and technical terms (DCF, XGBoost, BM25)
+- Do NOT mix Chinese and English randomly within a sentence
 - ${fmt}
-- Use reportlab with a Chinese-capable font (register CJK font via reportlab.pdfbase.cidfonts — e.g. STSong-Light for simplified, MSung-Light for traditional)
-- A4 page, margins 2cm all sides
-- Name: 14pt bold centered; section headers: 11pt bold; body: 10pt
-- Clean layout with horizontal rules between sections
-- Select the most impressive and representative content. Cut weaker items to fit one page — strongest 2-3 bullets per entry.
+- Select the most impressive and representative content — strongest 2-3 bullets per entry. This must fit on one printed page.
 - Courses: never show grades
-- ONE PAGE MANDATORY — estimate before coding, cut content first, FILL THE PAGE if space remains
-${(formatting||'').trim() ? `- Custom: ${formatting.trim()}` : ''}
+- Translate ALL descriptive text into natural, fluent ${charType} — do not leave English phrases that have standard Chinese equivalents (e.g. "Investment Banking Intern" → ${isSimplified ? '"投资银行实习生"' : '"投資銀行實習生"'})
 
-TONE: ${isSimplified ? '应届毕业生' : '應屆畢業生'}. Factual, modest, no inflated claims.`.trim();
+Output clean Markdown only — no code blocks, no explanation before or after.`.trim();
     }
   }
 
   return (
     <div>
-      <p className="text-xs text-gray-500 mb-3">Generate a general-purpose resume from your full profile — not tailored to any specific job. Language and format match your current region.</p>
+      <p className="text-xs text-gray-500 mb-3">
+        Generate a general-purpose resume from your profile — not tailored to any specific job.
+        {region === 'canada' ? ' Claude generates a PDF directly via the Analysis Tool.' : ' Claude outputs Markdown in Chinese — copy into Word or Google Docs to format as PDF.'}
+      </p>
       <div className="flex items-center gap-3">
         <Btn variant="primary" onClick={()=>setShowModal(true)} disabled={!resumeDb?.trim()}>
           📄 {cfg.label}
