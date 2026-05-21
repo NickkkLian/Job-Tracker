@@ -1367,9 +1367,9 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
 function GeneralResumeSection({ resumeDb, formatting, glossary, region }) {
   const [showModal, setShowModal] = useState(false);
   const REGION_CFG = {
-    canada:   { lang:'English',              label:'🇨🇦 English Resume' },
-    hongkong: { lang:'Traditional Chinese',  label:'🇭🇰 繁體中文履歷' },
-    china:    { lang:'Simplified Chinese',   label:'🇨🇳 简体中文简历' },
+    canada:   { label:'🇨🇦 English Resume' },
+    hongkong: { label:'🇭🇰 繁體中文 + English (2 pages)' },
+    china:    { label:'🇨🇳 简体中文简历' },
   };
   const cfg = REGION_CFG[region] || REGION_CFG.canada;
 
@@ -1389,51 +1389,92 @@ REPORTLAB LAYOUT (Platypus — SimpleDocTemplate + story list):
   ('RIGHTPADDING', (0,1), (0,-1), 8)
 • Define ALL ParagraphStyles from scratch — no getSampleStyleSheet(). leftIndent=0, firstLineIndent=0 on every style.
 • Date format: "Month YYYY" or "Season YYYY" — never inverted.
-• Skills: each row is [Paragraph(label, bold), Paragraph(values, normal)] — label in LEFT cell.
+• Skills: each row is [Paragraph(label, bold), Paragraph(values, normal)] — label in LEFT cell, all values on ONE line.
 • Section order: EDUCATION, CERTIFICATIONS (skip if none), EXPERIENCE, PROJECTS, SKILLS.
 • No HRFlowable. No tighten functions. Verify page count with PdfReader.
 • FILL THE PAGE if extra space — binary-search spacing upward.
 
 CONTENT:
-- This is a general resume — not tailored to any specific job. Showcase breadth and strongest work.
-- Select the most impressive and representative content from the profile. Cut weaker items to fit one page.
-- Keep the strongest 2-3 bullets per entry. Drop entire entries if needed to fit.
-- Courses: select broadly across disciplines to show range. Never show grades.
-- Include adjacent/transferable skills broadly.
+- General resume — showcase breadth and strongest work.
+- Select the most impressive content. Cut weaker items to fit one page. 2-3 bullets per entry.
+- Courses: select broadly. Never show grades.
 ${(formatting||'').trim() ? `- Custom: ${formatting.trim()}` : ''}
 
-ONE PAGE — MANDATORY:
-Before writing code, estimate if content fits. Cut weakest bullets first, then shorten phrasing. Build once with already-trimmed content. FILL THE PAGE if space remains — binary-search spacing upward. Verify page count with PdfReader.
+ONE PAGE — MANDATORY. Cut weakest first. FILL THE PAGE if space remains. Verify page count.
 
 TONE: Recent graduate. No buzzwords. Plain verbs. Modest specificity.`.trim();
-    } else {
-      const isSimplified = region === 'china';
-      const charType = isSimplified ? 'Simplified Chinese (简体)' : 'Traditional Chinese (繁體)';
-      const fmt = isSimplified
-        ? '简历格式，按此顺序排列：个人信息、求职意向、教育背景、实习经历、项目经历、技能特长、语言能力'
-        : 'CV格式，按此順序排列：個人資料、求職目標、學歷、工作經驗、項目經驗、技能、語言能力';
-      return `Write a general-purpose one-page resume in ${charType}. Output clean Markdown — no PDF, no code, no commentary.
+
+    } else if (region === 'hongkong') {
+      return `Generate a TWO-PAGE A4 PDF resume using Claude's Analysis Tool (reportlab). Page 1: Traditional Chinese. Page 2: English. SAME content on both pages. Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
 
 PROFILE:
 ${resumeDb||''}
-${glossary ? `\nTRANSLATION GLOSSARY (use these exact translations for proper nouns):\n${glossary}\n` : ''}
-REQUIREMENTS:
-- Write ENTIRELY in ${charType}. Keep English ONLY for: proper nouns (UBC, CFA, Python, Excel), company names commonly kept in English, and technical terms (DCF, XGBoost, BM25)
-- Do NOT mix Chinese and English randomly within a sentence
-- ${fmt}
-- Select the most impressive and representative content — strongest 2-3 bullets per entry. This must fit on one printed page.
-- Courses: never show grades
-- Translate ALL descriptive text into natural, fluent ${charType} — do not leave English phrases that have standard Chinese equivalents (e.g. "Investment Banking Intern" → ${isSimplified ? '"投资银行实习生"' : '"投資銀行實習生"'})
+${glossary ? `\nTRANSLATION GLOSSARY (use these exact translations):\n${glossary}\n` : ''}
+CJK FONT SETUP (critical — do this FIRST or Chinese text will be blank):
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+pdfmetrics.registerFont(UnicodeCIDFont('MSung-Light'))
+# Use 'MSung-Light' for ALL Chinese text. Use 'Helvetica' for English text on page 2.
+# For mixed content (Chinese with English terms), use 'MSung-Light' — it handles ASCII too.
 
-Output clean Markdown only — no code blocks, no explanation before or after.`.trim();
-    }
+LAYOUT (both pages identical structure):
+- A4 page, margins 2cm all sides
+- Header: name 14pt bold centered, contact 10pt centered below
+- Sections: 學歷/Education, 證書/Certifications (skip if none), 工作經驗/Experience, 項目經驗/Projects, 技能/Skills, 語言/Languages
+- Section headers: 11pt bold with horizontal rule below
+- Body: 10pt, entries with date right-aligned, content left
+- Skills: ONE line per category — never break across lines
+- Use Platypus (SimpleDocTemplate + story). One story builds both pages — use PageBreak between them.
+
+CONTENT RULES:
+- Page 1: ENTIRELY in Traditional Chinese (繁體中文), fontName='MSung-Light'. English only for proper nouns and technical terms.
+- Page 2: ENTIRELY in English, fontName='Helvetica'. Same content as page 1.
+- Prefer Professor Reference System over RAG over SEC Filings
+- Courses: never show grades
+- Select strongest content — 2-3 bullets per entry, each page fits one A4 page
+- FILL each page if space remains
+
+TONE: 應屆畢業生 / Recent graduate. Factual, modest.`.trim();
+
+    } else {
+      return `Generate a one-page A4 PDF resume in Simplified Chinese using Claude's Analysis Tool (reportlab). Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
+
+PROFILE:
+${resumeDb||''}
+${glossary ? `\nTRANSLATION GLOSSARY (use these exact translations):\n${glossary}\n` : ''}
+CJK FONT SETUP (critical — do this FIRST or Chinese text will be blank):
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
+# Use 'STSong-Light' for ALL text including mixed Chinese+English. It handles ASCII.
+
+LAYOUT:
+- A4 page, margins 2cm all sides
+- Header: name 14pt bold centered, contact 10pt centered below
+- Sections: 个人信息、教育背景、实习经历、项目经历、技能特长、语言能力
+- Section headers: 11pt bold with horizontal rule below
+- Body: 10pt
+- Skills: ONE line per category — never break across lines
+- Use Platypus (SimpleDocTemplate + story). Define ALL ParagraphStyles from scratch — no getSampleStyleSheet().
+
+CONTENT:
+- Write ENTIRELY in Simplified Chinese (简体). English only for proper nouns (UBC, CFA, Python) and technical terms (DCF, XGBoost)
+- Do NOT mix Chinese and English randomly in a sentence — translate everything that has a standard Chinese equivalent
+- Select strongest 2-3 bullets per entry. ONE PAGE mandatory.
+- Courses: never show grades
+- FILL THE PAGE if space remains
+
+TONE: 应届毕业生. Factual, modest, no inflated claims.`.trim();
+        }
   }
 
   return (
     <div>
       <p className="text-xs text-gray-500 mb-3">
         Generate a general-purpose resume from your profile — not tailored to any specific job.
-        {region === 'canada' ? ' Claude generates a PDF directly via the Analysis Tool.' : ' Claude outputs Markdown in Chinese — copy into Word or Google Docs to format as PDF.'}
+        {region === 'canada' ? ' Claude generates a one-page PDF via the Analysis Tool.'
+         : region === 'hongkong' ? ' Two-page PDF: Traditional Chinese page 1, English page 2.'
+         : ' One-page PDF in Simplified Chinese via the Analysis Tool.'}
       </p>
       <div className="flex items-center gap-3">
         <Btn variant="primary" onClick={()=>setShowModal(true)} disabled={!resumeDb?.trim()}>
@@ -1446,6 +1487,7 @@ Output clean Markdown only — no code blocks, no explanation before or after.`.
     </div>
   );
 }
+
 
 // ════════════════════════════════════════════════════════════════
 // RESUME LIBRARY TAB
