@@ -1405,66 +1405,89 @@ ONE PAGE — MANDATORY. Cut weakest first. FILL THE PAGE if space remains. Verif
 TONE: Recent graduate. No buzzwords. Plain verbs. Modest specificity.`.trim();
 
     } else if (region === 'hongkong') {
-      return `Generate a TWO-PAGE A4 PDF resume using Claude's Analysis Tool (reportlab). Page 1: Traditional Chinese. Page 2: English. SAME content on both pages. Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
+      return `Generate a TWO-PAGE A4 PDF resume using Claude's Analysis Tool (reportlab). Page 1: Traditional Chinese. Page 2: English. SAME content, same structure. Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
 
 PROFILE:
 ${resumeDb||''}
-${glossary ? `\nTRANSLATION GLOSSARY (use these exact translations):\n${glossary}\n` : ''}
-CJK FONT SETUP (critical — do this FIRST or Chinese text will be blank):
+${glossary ? `\nTRANSLATION GLOSSARY:\n${glossary}\n` : ''}
+FONT SETUP (do this FIRST — do NOT use UnicodeCIDFont or STSong/MSung):
+import glob
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-pdfmetrics.registerFont(UnicodeCIDFont('MSung-Light'))
-# Use 'MSung-Light' for ALL Chinese text. Use 'Helvetica' for English text on page 2.
-# For mixed content (Chinese with English terms), use 'MSung-Light' — it handles ASCII too.
+from reportlab.pdfbase.ttfonts import TTFont
+# Find a system CJK font (Ubuntu has these pre-installed, no pip install needed)
+cjk_paths = glob.glob('/usr/share/fonts/**/Noto*CJK*.ttc', recursive=True) + \
+            glob.glob('/usr/share/fonts/**/Noto*CJK*.ttf', recursive=True) + \
+            glob.glob('/usr/share/fonts/**/*WenQuanYi*.ttf', recursive=True) + \
+            glob.glob('/usr/share/fonts/**/*wqy*.ttc', recursive=True)
+if cjk_paths:
+    pdfmetrics.registerFont(TTFont('CJK', cjk_paths[0]))
+    CJK_FONT = 'CJK'
+else:
+    raise Exception('No CJK font found — install fonts-noto-cjk')
+# Use CJK_FONT for Chinese text, 'Helvetica' for English page
 
-LAYOUT (both pages identical structure):
-- A4 page, margins 2cm all sides
-- Header: name 14pt bold centered, contact 10pt centered below
-- Sections: 學歷/Education, 證書/Certifications (skip if none), 工作經驗/Experience, 項目經驗/Projects, 技能/Skills, 語言/Languages
-- Section headers: 11pt bold with horizontal rule below
-- Body: 10pt, entries with date right-aligned, content left
-- Skills: ONE line per category — never break across lines
-- Use Platypus (SimpleDocTemplate + story). One story builds both pages — use PageBreak between them.
+LAYOUT — use the EXACT SAME Platypus structure as a standard English resume:
+• A4 page (instead of Letter), margins 2cm all sides
+• Each section is ONE Table with section title as spanning first row:
+  ('SPAN', (0,0), (1,0)), ('LINEBELOW', (0,0), (1,0), 0.75, colors.black)
+  ('VALIGN', (0,0), (-1,-1), 'TOP'), ('LEFTPADDING', (0,0), (-1,-1), 0)
+  ('RIGHTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,1), (0,-1), 8)
+  ('TOPPADDING', (0,0), (-1,-1), 0), ('BOTTOMPADDING', (0,0), (-1,0), 4), ('BOTTOMPADDING', (0,1), (-1,-1), 5)
+• colWidths=[78, None] for ALL tables
+• Define ALL ParagraphStyles from scratch (leftIndent=0, firstLineIndent=0) — no getSampleStyleSheet()
+• Header: name 14pt bold centered (spaceAfter=4), contact 10pt centered (spaceAfter=8)
+• Section title: 11pt bold; body: 10pt; skills ONE line per category
+• Page 1 uses fontName=CJK_FONT everywhere; Page 2 uses fontName='Helvetica'
+• Use PageBreak to separate the two pages
 
-CONTENT RULES:
-- Page 1: ENTIRELY in Traditional Chinese (繁體中文), fontName='MSung-Light'. English only for proper nouns and technical terms.
-- Page 2: ENTIRELY in English, fontName='Helvetica'. Same content as page 1.
+CONTENT:
+- Page 1: ENTIRELY in Traditional Chinese. English only for proper nouns (UBC, CFA, Python) and technical terms
+- Page 2: ENTIRELY in English — exact same content and structure as page 1
 - Prefer Professor Reference System over RAG over SEC Filings
-- Courses: never show grades
-- Select strongest content — 2-3 bullets per entry, each page fits one A4 page
-- FILL each page if space remains
-
-TONE: 應屆畢業生 / Recent graduate. Factual, modest.`.trim();
+- 2-3 strongest bullets per entry. Each page fits one A4 page.
+- Courses: never show grades. Skills: one line per category.
+- FILL each page if space remains — binary-search spacing upward. Verify page count with PdfReader.`.trim();
 
     } else {
       return `Generate a one-page A4 PDF resume in Simplified Chinese using Claude's Analysis Tool (reportlab). Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
 
 PROFILE:
 ${resumeDb||''}
-${glossary ? `\nTRANSLATION GLOSSARY (use these exact translations):\n${glossary}\n` : ''}
-CJK FONT SETUP (critical — do this FIRST or Chinese text will be blank):
+${glossary ? `\nTRANSLATION GLOSSARY:\n${glossary}\n` : ''}
+FONT SETUP (do this FIRST — do NOT use UnicodeCIDFont or STSong/MSung):
+import glob
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
-# Use 'STSong-Light' for ALL text including mixed Chinese+English. It handles ASCII.
+from reportlab.pdfbase.ttfonts import TTFont
+cjk_paths = glob.glob('/usr/share/fonts/**/Noto*CJK*.ttc', recursive=True) + \
+            glob.glob('/usr/share/fonts/**/Noto*CJK*.ttf', recursive=True) + \
+            glob.glob('/usr/share/fonts/**/*WenQuanYi*.ttf', recursive=True) + \
+            glob.glob('/usr/share/fonts/**/*wqy*.ttc', recursive=True)
+if cjk_paths:
+    pdfmetrics.registerFont(TTFont('CJK', cjk_paths[0]))
+    CJK_FONT = 'CJK'
+else:
+    raise Exception('No CJK font found — install fonts-noto-cjk')
 
-LAYOUT:
-- A4 page, margins 2cm all sides
-- Header: name 14pt bold centered, contact 10pt centered below
-- Sections: 个人信息、教育背景、实习经历、项目经历、技能特长、语言能力
-- Section headers: 11pt bold with horizontal rule below
-- Body: 10pt
-- Skills: ONE line per category — never break across lines
-- Use Platypus (SimpleDocTemplate + story). Define ALL ParagraphStyles from scratch — no getSampleStyleSheet().
+LAYOUT — EXACT same Platypus structure as a standard English resume:
+• A4 page, margins 2cm all sides
+• Each section is ONE Table with section title as spanning first row:
+  ('SPAN', (0,0), (1,0)), ('LINEBELOW', (0,0), (1,0), 0.75, colors.black)
+  ('VALIGN', (0,0), (-1,-1), 'TOP'), ('LEFTPADDING', (0,0), (-1,-1), 0)
+  ('RIGHTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,1), (0,-1), 8)
+  ('TOPPADDING', (0,0), (-1,-1), 0), ('BOTTOMPADDING', (0,0), (-1,0), 4), ('BOTTOMPADDING', (0,1), (-1,-1), 5)
+• colWidths=[78, None] for ALL tables
+• Define ALL ParagraphStyles from scratch (leftIndent=0, firstLineIndent=0) — no getSampleStyleSheet()
+• ALL styles use fontName=CJK_FONT
+• Header: name 14pt bold centered (spaceAfter=4), contact 10pt centered (spaceAfter=8)
+• Section title: 11pt bold; body: 10pt; skills ONE line per category
 
 CONTENT:
-- Write ENTIRELY in Simplified Chinese (简体). English only for proper nouns (UBC, CFA, Python) and technical terms (DCF, XGBoost)
-- Do NOT mix Chinese and English randomly in a sentence — translate everything that has a standard Chinese equivalent
-- Select strongest 2-3 bullets per entry. ONE PAGE mandatory.
-- Courses: never show grades
-- FILL THE PAGE if space remains
-
-TONE: 应届毕业生. Factual, modest, no inflated claims.`.trim();
+- Write ENTIRELY in Simplified Chinese. English only for proper nouns and technical terms.
+- Do NOT mix Chinese and English randomly — translate everything with a standard Chinese equivalent
+- 简历格式：个人信息、教育背景、实习经历、项目经历、技能特长、语言能力
+- 2-3 strongest bullets per entry. ONE PAGE mandatory.
+- Courses: never show grades. Skills: one line per category.
+- FILL THE PAGE if space remains. Verify page count with PdfReader.`.trim();
         }
   }
 
