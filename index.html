@@ -1405,91 +1405,34 @@ ONE PAGE — MANDATORY. Cut weakest first. FILL THE PAGE if space remains. Verif
 TONE: Recent graduate. No buzzwords. Plain verbs. Modest specificity.`.trim();
 
     } else if (region === 'hongkong') {
-      return `Generate a TWO-PAGE A4 PDF using Claude's Analysis Tool (reportlab). Page 1: Traditional Chinese HK professional format. Page 2: English. Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
+      return `Generate a TWO-PAGE A4 PDF using Claude's Analysis Tool (reportlab). Page 1: Traditional Chinese. Page 2: English. Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
 
-PROFILE:
+Use the content below. Page 1: make a Hong Kong Traditional Chinese professional resume — use your own professional HK-style layout and formatting, do NOT copy the structure or formatting from the profile text, only use the content.
+Page 2: standard English resume using the same content.
+
+CONTENT TO USE:
 ${resumeDb||''}
-${glossary ? `\nTRANSLATION GLOSSARY:\n${glossary}\n` : ''}
-FONT SETUP (do this FIRST):
+${glossary ? `\nTRANSLATION GLOSSARY (use these translations for proper nouns):\n${glossary}\n` : ''}
+FONT (critical — no pip install, no font download):
 import glob
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-cjk_paths = glob.glob('/usr/share/fonts/**/Noto*CJK*.ttc', recursive=True) + \
-            glob.glob('/usr/share/fonts/**/Noto*CJK*.ttf', recursive=True) + \
-            glob.glob('/usr/share/fonts/**/*wqy*.ttf', recursive=True) + \
-            glob.glob('/usr/share/fonts/**/*wqy*.ttc', recursive=True)
-if not cjk_paths: raise Exception('No CJK font found')
-pdfmetrics.registerFont(TTFont('CJK', cjk_paths[0]))
-pdfmetrics.registerFont(TTFont('CJK-Bold', cjk_paths[0]))  # use same file; bold via fontSize
+paths = glob.glob('/usr/share/fonts/**/Noto*CJK*.ttc', recursive=True) + \
+        glob.glob('/usr/share/fonts/**/Noto*CJK*.ttf', recursive=True) + \
+        glob.glob('/usr/share/fonts/**/*wqy*.ttf', recursive=True) + \
+        glob.glob('/usr/share/fonts/**/*wqy*.ttc', recursive=True)
+if not paths: raise Exception('No CJK font found on system')
+pdfmetrics.registerFont(TTFont('CJK', paths[0]))
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PAGE 1: TRADITIONAL CHINESE (繁體中文)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Use this EXACT HK professional format — NOT the English two-column layout:
-
-HEADER (centered):
-- Chinese name SPACE English name, 16pt Bold, fontName='CJK'
-- Contact line: +1 XXX-XXX-XXXX ｜ +86 138XXXXXXXX ｜ email@gmail.com
-  (NO home address — HK resumes do not include address)
-
-SECTION STYLE (use this for every section):
-- Full-width horizontal rule (0.75pt) above each section title
-- Section title: 12pt Bold, fontName='CJK', LEFT-aligned, with 6pt space above
-- Entries inside each section: use a TWO-column table, colWidths=[420, 100]
-  LEFT column: institution/company (bold 10pt) + role/degree (10pt) + bullets (9.5pt, • prefix)
-  RIGHT column: date, 9.5pt, right-aligned
-- Between entries: 6pt spacer
-- Between sections: 10pt spacer
-
-SECTION ORDER (Traditional Chinese labels):
-1. 教育背景 (Education)
-2. 專業認證 (Certifications) — skip if none
-3. 實習經驗 (Experience)
-4. 項目經歷 (Projects)
-5. 技能 (Skills)
-6. 語言能力 (Languages)
-
-FORMATTING:
-- fontName='CJK' everywhere on page 1
-- Institution/company names and project titles: Bold 11pt
-- Role/degree line: regular 10pt
-- Bullet points: 9.5pt, left indent 12pt, '• ' prefix
-- Skills: "技術：Python, R, SQL..." — all on ONE line per category, Bold label then regular values
-- DO NOT include "AI 工作流" as a separate category — include in 技術 or 其他
-- Prefer 教授推薦信管理系統 over RAG over SEC Filings for projects
-
-CONTENT TO FILL THE PAGE:
-- Include 3 bullets for main experience (not 2)
-- Include 3 projects with 2 bullets each
-- Include all courses in education — list them fully
-- If page still has space, increase spaceBefore/spaceAfter on section titles to 12pt, entry gaps to 8pt
-- MANDATORY: page must be visually full — no large blank space at bottom
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PAGE 2: ENGLISH
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Standard Western resume format, fontName='Helvetica':
-
-HEADER (centered):
-- Full name 16pt Bold ALL CAPS, spaceAfter=4
-- Contact: +1 XXX-XXX-XXXX · +86 138XXXXXXXX · email@gmail.com — NO address, spaceAfter=8
-
-SECTION STYLE: same SPAN-table approach as tailored English resume:
-Each section = ONE Table, section title spans both columns:
-  ('SPAN', (0,0), (1,0)), ('LINEBELOW', (0,0), (1,0), 0.75, colors.black)
-  colWidths=[78, None]
-  ('VALIGN','TOP'), ('LEFTPADDING',0), ('TOPPADDING',0)
-  ('RIGHTPADDING', (0,1),(0,-1), 8)
-  ('BOTTOMPADDING', (0,0),(-1,0), 4), ('BOTTOMPADDING', (0,1),(-1,-1), 5)
-Define ALL ParagraphStyles from scratch. leftIndent=0, firstLineIndent=0.
-
-CONTENT:
-- Same content as page 1, in English
-- 3 bullets for experience, 2 per project, full course lists
-- FILL THE PAGE — binary-search spacing upward if gap at bottom
-- Do NOT include AI Workflows as a separate skill category — fold into Technical
-
-Use PageBreak() between pages. Verify page count = 2 with PdfReader.`.trim();
+CRITICAL RULES:
+1. Contact line: +1 778-XXX-XXXX ｜ +86 13XXXXXXXXX ｜ email — NO home address
+2. Line breaks in bullet text: set wordWrap='CJK' on all paragraph styles for page 1. This prevents reportlab from inserting line breaks at every English word or number that appears inside Chinese sentences. Without this, "DCF" or "20+" causes an unwanted newline.
+3. Spacing: use generous spacing — spaceBefore/spaceAfter on section headers at least 10pt, between entries at least 8pt. If page has blank space at the bottom, increase spacing further to fill naturally.
+4. Page 1 uses fontName='CJK' for all text. Page 2 uses fontName='Helvetica'.
+5. No AI Workflows as a separate skill section — include relevant items in Technical.
+6. Prefer Professor Reference System project over RAG over SEC Filings.
+7. Both pages must fill a full A4 page. Use 3 bullets for experience, 2 per project, include all courses.
+8. Separate pages with PageBreak(). Verify page count = 2 with PdfReader.`.trim();
 
         } else {
       return `Generate a one-page A4 PDF resume in Simplified Chinese using Claude's Analysis Tool (reportlab). Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
