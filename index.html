@@ -1739,7 +1739,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-semibold text-gray-900 truncate">{j.role||'(no title)'}</span>
                 <StatusPill status={j.status} />
-                {j.applicationDeadline && new Date(j.applicationDeadline) < new Date() && <span className="text-xs text-red-600 font-medium">⏰ Deadline passed</span>}
+                {j.applicationDeadline && new Date(j.applicationDeadline) < new Date() && j.status === 'interested' && <span className="text-xs text-red-600 font-medium">⏰ Deadline passed</span>}
               </div>
               <div className="text-xs text-gray-600 mt-0.5">{j.company||'(no company)'}{j.location?` · ${j.location}`:''}</div>
               <div className="text-xs text-gray-400 mt-0.5">Added {fmtDate(j.dateAdded)}{j.applicationDeadline?` · Deadline: ${fmtDate(j.applicationDeadline)}`:''}</div>
@@ -2379,7 +2379,7 @@ function InsightsTab({ jobs, regionName }) {
     const last30 = jobs.filter(j=>now-new Date(j.dateAdded).getTime()<30*86400000).length;
     const coMap = {}; jobs.forEach(j=>{if(j.company) coMap[j.company]=(coMap[j.company]||0)+1;});
     const topCos = Object.entries(coMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
-    const upcoming = jobs.filter(j=>j.applicationDeadline && new Date(j.applicationDeadline)>new Date())
+    const upcoming = jobs.filter(j=>j.applicationDeadline && new Date(j.applicationDeadline)>new Date() && j.status==='interested')
       .sort((a,b)=>new Date(a.applicationDeadline)-new Date(b.applicationDeadline)).slice(0,5);
     return { pipeline, responseRate, offerRate, last7, last30, topCos, total, applied, upcoming };
   }, [jobs]);
