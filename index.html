@@ -9,6 +9,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     #loading { display:flex; align-items:center; justify-content:center; min-height:100vh; color:#6b7280; font-size:14px; }
@@ -1681,9 +1682,331 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
 // TRACKER TAB
 // ════════════════════════════════════════════════════════════════
 
-function TrackerTab({ region, jobs, setJobs, onOpen }) {
+// ════════════════════════════════════════════════════════════════
+// BATCH TAILOR — prompt + jsPDF renderer + modal
+// ════════════════════════════════════════════════════════════════
+
+function promptBatchTailor(resumeDb, job, formatting, region) {
+  return `You are tailoring a resume for a specific job application. Return ONLY a JSON object — no other text, no markdown fences.
+
+CANDIDATE PROFILE:
+${resumeDb||''}
+
+JOB DETAILS:
+Company: ${job.company||''}
+Role: ${job.role||''}
+Location: ${job.location||''}
+Job Description:
+${job.jdText||''}
+
+${(formatting||'').trim() ? `CUSTOM FORMATTING RULES:\n${formatting.trim()}\n\n` : ''}TAILORING RULES:
+- Select and reword bullets to match the JD's language and priorities
+- Emphasise skills/experiences the JD asks for; deprioritise unrelated ones
+- Never invent metrics or experience. Never use: leveraged, spearheaded, drove, transformed, oversaw
+- Prefer: built, wrote, designed, implemented, analysed, supported, assisted
+- Treat the candidate as a recent graduate — no long-term strategic impact claims
+- Courses: select those relevant to this role. Never show grades.
+- ${region==='canada'?'Exclude +86 phone number from contact line':'Include both phone numbers'}
+- ONE PAGE — select only strongest and most relevant content
+
+Return this exact JSON structure:
+{
+  "name": "Full Name",
+  "contact": "phone · email · location",
+  "sections": [
+    {
+      "title": "EDUCATION",
+      "entries": [{"date":"2022–2026","org":"University Name","role":"Degree","bullets":["Course or award line"]}]
+    },
+    {
+      "title": "CERTIFICATIONS",
+      "entries": [{"date":"Feb 2026","org":"CFA Institute","role":"Passed Level I of the CFA Program","bullets":[]}]
+    },
+    {
+      "title": "EXPERIENCE",
+      "entries": [{"date":"Summer 2025","org":"Company Name","role":"Job Title · Location","bullets":["bullet 1","bullet 2","bullet 3"]}]
+    },
+    {
+      "title": "PROJECTS",
+      "entries": [{"date":"2026","org":"Project Name","role":"stack · github link if any","bullets":["bullet 1","bullet 2"]}]
+    },
+    {
+      "title": "SKILLS",
+      "type": "skills",
+      "entries": [{"label":"Technical","items":"Python, SQL, ..."},{"label":"Professional","items":"..."},{"label":"Languages","items":"..."}]
+    }
+  ]
+}`;
+}
+
+// ── jsPDF resume renderer ────────────────────────────────────────
+
+function renderResumePDF(data) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'letter' });
+  const PW=612, PH=792, ML=43.2, MR=43.2, MT=36, MB=36;
+  const CW = PW-ML-MR;          // content width = 525.6
+  const DATE_W = 78;             // date column width
+  const CONTENT_X = ML+DATE_W;  // content starts at 121.2
+  const CONTENT_W = CW-DATE_W;  // 447.6pt
+
+  let y = MT;
+
+  function checkPage(need=12) {
+    if (y+need > PH-MB) { doc.addPage(); y=MT; }
+  }
+
+  function drawText(txt, x, yy, opts={}) {
+    const { size=9.5, bold=false, align='left', color='#111111', maxW=CONTENT_W } = opts;
+    doc.setFont('Helvetica', bold?'bold':'normal');
+    doc.setFontSize(size);
+    doc.setTextColor(color);
+    if (align==='right') {
+      doc.text(String(txt||''), x, yy, { align:'right' });
+    } else if (align==='center') {
+      doc.text(String(txt||''), x, yy, { align:'center' });
+    } else {
+      const lines = doc.splitTextToSize(String(txt||''), maxW);
+      lines.forEach((ln, i) => {
+        if (i>0) { checkPage(); y+=11; yy=y; }
+        doc.text(ln, x, yy);
+      });
+    }
+  }
+
+  // ── Header ───────────────────────────────────────────────────
+  doc.setFont('Helvetica','bold'); doc.setFontSize(16); doc.setTextColor('#111');
+  doc.text((data.name||'').toUpperCase(), PW/2, y, {align:'center'});
+  y += 20;
+  doc.setFont('Helvetica','normal'); doc.setFontSize(9.5);
+  doc.text(data.contact||'', PW/2, y, {align:'center'});
+  y += 16;
+
+  // ── Sections ─────────────────────────────────────────────────
+  for (const sec of (data.sections||[])) {
+    checkPage(24);
+    y += 8;
+
+    // Section title + rule
+    doc.setFont('Helvetica','bold'); doc.setFontSize(10); doc.setTextColor('#111');
+    doc.text(sec.title||'', ML, y);
+    y += 3;
+    doc.setLineWidth(0.75); doc.setDrawColor('#111');
+    doc.line(ML, y, PW-MR, y);
+    y += 8;
+
+    if (sec.type==='skills') {
+      // Skills: "Label:  item1, item2"
+      for (const e of (sec.entries||[])) {
+        checkPage(14);
+        doc.setFont('Helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor('#111');
+        doc.text((e.label||'')+': ', ML, y);
+        const labelW = doc.getTextWidth((e.label||'')+':  ');
+        doc.setFont('Helvetica','normal');
+        const lines = doc.splitTextToSize(e.items||'', CW-labelW);
+        doc.text(lines[0]||'', ML+labelW, y);
+        for (let i=1;i<lines.length;i++) { y+=11; checkPage(); doc.text(lines[i], ML+labelW, y); }
+        y += 13;
+      }
+    } else {
+      // Regular entries
+      for (const e of (sec.entries||[])) {
+        checkPage(16);
+
+        // Org name (bold) + date right-aligned
+        const orgY = y;
+        doc.setFont('Helvetica','bold'); doc.setFontSize(10); doc.setTextColor('#111');
+        const orgLines = doc.splitTextToSize(e.org||'', CONTENT_W-80);
+        doc.text(orgLines[0]||'', CONTENT_X, y);
+        doc.setFont('Helvetica','normal'); doc.setFontSize(9.5);
+        doc.text(e.date||'', PW-MR, orgY, {align:'right'});
+        for (let i=1;i<orgLines.length;i++) { y+=11; doc.setFont('Helvetica','bold'); doc.text(orgLines[i], CONTENT_X, y); }
+        y += 12;
+
+        // Role/subtitle
+        if (e.role) {
+          checkPage(11);
+          doc.setFont('Helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor('#333');
+          const roleLines = doc.splitTextToSize(e.role, CONTENT_W);
+          roleLines.forEach((ln,i) => { if(i>0){y+=11;checkPage();} doc.text(ln, CONTENT_X, y); });
+          y += 12;
+        }
+
+        // Bullets
+        for (const b of (e.bullets||[])) {
+          if (!b.trim()) continue;
+          checkPage(11);
+          doc.setFont('Helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor('#111');
+          const blines = doc.splitTextToSize(b, CONTENT_W-12);
+          blines.forEach((ln, i) => {
+            checkPage(11);
+            doc.text(i===0 ? '• ' : '  ', CONTENT_X, y);
+            doc.text(ln, CONTENT_X+11, y);
+            y += 11;
+          });
+        }
+        y += 6; // entry gap
+      }
+    }
+  }
+  return doc;
+}
+
+// ── Batch Tailor Modal ───────────────────────────────────────────
+
+function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose }) {
+  const [selected, setSelected] = useState(new Set());
+  const [progress, setProgress] = useState({}); // id → 'queued'|'running'|'done'|'error'|'skip'
+  const [running, setRunning]   = useState(false);
+  const [log, setLog]           = useState([]);
+
+  const eligible = jobs.filter(j => (j.jdText||'').trim().length > 50);
+  const noJd     = jobs.filter(j => (j.jdText||'').trim().length <= 50);
+
+  useEffect(() => {
+    setSelected(new Set(eligible.map(j=>j.id)));
+  }, []);
+
+  function addLog(msg) { setLog(l => [...l, msg]); }
+
+  async function startBatch() {
+    const toProcess = eligible.filter(j=>selected.has(j.id));
+    if (!toProcess.length) return;
+    const key = lsGet('anthropicKey');
+    if (!key) { addLog('❌ No Anthropic API key — add it in ⚙️ Settings.'); return; }
+
+    setRunning(true);
+    const initProg = {};
+    toProcess.forEach(j => { initProg[j.id]='queued'; });
+    setProgress(initProg);
+
+    let updatedJobs = [...jobs];
+
+    for (let i=0; i<toProcess.length; i++) {
+      const job = toProcess[i];
+      addLog(`[${i+1}/${toProcess.length}] ${job.company} — ${job.role} …`);
+      setProgress(p=>({...p,[job.id]:'running'}));
+
+      try {
+        const prompt = promptBatchTailor(resumeDb, job, formatting, region);
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            'x-api-key': key,
+            'anthropic-version':'2023-06-01',
+            'anthropic-dangerous-direct-browser-access':'true',
+          },
+          body: JSON.stringify({
+            model:'claude-sonnet-4-20250514',
+            max_tokens:4000,
+            system:'Return ONLY valid JSON. No markdown fences, no explanation.',
+            messages:[{role:'user',content:prompt}],
+          }),
+        });
+
+        if (!res.ok) {
+          const e = await res.json().catch(()=>({}));
+          throw new Error(`API ${res.status}: ${e.error?.message||'error'}`);
+        }
+
+        const apiData = await res.json();
+        const text = (apiData.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+        const clean = text.replace(/```json|```/g,'').trim();
+        const resumeJson = JSON.parse(clean);
+
+        // Render PDF
+        const doc = renderResumePDF(resumeJson);
+        const dataUrl = doc.output('datauristring');
+
+        // Save to localStorage + GitHub
+        const pdfKey = `${region}:${job.id}:resume`;
+        savePdfLocal(pdfKey, dataUrl);
+        await ghWriteDataUrl(pdfGhPath(pdfKey), dataUrl);
+
+        setProgress(p=>({...p,[job.id]:'done'}));
+        addLog(`  ✅ Saved`);
+
+        // Brief pause between calls
+        if (i < toProcess.length-1) await new Promise(r=>setTimeout(r,2000));
+
+      } catch(e) {
+        setProgress(p=>({...p,[job.id]:'error'}));
+        addLog(`  ❌ ${e.message}`);
+        if (e.message.includes('429')) {
+          addLog('  ⏳ Rate limited — waiting 30s…');
+          await new Promise(r=>setTimeout(r,30000));
+        }
+      }
+    }
+
+    addLog(`\nDone. Tailored resumes saved — open each job to view.`);
+    setRunning(false);
+  }
+
+  const statusIcon = s => ({ queued:'⏳', running:'🔄', done:'✅', error:'❌', skip:'⏭' }[s]||'');
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full mt-8 mb-8" onClick={e=>e.stopPropagation()}>
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">🎯 Batch Tailor Resumes</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Generates a tailored PDF resume for each job via Anthropic API (~$0.02–0.04 per resume)</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg">&times;</button>
+        </div>
+        <div className="p-4 space-y-3">
+          {/* Job list */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-xs font-medium text-gray-700">{eligible.length} jobs with JD text</p>
+              <div className="flex gap-3">
+                <button onClick={()=>setSelected(new Set(eligible.map(j=>j.id)))} className="text-xs text-blue-600 hover:underline">Select all</button>
+                <button onClick={()=>setSelected(new Set())} className="text-xs text-gray-500 hover:underline">Clear</button>
+              </div>
+            </div>
+            <div className="space-y-1.5 max-h-52 overflow-y-auto">
+              {eligible.map(j => (
+                <label key={j.id} className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer text-xs ${selected.has(j.id)?'border-blue-200 bg-blue-50':'border-gray-200 hover:bg-gray-50'}`}>
+                  <input type="checkbox" checked={selected.has(j.id)} disabled={running}
+                    onChange={()=>{ const s=new Set(selected); s.has(j.id)?s.delete(j.id):s.add(j.id); setSelected(s); }} />
+                  <span className="flex-1 font-medium text-gray-900">{j.role} <span className="font-normal text-gray-500">· {j.company}</span></span>
+                  {progress[j.id] && <span className="shrink-0">{statusIcon(progress[j.id])}</span>}
+                </label>
+              ))}
+              {!eligible.length && <p className="text-xs text-gray-400 p-2">No jobs have JD text. Open a job and paste the full job description first.</p>}
+            </div>
+            {noJd.length > 0 && <p className="text-xs text-gray-400 mt-1">⚠ {noJd.length} job{noJd.length!==1?'s':''} skipped — no JD text (open job → paste JD first)</p>}
+          </div>
+
+          {/* Log */}
+          {log.length > 0 && (
+            <div className="bg-gray-900 text-green-400 rounded-md p-3 text-xs font-mono max-h-36 overflow-y-auto">
+              {log.map((l,i)=><div key={i}>{l}</div>)}
+            </div>
+          )}
+
+          <div className="flex justify-between items-center">
+            <p className="text-xs text-gray-400">{selected.size} job{selected.size!==1?'s':''} selected</p>
+            <div className="flex gap-2">
+              <Btn onClick={onClose} disabled={running}>Cancel</Btn>
+              <Btn variant="primary" onClick={startBatch} disabled={running||!selected.size||!eligible.length}>
+                {running ? '⏳ Processing…' : `🎯 Tailor ${selected.size} resume${selected.size!==1?'s':''}`}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting }) {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [showBatch, setShowBatch] = useState(false);
 
   const filtered = useMemo(() => jobs.filter(j => {
     if (filter!=='all' && j.status!==filter) return false;
@@ -1718,6 +2041,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen }) {
 
   return (
     <div className="space-y-3">
+      {showBatch && <BatchTailorModal region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} formatting={formatting} onClose={()=>setShowBatch(false)} />}
       <Card className="p-3">
         <div className="flex flex-wrap gap-2 items-center">
           <div className="relative flex-1 min-w-[180px]">
@@ -1730,6 +2054,11 @@ function TrackerTab({ region, jobs, setJobs, onOpen }) {
             <option value="all">All ({jobs.length})</option>
             {STATUSES.map(s=><option key={s.id} value={s.id}>{s.label} ({jobs.filter(j=>j.status===s.id).length})</option>)}
           </select>
+          {lsGet('anthropicKey') && (
+            <Btn onClick={()=>setShowBatch(true)} title="Generate tailored resume PDFs for multiple jobs automatically">
+              🎯 Batch Tailor
+            </Btn>
+          )}
         </div>
       </Card>
       {filtered.map(j => (
@@ -2600,7 +2929,7 @@ function RegionApp({ region, resumeDb, sections, updateSections, formatting, set
 
       {/* Tab content */}
       {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>{switchTab('tracker'); setOpenJobId(id);}} />}
-      {tab==='tracker' && !openJob && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} onOpen={id=>{setOpenJobId(id);}} />}
+      {tab==='tracker' && !openJob && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} formatting={formatting} onOpen={id=>{setOpenJobId(id);}} />}
       {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>setOpenJobId(null)} />}
       {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} glossary={glossary} setGlossary={setGlossary} region={region} resumeDb={resumeDb} />}
       {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}
