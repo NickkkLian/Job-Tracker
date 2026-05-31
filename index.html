@@ -279,6 +279,7 @@ REPORTLAB LAYOUT (Platypus — SimpleDocTemplate + story list):
     ('RIGHTPADDING', (0,0), (-1,-1), 0),
     ('RIGHTPADDING', (0,1), (0,-1), 8),  # 8pt gap after date/label — prevents merging with content
     ('TOPPADDING', (0,0), (-1,-1), 0),
+    ('TOPPADDING', (0,1), (-1,1), 6),  # gap below the section divider line — keeps first row off the line
     ('BOTTOMPADDING', (0,0), (-1,0), 4),
     ('BOTTOMPADDING', (0,1), (-1,-1), 5),
   ]))
@@ -1387,6 +1388,7 @@ REPORTLAB LAYOUT (Platypus — SimpleDocTemplate + story list):
 • ALL section tables use colWidths=[78, None] without exception.
 • Each section is ONE Table with section title as spanning first row:
   ('SPAN', (0,0), (1,0)), ('LINEBELOW', (0,0), (1,0), 0.75, colors.black)
+  ('TOPPADDING', (0,1), (-1,1), 6), ('BOTTOMPADDING', (0,0), (-1,0), 4)
   ('RIGHTPADDING', (0,1), (0,-1), 8)
 • Define ALL ParagraphStyles from scratch — no getSampleStyleSheet(). leftIndent=0, firstLineIndent=0 on every style.
 • Date format: "Month YYYY" or "Season YYYY" — never inverted.
@@ -1461,7 +1463,7 @@ LAYOUT — EXACT same Platypus structure as a standard English resume:
   ('SPAN', (0,0), (1,0)), ('LINEBELOW', (0,0), (1,0), 0.75, colors.black)
   ('VALIGN', (0,0), (-1,-1), 'TOP'), ('LEFTPADDING', (0,0), (-1,-1), 0)
   ('RIGHTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,1), (0,-1), 8)
-  ('TOPPADDING', (0,0), (-1,-1), 0), ('BOTTOMPADDING', (0,0), (-1,0), 4), ('BOTTOMPADDING', (0,1), (-1,-1), 5)
+  ('TOPPADDING', (0,0), (-1,-1), 0), ('TOPPADDING', (0,1), (-1,1), 6), ('BOTTOMPADDING', (0,0), (-1,0), 4), ('BOTTOMPADDING', (0,1), (-1,-1), 5)
 • colWidths=[78, None] for ALL tables
 • Define ALL ParagraphStyles from scratch (leftIndent=0, firstLineIndent=0) — no getSampleStyleSheet()
 • ALL styles use fontName=CJK_FONT
@@ -1860,8 +1862,9 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
   const [running, setRunning]   = useState(false);
   const [log, setLog]           = useState([]);
 
-  const eligible = jobs.filter(j => j.status === 'interested' && (j.jdText||'').trim().length > 50);
+  const eligible = jobs.filter(j => j.status === 'interested' && (j.jdText||'').trim().length > 50 && !loadPdfLocal(`${region}:${j.id}:resume`));
   const noJd     = jobs.filter(j => j.status === 'interested' && (j.jdText||'').trim().length <= 50);
+  const haveResume = jobs.filter(j => j.status === 'interested' && loadPdfLocal(`${region}:${j.id}:resume`)).length;
 
   useEffect(() => {
     setSelected(new Set(eligible.map(j=>j.id)));
@@ -1960,7 +1963,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
           {/* Job list */}
           <div>
             <div className="flex justify-between items-center mb-2">
-              <p className="text-xs font-medium text-gray-700">{eligible.length} jobs with JD text</p>
+              <p className="text-xs font-medium text-gray-700">{eligible.length} Interested job{eligible.length!==1?'s':''} to tailor</p>
               <div className="flex gap-3">
                 <button onClick={()=>setSelected(new Set(eligible.map(j=>j.id)))} className="text-xs text-blue-600 hover:underline">Select all</button>
                 <button onClick={()=>setSelected(new Set())} className="text-xs text-gray-500 hover:underline">Clear</button>
@@ -1972,13 +1975,13 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
                   <input type="checkbox" checked={selected.has(j.id)} disabled={running}
                     onChange={()=>{ const s=new Set(selected); s.has(j.id)?s.delete(j.id):s.add(j.id); setSelected(s); }} />
                   <span className="flex-1 font-medium text-gray-900">{j.role} <span className="font-normal text-gray-500">· {j.company}</span></span>
-                  {loadPdfLocal(`${region}:${j.id}:resume`) && !progress[j.id] && <span className="text-xs text-emerald-600" title="Resume already saved">📄</span>}
                   {progress[j.id] && <span className="shrink-0">{statusIcon(progress[j.id])}</span>}
                 </label>
               ))}
               {!eligible.length && <p className="text-xs text-gray-400 p-2">No <strong>Interested</strong> jobs have JD text. Add jobs with status Interested and paste their JD first.</p>}
             </div>
             {noJd.length > 0 && <p className="text-xs text-gray-400 mt-1">⚠ {noJd.length} Interested job{noJd.length!==1?'s':''} have no JD text — open them and paste the JD first</p>}
+            {haveResume > 0 && <p className="text-xs text-gray-400 mt-1">📄 {haveResume} Interested job{haveResume!==1?'s':''} already tailored (excluded). Delete the resume in the job to re-tailor.</p>}
           </div>
 
           {/* Log */}
