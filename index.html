@@ -65,9 +65,9 @@ const KEY_TO_PATH = {
 
 // 任意地区都按 data/<id>_jobs.json 派生路径，新增地区无需改这里
 function keyToPath(key){
-  if (keyToPath(key)) return keyToPath(key);
+  if (KEY_TO_PATH[key]) return KEY_TO_PATH[key];
   const m = String(key).match(/^([a-z0-9_-]+):jobs$/i);
-  return m ? `data/${m[1]}_jobs.json` : keyToPath(key);
+  return m ? `data/${m[1]}_jobs.json` : KEY_TO_PATH[key];
 }
 
 const shaCache = {};
