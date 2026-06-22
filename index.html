@@ -28,6 +28,17 @@ const { useState, useEffect, useRef, useMemo } = React;
 
 const LOCAL_PRE  = 'jobapp:';
 
+// [hub-portal] 令牌/仓库为空时从同 origin 的共享配置 pha-config 补全（owner/repo + token），新设备零配置；已填的不覆盖
+try {
+  const _pha = JSON.parse(localStorage.getItem('pha-config') || 'null');
+  if (_pha && _pha.token) {
+    if (!localStorage.getItem('jobapp:githubRepo') && _pha.owner && _pha.repo)
+      localStorage.setItem('jobapp:githubRepo', _pha.owner + '/' + _pha.repo);
+    if (!localStorage.getItem('jobapp:githubToken'))
+      localStorage.setItem('jobapp:githubToken', _pha.token);
+  }
+} catch (e) {}
+
 const PATHS = {
   resumeDb:       'data/resumeDb.txt',
   resumeSections: 'data/resumeSections.json',
@@ -51,6 +62,13 @@ const KEY_TO_PATH = {
   'hongkong:jobs': PATHS.hongkongJobs,
   'china:jobs':    PATHS.chinaJobs,
 };
+
+// 任意地区都按 data/<id>_jobs.json 派生路径，新增地区无需改这里
+function keyToPath(key){
+  if (keyToPath(key)) return keyToPath(key);
+  const m = String(key).match(/^([a-z0-9_-]+):jobs$/i);
+  return m ? `data/${m[1]}_jobs.json` : keyToPath(key);
+}
 
 const shaCache = {};
 
@@ -195,10 +213,10 @@ async function ghDeleteFile(path) {
 }
 
 // Storage helpers
-async function loadText(key)  { try { return await ghRead(KEY_TO_PATH[key]) || ''; } catch { return ''; } }
-async function saveText(key, v){ try { await ghWrite(KEY_TO_PATH[key], v); } catch(e){ console.error(e); dispatchSaveErr(e); } }
-async function loadJson(key)  { try { const t = await ghRead(KEY_TO_PATH[key]); return t ? JSON.parse(t) : []; } catch { return []; } }
-async function saveJson(key, v){ try { await ghWrite(KEY_TO_PATH[key], JSON.stringify(v)); } catch(e){ console.error(e); dispatchSaveErr(e); } }
+async function loadText(key)  { try { return await ghRead(keyToPath(key)) || ''; } catch { return ''; } }
+async function saveText(key, v){ try { await ghWrite(keyToPath(key), v); } catch(e){ console.error(e); dispatchSaveErr(e); } }
+async function loadJson(key)  { try { const t = await ghRead(keyToPath(key)); return t ? JSON.parse(t) : []; } catch { return []; } }
+async function saveJson(key, v){ try { await ghWrite(keyToPath(key), JSON.stringify(v)); } catch(e){ console.error(e); dispatchSaveErr(e); } }
 
 function dispatchSaveErr(e) { window.dispatchEvent(new CustomEvent('jobapp:saveerror', {detail: e})); }
 
@@ -218,10 +236,21 @@ function lsDel(k)  { localStorage.removeItem(LOCAL_PRE + k); }
 // ════════════════════════════════════════════════════════════════
 
 const REGIONS = [
-  { id:'canada',   name:'Canada',         flag:'🇨🇦', accent:'bg-red-50 border-red-300 text-red-900',    dot:'bg-red-500'    },
-  { id:'hongkong', name:'Hong Kong',      flag:'🇭🇰', accent:'bg-rose-50 border-rose-300 text-rose-900', dot:'bg-rose-500'   },
-  { id:'china',    name:'Mainland China', flag:'🇨🇳', accent:'bg-amber-50 border-amber-300 text-amber-900', dot:'bg-amber-500'},
+  { id:'canada',      name:'Canada',          flag:'🇨🇦', accent:'bg-red-50 border-red-300 text-red-900',       dot:'bg-red-500',     contactNote:'include Canadian phone (+1) and email only — do NOT include the +86 mainland China number.', phoneTip:'Exclude +86 phone number from contact line' },
+  { id:'usa',         name:'United States',   flag:'🇺🇸', accent:'bg-blue-50 border-blue-300 text-blue-900',    dot:'bg-blue-500',    contactNote:'include a US phone (+1), email and city/state; do not include the +86 number.' },
+  { id:'uk',          name:'United Kingdom',  flag:'🇬🇧', accent:'bg-indigo-50 border-indigo-300 text-indigo-900', dot:'bg-indigo-500', contactNote:'include a UK phone (+44), email and city; do not include the +86 number.' },
+  { id:'australia',   name:'Australia',       flag:'🇦🇺', accent:'bg-emerald-50 border-emerald-300 text-emerald-900', dot:'bg-emerald-500', contactNote:'include an Australian phone (+61), email and city; do not include the +86 number.' },
+  { id:'singapore',   name:'Singapore',       flag:'🇸🇬', accent:'bg-rose-50 border-rose-300 text-rose-900',    dot:'bg-rose-500',    contactNote:'include a Singapore phone (+65) and email.' },
+  { id:'hongkong',    name:'Hong Kong',       flag:'🇭🇰', accent:'bg-pink-50 border-pink-300 text-pink-900',    dot:'bg-pink-500' },
+  { id:'china',       name:'Mainland China',  flag:'🇨🇳', accent:'bg-amber-50 border-amber-300 text-amber-900', dot:'bg-amber-500' },
+  { id:'germany',     name:'Germany',         flag:'🇩🇪', accent:'bg-slate-50 border-slate-300 text-slate-900', dot:'bg-slate-500',   contactNote:'include a German phone (+49), email and city; do not include the +86 number.' },
+  { id:'netherlands', name:'Netherlands',     flag:'🇳🇱', accent:'bg-orange-50 border-orange-300 text-orange-900', dot:'bg-orange-500', contactNote:'include a Dutch phone (+31), email and city.' },
+  { id:'japan',       name:'Japan',           flag:'🇯🇵', accent:'bg-red-50 border-red-300 text-red-900',       dot:'bg-red-400',     contactNote:'include a Japan phone (+81) and email.' },
+  { id:'uae',         name:'UAE',             flag:'🇦🇪', accent:'bg-teal-50 border-teal-300 text-teal-900',    dot:'bg-teal-500',    contactNote:'include a UAE phone (+971) and email.' },
+  { id:'remote',      name:'Remote / Global', flag:'🌍', accent:'bg-violet-50 border-violet-300 text-violet-900', dot:'bg-violet-500', contactNote:'include email and the best phone number; note open to remote / relocation.' },
 ];
+const REGION_BY = Object.fromEntries(REGIONS.map(r => [r.id, r]));
+function regionContact(region){ const r = REGION_BY[region]; return (r && r.contactNote) || 'include all phone numbers, email, and location.'; }
 
 const STATUSES = [
   { id:'interested',       label:'Interested',          cls:'bg-purple-100 text-purple-800 border-purple-200' },
@@ -259,7 +288,7 @@ JOB: ${job.role||'(role)'} at ${job.company||'(company)'}${job.location?` · ${j
 JD:
 ${job.jdText||''}
 
-CONTACT LINE:${region==='canada' ? ' include Canadian phone (+1) and email only — do NOT include the +86 mainland China number.' : ' include all phone numbers, email, and location.'}
+CONTACT LINE: ${regionContact(region)}
 
 REPORTLAB LAYOUT (Platypus — SimpleDocTemplate + story list):
 • Letter; margins L/R 0.6", T/B 0.5"; Helvetica throughout.
@@ -1161,7 +1190,33 @@ function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
 // PROFILE TAB
 // ════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════
+// TEMPLATES — 个人资料库骨架 + 各岗位简历技能模板（可一键插入、再自由编辑）
+// ════════════════════════════════════════════════════════════════
+const PROFILE_STARTER = [
+  { name:'Contact & Links', content:'Full name:\nLocation (city, country):\nPhone(s):\nEmail:\nLinkedIn:\nPortfolio / GitHub / personal site:\nWork authorization (per region, e.g. citizen / PR / visa / open to sponsorship):' },
+  { name:'Professional Summary', content:'2–3 sentences: who you are, years of experience, 2–3 top strengths, and the role/industry you target.\n\ne.g. "Data analyst with 3 years turning messy data into decisions; strong in SQL, Python and dashboarding; targeting analytics roles in fintech."' },
+  { name:'Work Experience', content:'Company — Job Title (City) | Mon YYYY – Mon YYYY (or Present)\n• Bullet = strong verb + what you did + measurable impact (%, $, #, time saved)\n• …\n\nCompany — Job Title (City) | Mon YYYY – Mon YYYY\n• …' },
+  { name:'Education', content:'School — Degree, Major (City) | Graduated YYYY\n• GPA / honors / relevant coursework / thesis (optional)' },
+  { name:'Skills', content:'Core / hard skills: \nTools & software: \nProgramming / technical: \nSpoken languages (with level): \nSoft skills: ' },
+  { name:'Projects', content:'Project name — your role | link (if any)\n• What it does · your contribution · tools/tech used · result.\n\nProject name — …' },
+  { name:'Certifications & Awards', content:'Certification — Issuer | YYYY\nAward / Scholarship — Body | YYYY' },
+];
+const SKILL_TEMPLATES = [
+  { role:'Software / Web Developer', icon:'💻', content:'Languages: Python, JavaScript/TypeScript, Java, Go, SQL\nFrontend: React, Vue, HTML/CSS, Tailwind\nBackend: Node.js, Django/Flask, Spring, REST & GraphQL APIs\nDevOps & cloud: Git, Docker, Kubernetes, CI/CD, AWS/GCP/Azure\nConcepts: data structures & algorithms, system design, testing/TDD, Agile/Scrum' },
+  { role:'Data Analyst / Scientist', icon:'📊', content:'Analysis: SQL, Python (pandas, NumPy), R, Excel (advanced)\nViz/BI: Tableau, Power BI, Looker, matplotlib\nStats/ML: A/B testing, regression, classification, clustering, scikit-learn\nData eng: ETL, dbt, Airflow, BigQuery/Snowflake, data modeling\nSoft: storytelling with data, stakeholder communication' },
+  { role:'Product Manager', icon:'🧭', content:'Discovery: user research, interviews, JTBD, market/competitor analysis\nExecution: roadmapping, PRDs, backlog grooming, Agile/Scrum, Jira\nData: KPIs/OKRs, funnel & cohort analysis, SQL, A/B testing, amplitude/mixpanel\nDesign: wireframing (Figma), prototyping, UX collaboration\nSoft: prioritization, cross-functional leadership, stakeholder management' },
+  { role:'Digital Marketing', icon:'📣', content:'Channels: SEO/SEM, Google Ads, Meta/TikTok ads, email, content marketing\nAnalytics: GA4, Google Tag Manager, attribution, conversion optimization\nTools: HubSpot, Mailchimp, Hootsuite, Semrush/Ahrefs, Canva\nSkills: copywriting, A/B testing, campaign management, budget management' },
+  { role:'Finance / Accounting', icon:'💰', content:'Core: financial modeling, valuation (DCF/comps), forecasting & budgeting, variance analysis\nReporting: GAAP/IFRS, financial statements, month-end close, AP/AR\nTools: Excel (advanced), QuickBooks, SAP, Oracle, Bloomberg\nSkills: FP&A, audit support, reconciliation, attention to detail' },
+  { role:'UX / UI Designer', icon:'🎨', content:'Design: Figma, Sketch, Adobe XD, design systems, prototyping\nResearch: user interviews, usability testing, personas, journey mapping\nSkills: wireframing, interaction design, accessibility (WCAG), responsive design\nNice to have: HTML/CSS, motion, basic frontend handoff' },
+  { role:'Sales / Business Dev', icon:'🤝', content:'Cycle: prospecting, lead gen, discovery, demos, negotiation, closing\nCRM/tools: Salesforce, HubSpot, Outreach, LinkedIn Sales Navigator\nMetrics: pipeline, quota attainment, win rate, ARR/MRR\nSkills: relationship building, consultative selling, account management' },
+  { role:'Operations / Project Mgmt', icon:'⚙️', content:'PM: project planning, Gantt/roadmaps, risk management, stakeholder updates\nMethod: Agile/Scrum, Kanban, Lean/Six Sigma, process improvement\nTools: Jira, Asana, Trello, MS Project, Excel\nSkills: vendor management, budgeting, cross-functional coordination' },
+  { role:'HR / Recruiting', icon:'👥', content:'Recruiting: sourcing, screening, interviewing, ATS (Greenhouse/Lever)\nHR ops: onboarding, performance management, HRIS (Workday/BambooHR)\nSkills: employer branding, compensation basics, employment law awareness, DEI' },
+  { role:'Customer Success / Support', icon:'🎧', content:'Tools: Zendesk, Intercom, Salesforce Service Cloud\nMetrics: CSAT, NPS, churn, retention, time-to-resolution\nSkills: onboarding, account health, upsell/renewal, troubleshooting, empathy' },
+];
+
 function ProfileTab({ sections, updateSections, formatting, setFormatting, glossary, setGlossary, region, resumeDb }) {
+  const [showTpl, setShowTpl] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [editingId, setEditingId]   = useState(null);
   const [editName, setEditName]     = useState('');
@@ -1189,6 +1244,16 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
     setExpandedId(section.id);
     setEditingId(section.id);
     setEditName('New section');
+  };
+
+  const insertSection = (name, content) => {
+    updateSections([...sections, { id:newId(), name, content, source:'template', addedAt:new Date().toISOString() }], false);
+  };
+  const insertStarter = () => {
+    const now = new Date().toISOString();
+    const adds = PROFILE_STARTER.map(t => ({ id:newId(), name:t.name, content:t.content, source:'template', addedAt:now }));
+    updateSections([...sections, ...adds], false);
+    setShowTpl(false);
   };
 
   const handleDelete = id => {
@@ -1221,6 +1286,7 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
           action={
             <div className="flex flex-wrap gap-2 items-center">
               <FileUploadButton onFile={handleUpload} label="Upload file" />
+              <Btn onClick={()=>setShowTpl(v=>!v)}>📋 Templates</Btn>
               <Btn onClick={handleAddManual}>➕ Add section</Btn>
               <Btn variant="primary" onClick={handleSaveAll} disabled={saving}>
                 {saving ? '⏳ Saving…' : saved ? '✅ Saved' : '💾 Save all'}
@@ -1231,9 +1297,33 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
         <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 mb-3">
           <strong>All sections below are combined and sent to Claude when you use AI prompts.</strong>{' '}
           Upload each file separately — work history, resume templates, skills, anything you want Claude to reference.
-          Accepts .txt, .md, .docx, .pdf. <strong>Shared across all three regions.</strong>
+          Accepts .txt, .md, .docx, .pdf. <strong>Shared across all regions.</strong>
           {totalChars > 0 && <span className="ml-1 text-blue-700">Total: {totalChars.toLocaleString()} characters across {sections.length} section{sections.length !== 1 ? 's' : ''}.</span>}
         </div>
+
+        {showTpl && (
+          <div className="mb-3 p-3 border border-purple-200 bg-purple-50 rounded-md">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-purple-900">📋 Templates — one click to insert, then edit freely</span>
+              <button onClick={()=>setShowTpl(false)} className="text-xs text-purple-700 hover:underline">✕ close</button>
+            </div>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Btn variant="primary" onClick={insertStarter}>🧱 Generate personal-database skeleton</Btn>
+              <span className="text-xs text-purple-800">Adds Contact · Summary · Experience · Education · Skills · Projects · Certifications as editable sections to fill in.</span>
+            </div>
+            <div className="text-xs font-medium text-purple-900 mb-1.5">Add a curated skills block by role:</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {SKILL_TEMPLATES.map(t => (
+                <button key={t.role} onClick={()=>insertSection('Skills — '+t.role, t.content)}
+                  className="text-left text-xs px-2.5 py-2 rounded-md border border-purple-200 bg-white hover:bg-purple-100 transition-colors">
+                  <span className="font-medium text-gray-800">{t.icon} {t.role}</span>
+                  <span className="block text-purple-600 mt-0.5">+ insert as section</span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 text-[11px] text-purple-700">Inserted as new sections — rename / edit / delete them freely, then click 💾 Save all to sync.</div>
+          </div>
+        )}
 
         {sections.length === 0 ? (
           <div className="p-6 text-center text-sm text-gray-500 border border-dashed border-gray-300 rounded-md">
@@ -1373,7 +1463,7 @@ function GeneralResumeSection({ resumeDb, formatting, glossary, region }) {
     hongkong: { label:'🇭🇰 繁體中文 + English (2 pages)' },
     china:    { label:'🇨🇳 简体中文简历' },
   };
-  const cfg = REGION_CFG[region] || REGION_CFG.canada;
+  const cfg = REGION_CFG[region] || { label: `${(REGION_BY[region]||{}).flag||'🌍'} English Resume — ${(REGION_BY[region]||{}).name||'Region'}` };
 
   function buildPrompt() {
     if (region === 'canada') {
@@ -1708,7 +1798,7 @@ ${(formatting||'').trim() ? `CUSTOM FORMATTING RULES:\n${formatting.trim()}\n\n`
 - Prefer: built, wrote, designed, implemented, analysed, supported, assisted
 - Treat the candidate as a recent graduate — no long-term strategic impact claims
 - Courses: select those relevant to this role. Never show grades.
-- ${region==='canada'?'Exclude +86 phone number from contact line':'Include both phone numbers'}
+- ${(REGION_BY[region]&&REGION_BY[region].phoneTip)||'Use phone numbers appropriate to the target region'}
 - ONE PAGE — select only strongest and most relevant content
 
 Return this exact JSON structure:
@@ -3054,20 +3144,17 @@ function App() {
           <div className="mb-4"><Alert type="error">Save error: {saveErr}</Alert></div>
         )}
 
-        {/* Region tabs */}
-        <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
-          {REGIONS.map(r => {
-            const active = region===r.id;
-            return (
-              <button key={r.id} onClick={()=>setRegion(r.id)}
-                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors whitespace-nowrap ${
-                  active ? `${r.accent} border-current shadow-sm` : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                }`}>
-                {r.flag} {r.name}
-                {active && <span className={`w-1.5 h-1.5 rounded-full ${r.dot}`} />}
-              </button>
-            );
-          })}
+        {/* Region selector (dropdown) */}
+        <div className={`flex items-center gap-3 mb-5 px-4 py-3 rounded-lg border ${(REGION_BY[region]||{}).accent||'bg-white border-gray-200'}`}>
+          <span className={`w-2.5 h-2.5 rounded-full ${(REGION_BY[region]||{}).dot||'bg-gray-400'}`} />
+          <label className="text-sm font-medium text-gray-700">Region / 地区</label>
+          <select value={region} onChange={e=>setRegion(e.target.value)}
+            className="flex-1 max-w-xs text-sm font-medium px-3 py-2 rounded-md border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
+            {REGIONS.map(r => (
+              <option key={r.id} value={r.id}>{r.flag} {r.name}</option>
+            ))}
+          </select>
+          <span className="text-xs text-gray-500 hidden sm:inline">each region keeps its own job list & tailored resumes</span>
         </div>
 
         {/* App */}
