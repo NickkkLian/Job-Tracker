@@ -18,9 +18,33 @@
 <body class="bg-gray-50">
   <div id="loading">Loading app…</div>
   <div id="root" style="display:none"></div>
+  <script>try{if(localStorage.getItem('pha-lang')!=='en'){document.getElementById('loading').textContent='正在加载…';document.documentElement.lang='zh';}}catch(e){}</script>
 
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
+
+// ════════════════════════════════════════════════════════════════
+// [hub-portal] 双语引擎 — 全站共享 localStorage 键 pha-lang（默认 zh）
+// 原生英文 app：T(zh,en) 中文为备选；存储枚举值(status/region id)与 AI prompt 模板不译
+// ════════════════════════════════════════════════════════════════
+let lang = (() => { try { return localStorage.getItem('pha-lang') === 'en' ? 'en' : 'zh'; } catch (e) { return 'zh'; } })();
+const T = (zh, en) => lang === 'en' ? en : zh;
+let _langSubs = [];
+function toggleLang() {
+  lang = lang === 'en' ? 'zh' : 'en';
+  try { localStorage.setItem('pha-lang', lang); } catch (e) {}
+  document.documentElement.lang = lang === 'en' ? 'en' : 'zh';
+  _langSubs.slice().forEach(fn => { try { fn(); } catch (e) {} });
+}
+// 顶层订阅一次即可：App 重渲染会级联整棵树（组件未 memo 化），所有 T() 重新求值
+function useLangToggle() {
+  const [, f] = useState(0);
+  useEffect(() => {
+    const fn = () => f(x => x + 1);
+    _langSubs.push(fn);
+    return () => { _langSubs = _langSubs.filter(x => x !== fn); };
+  }, []);
+}
 
 // ════════════════════════════════════════════════════════════════
 // GITHUB STORAGE
@@ -236,38 +260,42 @@ function lsDel(k)  { localStorage.removeItem(LOCAL_PRE + k); }
 // ════════════════════════════════════════════════════════════════
 
 const REGIONS = [
-  { id:'canada',      name:'Canada',          flag:'🇨🇦', accent:'bg-red-50 border-red-300 text-red-900',       dot:'bg-red-500',     contactNote:'include Canadian phone (+1) and email only — do NOT include the +86 mainland China number.', phoneTip:'Exclude +86 phone number from contact line' },
-  { id:'usa',         name:'United States',   flag:'🇺🇸', accent:'bg-blue-50 border-blue-300 text-blue-900',    dot:'bg-blue-500',    contactNote:'include a US phone (+1), email and city/state; do not include the +86 number.' },
-  { id:'uk',          name:'United Kingdom',  flag:'🇬🇧', accent:'bg-indigo-50 border-indigo-300 text-indigo-900', dot:'bg-indigo-500', contactNote:'include a UK phone (+44), email and city; do not include the +86 number.' },
-  { id:'australia',   name:'Australia',       flag:'🇦🇺', accent:'bg-emerald-50 border-emerald-300 text-emerald-900', dot:'bg-emerald-500', contactNote:'include an Australian phone (+61), email and city; do not include the +86 number.' },
-  { id:'singapore',   name:'Singapore',       flag:'🇸🇬', accent:'bg-rose-50 border-rose-300 text-rose-900',    dot:'bg-rose-500',    contactNote:'include a Singapore phone (+65) and email.' },
-  { id:'hongkong',    name:'Hong Kong',       flag:'🇭🇰', accent:'bg-pink-50 border-pink-300 text-pink-900',    dot:'bg-pink-500' },
-  { id:'china',       name:'Mainland China',  flag:'🇨🇳', accent:'bg-amber-50 border-amber-300 text-amber-900', dot:'bg-amber-500' },
-  { id:'germany',     name:'Germany',         flag:'🇩🇪', accent:'bg-slate-50 border-slate-300 text-slate-900', dot:'bg-slate-500',   contactNote:'include a German phone (+49), email and city; do not include the +86 number.' },
-  { id:'netherlands', name:'Netherlands',     flag:'🇳🇱', accent:'bg-orange-50 border-orange-300 text-orange-900', dot:'bg-orange-500', contactNote:'include a Dutch phone (+31), email and city.' },
-  { id:'japan',       name:'Japan',           flag:'🇯🇵', accent:'bg-red-50 border-red-300 text-red-900',       dot:'bg-red-400',     contactNote:'include a Japan phone (+81) and email.' },
-  { id:'uae',         name:'UAE',             flag:'🇦🇪', accent:'bg-teal-50 border-teal-300 text-teal-900',    dot:'bg-teal-500',    contactNote:'include a UAE phone (+971) and email.' },
-  { id:'remote',      name:'Remote / Global', flag:'🌍', accent:'bg-violet-50 border-violet-300 text-violet-900', dot:'bg-violet-500', contactNote:'include email and the best phone number; note open to remote / relocation.' },
+  { id:'canada',      name:'Canada',          zh:'加拿大',      flag:'🇨🇦', accent:'bg-red-50 border-red-300 text-red-900',       dot:'bg-red-500',     contactNote:'include Canadian phone (+1) and email only — do NOT include the +86 mainland China number.', phoneTip:'Exclude +86 phone number from contact line' },
+  { id:'usa',         name:'United States',   zh:'美国',        flag:'🇺🇸', accent:'bg-blue-50 border-blue-300 text-blue-900',    dot:'bg-blue-500',    contactNote:'include a US phone (+1), email and city/state; do not include the +86 number.' },
+  { id:'uk',          name:'United Kingdom',  zh:'英国',        flag:'🇬🇧', accent:'bg-indigo-50 border-indigo-300 text-indigo-900', dot:'bg-indigo-500', contactNote:'include a UK phone (+44), email and city; do not include the +86 number.' },
+  { id:'australia',   name:'Australia',       zh:'澳大利亚',    flag:'🇦🇺', accent:'bg-emerald-50 border-emerald-300 text-emerald-900', dot:'bg-emerald-500', contactNote:'include an Australian phone (+61), email and city; do not include the +86 number.' },
+  { id:'singapore',   name:'Singapore',       zh:'新加坡',      flag:'🇸🇬', accent:'bg-rose-50 border-rose-300 text-rose-900',    dot:'bg-rose-500',    contactNote:'include a Singapore phone (+65) and email.' },
+  { id:'hongkong',    name:'Hong Kong',       zh:'香港',        flag:'🇭🇰', accent:'bg-pink-50 border-pink-300 text-pink-900',    dot:'bg-pink-500' },
+  { id:'china',       name:'Mainland China',  zh:'中国大陆',    flag:'🇨🇳', accent:'bg-amber-50 border-amber-300 text-amber-900', dot:'bg-amber-500' },
+  { id:'germany',     name:'Germany',         zh:'德国',        flag:'🇩🇪', accent:'bg-slate-50 border-slate-300 text-slate-900', dot:'bg-slate-500',   contactNote:'include a German phone (+49), email and city; do not include the +86 number.' },
+  { id:'netherlands', name:'Netherlands',     zh:'荷兰',        flag:'🇳🇱', accent:'bg-orange-50 border-orange-300 text-orange-900', dot:'bg-orange-500', contactNote:'include a Dutch phone (+31), email and city.' },
+  { id:'japan',       name:'Japan',           zh:'日本',        flag:'🇯🇵', accent:'bg-red-50 border-red-300 text-red-900',       dot:'bg-red-400',     contactNote:'include a Japan phone (+81) and email.' },
+  { id:'uae',         name:'UAE',             zh:'阿联酋',      flag:'🇦🇪', accent:'bg-teal-50 border-teal-300 text-teal-900',    dot:'bg-teal-500',    contactNote:'include a UAE phone (+971) and email.' },
+  { id:'remote',      name:'Remote / Global', zh:'远程 / 全球', flag:'🌍', accent:'bg-violet-50 border-violet-300 text-violet-900', dot:'bg-violet-500', contactNote:'include email and the best phone number; note open to remote / relocation.' },
 ];
 const REGION_BY = Object.fromEntries(REGIONS.map(r => [r.id, r]));
+// 地区名显示用（id 是存储/AI 搜索用的稳定键，不动）
+const rName = r => r ? T(r.zh || r.name, r.name) : '';
 function regionContact(region){ const r = REGION_BY[region]; return (r && r.contactNote) || 'include all phone numbers, email, and location.'; }
 
 const STATUSES = [
-  { id:'interested',       label:'Interested',          cls:'bg-purple-100 text-purple-800 border-purple-200' },
-  { id:'applied',          label:'Applied',             cls:'bg-blue-100 text-blue-800 border-blue-200'   },
-  { id:'interviewing',     label:'Interviewing',        cls:'bg-yellow-100 text-yellow-800 border-yellow-200' },
-  { id:'offered',          label:'Offered',             cls:'bg-green-100 text-green-800 border-green-200'  },
-  { id:'rejected',         label:'Rejected',            cls:'bg-red-100 text-red-800 border-red-200'      },
-  { id:'interview_rejected', label:'Interviewed, Rejected', cls:'bg-orange-100 text-orange-800 border-orange-200' },
+  { id:'interested',       label:'Interested',          zh:'感兴趣',       cls:'bg-purple-100 text-purple-800 border-purple-200' },
+  { id:'applied',          label:'Applied',             zh:'已投递',       cls:'bg-blue-100 text-blue-800 border-blue-200'   },
+  { id:'interviewing',     label:'Interviewing',        zh:'面试中',       cls:'bg-yellow-100 text-yellow-800 border-yellow-200' },
+  { id:'offered',          label:'Offered',             zh:'已获 Offer',   cls:'bg-green-100 text-green-800 border-green-200'  },
+  { id:'rejected',         label:'Rejected',            zh:'已被拒',       cls:'bg-red-100 text-red-800 border-red-200'      },
+  { id:'interview_rejected', label:'Interviewed, Rejected', zh:'面试后被拒', cls:'bg-orange-100 text-orange-800 border-orange-200' },
 ];
+// 显示用：存储值是 id（interested/applied…），label/zh 只是显示层
+const statusLabel = id => { const s = STATUSES.find(x => x.id === id) || STATUSES[0]; return T(s.zh, s.label); };
 
 const TABS = [
-  { id:'addjob',   label:'Add Job',    icon:'➕' },
-  { id:'tracker',  label:'Tracker',    icon:'📋' },
-  { id:'profile',  label:'My Profile', icon:'📝' },
-  { id:'library',  label:'Resumes',    icon:'📚' },
-  { id:'insights', label:'Insights',   icon:'📊' },
-  { id:'watchdog', label:'Alerts',     icon:'📧' },
+  { id:'addjob',   label:'Add Job',    zh:'添加职位',   icon:'➕' },
+  { id:'tracker',  label:'Tracker',    zh:'追踪',       icon:'📋' },
+  { id:'profile',  label:'My Profile', zh:'我的资料',   icon:'📝' },
+  { id:'library',  label:'Resumes',    zh:'简历库',     icon:'📚' },
+  { id:'insights', label:'Insights',   zh:'数据',       icon:'📊' },
+  { id:'watchdog', label:'Alerts',     zh:'提醒',       icon:'📧' },
 ];
 
 // ════════════════════════════════════════════════════════════════
@@ -720,14 +748,14 @@ function Btn({ children, onClick, variant='secondary', disabled=false, className
 
 function StatusPill({ status }) {
   const s = STATUSES.find(x => x.id === status) || STATUSES[0];
-  return <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full border ${s.cls}`}>{s.label}</span>;
+  return <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full border ${s.cls}`}>{T(s.zh,s.label)}</span>;
 }
 
 function StatusSelect({ value, onChange }) {
   return (
     <select value={value} onChange={e => onChange(e.target.value)}
       className="text-xs px-2 py-1 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-      {STATUSES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+      {STATUSES.map(s => <option key={s.id} value={s.id}>{T(s.zh,s.label)}</option>)}
     </select>
   );
 }
@@ -772,20 +800,20 @@ function DownloadMenu({ content, baseFilename }) {
   const fn = safeName(baseFilename);
   return (
     <div className="relative inline-block" ref={ref}>
-      <Btn onClick={() => setOpen(o => !o)}>⬇️ Download</Btn>
+      <Btn onClick={() => setOpen(o => !o)}>{T('⬇️ 下载','⬇️ Download')}</Btn>
       {open && (
         <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-md shadow-lg z-20">
           <button onClick={()=>{downloadText(`${fn}.md`, content||'','text/markdown');setOpen(false);}}
             className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 rounded-t-md">Markdown (.md)</button>
           <button onClick={()=>{downloadText(`${fn}.txt`, stripMd(content||''));setOpen(false);}}
-            className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 rounded-b-md border-t border-gray-100">Plain text (.txt)</button>
+            className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 rounded-b-md border-t border-gray-100">{T('纯文本 (.txt)','Plain text (.txt)')}</button>
         </div>
       )}
     </div>
   );
 }
 
-function FileUploadButton({ onFile, label='Upload', primary=false, accept='.txt,.md,.markdown,.docx,.pdf' }) {
+function FileUploadButton({ onFile, label=T('上传','Upload'), primary=false, accept='.txt,.md,.markdown,.docx,.pdf' }) {
   const ref = useRef(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -793,14 +821,14 @@ function FileUploadButton({ onFile, label='Upload', primary=false, accept='.txt,
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
     setErr(''); setBusy(true);
-    try { const t = await readFileAsText(file); if (!t.trim()) { setErr('File is empty or unreadable'); return; } onFile(t, file.name); }
-    catch(e) { setErr(e.message||'Failed to read file'); }
+    try { const t = await readFileAsText(file); if (!t.trim()) { setErr(T('文件为空或无法读取','File is empty or unreadable')); return; } onFile(t, file.name); }
+    catch(e) { setErr(e.message||T('读取文件失败','Failed to read file')); }
     finally { setBusy(false); }
   };
   return (
     <div className="inline-block">
       <Btn variant={primary?'primary':'secondary'} onClick={()=>ref.current?.click()} disabled={busy}>
-        {busy ? '⏳ Reading…' : `⬆️ ${label}`}
+        {busy ? T('⏳ 读取中…','⏳ Reading…') : `⬆️ ${label}`}
       </Btn>
       <input ref={ref} type="file" accept={accept} onChange={handle} className="hidden" />
       {err && <div className="mt-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 max-w-xs">{err}</div>}
@@ -826,12 +854,12 @@ function PromptModal({ title, prompt, onClose }) {
         </div>
         <div className="p-4">
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 mb-3 space-y-1">
-            <div className="font-semibold">How to use:</div>
-            <div>1. Click <strong>Copy prompt</strong> below</div>
-            <div>2. Click <strong>Open Claude.ai</strong> — it opens in a new tab</div>
-            <div>3. Paste the prompt (⌘V / Ctrl+V) and press Send</div>
-            <div>4. <strong>Tailor Resume / Cover Letter:</strong> make sure the Analysis tool is on → Claude runs Python and generates a PDF file → click the file to download it → upload below</div>
-            <div>5. <strong>Other prompts:</strong> read and use Claude's response directly</div>
+            <div className="font-semibold">{T('使用方法：','How to use:')}</div>
+            <div>{T('1. 点击下方的 ','1. Click ')}<strong>{T('复制提示词','Copy prompt')}</strong>{T(' 按钮',' below')}</div>
+            <div>{T('2. 点击 ','2. Click ')}<strong>{T('打开 Claude.ai','Open Claude.ai')}</strong>{T(' — 会在新标签页打开',' — it opens in a new tab')}</div>
+            <div>{T('3. 粘贴提示词（⌘V / Ctrl+V）并发送','3. Paste the prompt (⌘V / Ctrl+V) and press Send')}</div>
+            <div>4. <strong>{T('定制简历 / 求职信：','Tailor Resume / Cover Letter:')}</strong>{T(' 确保 Analysis 工具已开启 → Claude 运行 Python 生成 PDF 文件 → 点击文件下载 → 在下方上传',' make sure the Analysis tool is on → Claude runs Python and generates a PDF file → click the file to download it → upload below')}</div>
+            <div>5. <strong>{T('其他提示词：','Other prompts:')}</strong>{T(" 直接阅读并使用 Claude 的回复"," read and use Claude's response directly")}</div>
           </div>
           <textarea
             value={prompt}
@@ -840,13 +868,13 @@ function PromptModal({ title, prompt, onClose }) {
             onClick={e => e.target.select()}
           />
           <div className="flex gap-2 mt-3 justify-end flex-wrap">
-            <Btn onClick={handleCopy}>{copied ? '✅ Copied!' : '📋 Copy prompt'}</Btn>
+            <Btn onClick={handleCopy}>{copied ? T('✅ 已复制!','✅ Copied!') : T('📋 复制提示词','📋 Copy prompt')}</Btn>
             <a href={CLAUDE_URL} target="_blank" rel="noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600">
-              Open Claude.ai →
+              {T('打开 Claude.ai →','Open Claude.ai →')}
             </a>
           </div>
-          <p className="mt-2 text-xs text-gray-400">Uses your existing Claude.ai subscription — no extra cost.</p>
+          <p className="mt-2 text-xs text-gray-400">{T('使用你现有的 Claude.ai 订阅 — 无额外费用。','Uses your existing Claude.ai subscription — no extra cost.')}</p>
         </div>
       </div>
     </div>
@@ -858,13 +886,13 @@ function PromptModal({ title, prompt, onClose }) {
 // ════════════════════════════════════════════════════════════════
 
 function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, onClose }) {
-  const langLabel = targetLang === 'simplified' ? 'Simplified Chinese (简体中文)' : 'Traditional Chinese (繁體中文)';
+  const langLabel = targetLang === 'simplified' ? T('简体中文','Simplified Chinese (简体中文)') : T('繁體中文','Traditional Chinese (繁體中文)');
   const langIcon  = targetLang === 'simplified' ? '🇨🇳' : '🇭🇰';
 
   const sources = [
-    ...(tailoredResume?.trim() ? [{ id:'tailored', label:'Tailored resume (saved for this job)' }] : []),
-    ...(library||[]).map(r => ({ id:`lib:${r.id}`, label:`Resume library: ${r.name}` })),
-    { id:'custom', label:'Paste / type my own text' },
+    ...(tailoredResume?.trim() ? [{ id:'tailored', label:T('定制简历（已为此职位保存）','Tailored resume (saved for this job)') }] : []),
+    ...(library||[]).map(r => ({ id:`lib:${r.id}`, label:T('简历库：','Resume library: ')+r.name })),
+    { id:'custom', label:T('粘贴 / 输入我自己的文本','Paste / type my own text') },
   ];
 
   const [sel, setSel]             = useState(sources[0]?.id || 'custom');
@@ -890,14 +918,14 @@ function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, o
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mt-8 mb-8" onClick={e => e.stopPropagation()}>
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-900">{langIcon} Translate Resume → {langLabel}</h3>
+          <h3 className="text-sm font-semibold text-gray-900">{langIcon} {T('翻译简历 →','Translate Resume →')} {langLabel}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none">&times;</button>
         </div>
         <div className="p-4 space-y-4">
 
           {/* Source picker */}
           <div>
-            <label className="text-xs font-medium text-gray-700 mb-2 block">Which resume do you want to translate?</label>
+            <label className="text-xs font-medium text-gray-700 mb-2 block">{T('你想翻译哪份简历？','Which resume do you want to translate?')}</label>
             <div className="space-y-2">
               {sources.map(s => (
                 <label key={s.id} className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
@@ -907,7 +935,7 @@ function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, o
                     checked={sel === s.id} onChange={() => { setSel(s.id); setShowPrompt(false); }} className="shrink-0" />
                   <span className="text-sm text-gray-800 flex-1">{s.label}</span>
                   {sel === s.id && s.id !== 'custom' && content && (
-                    <span className="text-xs text-gray-400">{content.length.toLocaleString()} chars</span>
+                    <span className="text-xs text-gray-400">{content.length.toLocaleString()} {T('字符','chars')}</span>
                   )}
                 </label>
               ))}
@@ -917,12 +945,12 @@ function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, o
           {/* Custom text area */}
           {sel === 'custom' && (
             <div>
-              <label className="text-xs font-medium text-gray-700 mb-1 block">Paste your resume here</label>
+              <label className="text-xs font-medium text-gray-700 mb-1 block">{T('在此粘贴你的简历','Paste your resume here')}</label>
               <textarea value={customText} onChange={e => { setCustomText(e.target.value); setShowPrompt(false); }}
-                placeholder="Paste the resume text you want to translate…"
+                placeholder={T('粘贴你想翻译的简历文本…','Paste the resume text you want to translate…')}
                 className="w-full h-40 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
                 autoFocus />
-              <div className="text-xs text-gray-400 mt-0.5">{customText.length.toLocaleString()} chars</div>
+              <div className="text-xs text-gray-400 mt-0.5">{customText.length.toLocaleString()} {T('字符','chars')}</div>
             </div>
           )}
 
@@ -930,7 +958,7 @@ function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, o
           {sel !== 'custom' && content && (
             <details className="border border-gray-200 rounded-md">
               <summary className="cursor-pointer px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 rounded-md">
-                Preview source content
+                {T('预览来源内容','Preview source content')}
               </summary>
               <div className="px-3 pb-3 max-h-40 overflow-y-auto text-xs font-mono text-gray-700 whitespace-pre-wrap border-t border-gray-100 pt-2">
                 {content.slice(0, 1000)}{content.length > 1000 ? '\n…' : ''}
@@ -942,28 +970,28 @@ function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, o
           {!showPrompt ? (
             <div className="flex justify-end">
               <Btn variant="primary" disabled={!content.trim()} onClick={() => setShowPrompt(true)}>
-                Generate prompt →
+                {T('生成提示词 →','Generate prompt →')}
               </Btn>
             </div>
           ) : (
             <div>
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 mb-2 space-y-0.5">
-                <div className="font-semibold">How to use:</div>
-                <div>1. Click <strong>Copy prompt</strong> → click <strong>Open Claude.ai</strong></div>
-                <div>2. Paste (⌘V / Ctrl+V) and press Send</div>
-                <div>3. Claude returns the translated resume in Markdown — copy and use it however you need (paste into a Word doc, format yourself, or run another prompt to convert to PDF)</div>
+                <div className="font-semibold">{T('使用方法：','How to use:')}</div>
+                <div>{T('1. 点击 ','1. Click ')}<strong>{T('复制提示词','Copy prompt')}</strong>{T(' → 点击 ',' → click ')}<strong>{T('打开 Claude.ai','Open Claude.ai')}</strong></div>
+                <div>{T('2. 粘贴（⌘V / Ctrl+V）并发送','2. Paste (⌘V / Ctrl+V) and press Send')}</div>
+                <div>{T('3. Claude 以 Markdown 返回翻译后的简历 — 复制并按需使用（粘贴到 Word、自行排版，或再用一条提示词转成 PDF）','3. Claude returns the translated resume in Markdown — copy and use it however you need (paste into a Word doc, format yourself, or run another prompt to convert to PDF)')}</div>
               </div>
               <textarea value={prompt} readOnly
                 className="w-full h-52 p-3 text-xs font-mono border border-gray-300 rounded-md bg-gray-50 resize-y focus:outline-none"
                 onClick={e => e.target.select()} />
               <div className="flex gap-2 mt-3 justify-end flex-wrap">
-                <Btn onClick={handleCopy}>{copied ? '✅ Copied!' : '📋 Copy prompt'}</Btn>
+                <Btn onClick={handleCopy}>{copied ? T('✅ 已复制!','✅ Copied!') : T('📋 复制提示词','📋 Copy prompt')}</Btn>
                 <a href={CLAUDE_URL} target="_blank" rel="noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600">
-                  Open Claude.ai →
+                  {T('打开 Claude.ai →','Open Claude.ai →')}
                 </a>
               </div>
-              <p className="mt-2 text-xs text-gray-400">Uses your existing Claude.ai subscription — no extra cost.</p>
+              <p className="mt-2 text-xs text-gray-400">{T('使用你现有的 Claude.ai 订阅 — 无额外费用。','Uses your existing Claude.ai subscription — no extra cost.')}</p>
             </div>
           )}
         </div>
@@ -984,27 +1012,25 @@ function AiPromptSection({ resumeDb, job, formatting, glossary, tailoredResume, 
   const hasJd     = !!(job?.jdText || '').trim();
 
   const open = (title, promptFn) => {
-    if (!hasResume) { alert('Add your profile/background in My Profile tab first — it makes the prompts much better.'); return; }
+    if (!hasResume) { alert(T('请先在「我的资料」标签页添加你的资料/背景 — 能让提示词效果好很多。','Add your profile/background in My Profile tab first — it makes the prompts much better.')); return; }
     setModal({ title, prompt: promptFn() });
   };
 
   const mainBtns = [
-    { label:'📝 Tailor Resume',    fn: () => promptTailorResume(resumeDb, job, formatting, region) },
-    { label:'✉️ Cover Letter',     fn: () => promptCoverLetter(resumeDb, job)               },
-    { label:'🎯 Interview Prep',   fn: () => promptInterviewPrep(resumeDb, job)             },
-    { label:'👥 Networking',       fn: () => promptNetworking(resumeDb, job)                },
-    { label:'🔍 Analyze This Job', fn: () => promptJobAnalysis(job)                         },
+    { label:T('📝 定制简历','📝 Tailor Resume'),    fn: () => promptTailorResume(resumeDb, job, formatting, region) },
+    { label:T('✉️ 求职信','✉️ Cover Letter'),     fn: () => promptCoverLetter(resumeDb, job)               },
+    { label:T('🎯 面试准备','🎯 Interview Prep'),   fn: () => promptInterviewPrep(resumeDb, job)             },
+    { label:T('👥 人脉拓展','👥 Networking'),       fn: () => promptNetworking(resumeDb, job)                },
+    { label:T('🔍 分析此职位','🔍 Analyze This Job'), fn: () => promptJobAnalysis(job)                         },
   ];
 
   return (
     <Card className="p-4">
-      <SectionHdr icon="✨" title="AI Help via Claude.ai" />
+      <SectionHdr icon="✨" title={T('通过 Claude.ai 获取 AI 帮助','AI Help via Claude.ai')} />
       <p className="text-xs text-gray-600 mb-3">
-        These buttons generate a ready-to-paste prompt for Claude.ai.
-        For Resume and Cover Letter, Claude generates a PDF directly via the Analysis Tool — download and upload below.
-        Other prompts (Interview, Networking, Analysis) can be read directly in Claude.ai.
-        {!hasResume && <span className="block mt-1 text-amber-700">Add your profile first for best results.</span>}
-        {!hasJd && hasResume && <span className="block mt-1 text-gray-500">Add a JD for job-specific prompts.</span>}
+        {T('这些按钮会为 Claude.ai 生成一段可直接粘贴的提示词。简历和求职信由 Claude 通过 Analysis 工具直接生成 PDF — 下载后在下方上传。其他提示词（面试、人脉、分析）可直接在 Claude.ai 中阅读。','These buttons generate a ready-to-paste prompt for Claude.ai. For Resume and Cover Letter, Claude generates a PDF directly via the Analysis Tool — download and upload below. Other prompts (Interview, Networking, Analysis) can be read directly in Claude.ai.')}
+        {!hasResume && <span className="block mt-1 text-amber-700">{T('先添加你的资料以获得最佳效果。','Add your profile first for best results.')}</span>}
+        {!hasJd && hasResume && <span className="block mt-1 text-gray-500">{T('添加 JD 以生成针对该职位的提示词。','Add a JD for job-specific prompts.')}</span>}
       </p>
       <div className="flex flex-wrap gap-2 mb-3">
         {mainBtns.map(b => (
@@ -1015,7 +1041,7 @@ function AiPromptSection({ resumeDb, job, formatting, glossary, tailoredResume, 
         ))}
       </div>
       <div className="border-t border-gray-100 pt-3">
-        <p className="text-xs text-gray-500 mb-2">Translate a resume to Chinese — you'll choose which resume to use.</p>
+        <p className="text-xs text-gray-500 mb-2">{T("把简历翻译成中文 — 你将选择使用哪一份简历。","Translate a resume to Chinese — you'll choose which resume to use.")}</p>
         <div className="flex flex-wrap gap-2">
           <Btn variant="secondary" onClick={() => setTranslateLang('simplified')}>🇨🇳 → 简体中文</Btn>
           <Btn variant="secondary" onClick={() => setTranslateLang('traditional')}>🇭🇰 → 繁體中文</Btn>
@@ -1096,13 +1122,13 @@ function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
   const handleTest = async () => {
     lsSet('githubToken', tok.trim()); lsSet('githubRepo', repo.trim());
     setTesting(true); setTestRes(null);
-    try { const d = await testGhConnection(); setTestRes({ok:true, msg:`✅ Connected — "${d.full_name}" (${d.private?'private':'public'})`}); onGhChange?.(true); }
+    try { const d = await testGhConnection(); setTestRes({ok:true, msg:`✅ ${T('已连接','Connected')} — "${d.full_name}" (${d.private?T('私有','private'):T('公开','public')})`}); onGhChange?.(true); }
     catch(e) { setTestRes({ok:false, msg:`❌ ${e.message}`}); }
     finally { setTesting(false); }
   };
 
   const handleClear = () => {
-    if (!window.confirm('Remove GitHub credentials?')) return;
+    if (!window.confirm(T('移除 GitHub 凭证？','Remove GitHub credentials?'))) return;
     lsDel('githubToken'); lsDel('githubRepo'); setTok(''); setRepo(''); onGhChange?.(false);
   };
 
@@ -1110,19 +1136,19 @@ function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mt-8 mb-8" onClick={e=>e.stopPropagation()}>
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-900">⚙️ Settings</h3>
+          <h3 className="text-sm font-semibold text-gray-900">⚙️ {T('设置','Settings')}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg">&times;</button>
         </div>
         <div className="p-4 space-y-4">
           {/* GitHub */}
           <div>
-            <p className="text-xs font-semibold text-gray-700 mb-2">GitHub Storage</p>
+            <p className="text-xs font-semibold text-gray-700 mb-2">{T('GitHub 存储','GitHub Storage')}</p>
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 space-y-1 mb-3">
-              <div className="font-semibold">One-time setup:</div>
-              <div>1. Create a <strong>private</strong> GitHub repo — e.g. <code className="bg-blue-100 px-1 rounded">username/jobapp-data</code></div>
-              <div>2. Go to <a href="https://github.com/settings/tokens/new" target="_blank" rel="noreferrer" className="underline">github.com/settings/tokens/new</a></div>
-              <div>3. Tick <strong>repo</strong> scope → Generate → copy the token</div>
-              <div>4. Paste both below and click Save</div>
+              <div className="font-semibold">{T('一次性设置：','One-time setup:')}</div>
+              <div>{T('1. 创建一个 ','1. Create a ')}<strong>{T('私有','private')}</strong>{T(' GitHub 仓库 — 例如 ',' GitHub repo — e.g. ')}<code className="bg-blue-100 px-1 rounded">username/jobapp-data</code></div>
+              <div>{T('2. 前往 ','2. Go to ')}<a href="https://github.com/settings/tokens/new" target="_blank" rel="noreferrer" className="underline">github.com/settings/tokens/new</a></div>
+              <div>{T('3. 勾选 ','3. Tick ')}<strong>repo</strong>{T(' 权限 → Generate → 复制 token',' scope → Generate → copy the token')}</div>
+              <div>{T('4. 把两者粘贴到下方并点击保存','4. Paste both below and click Save')}</div>
             </div>
             <div className="space-y-3">
               <div>
@@ -1136,7 +1162,7 @@ function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-700 mb-1 block">Repository (owner/repo-name)</label>
+                <label className="text-xs font-medium text-gray-700 mb-1 block">{T('仓库（owner/repo-name）','Repository (owner/repo-name)')}</label>
                 <input type="text" value={repo} onChange={e=>setRepo(e.target.value)}
                   placeholder="your-username/jobapp-data"
                   className="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1149,10 +1175,10 @@ function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
               </div>
             )}
             <div className="flex justify-between items-center flex-wrap gap-2 mt-3">
-              {ghOk && <Btn variant="danger" onClick={handleClear}>Remove credentials</Btn>}
+              {ghOk && <Btn variant="danger" onClick={handleClear}>{T('移除凭证','Remove credentials')}</Btn>}
               <div className="flex gap-2 ml-auto">
                 <Btn onClick={handleTest} disabled={testing||!tok.trim()||!repo.trim()}>
-                  {testing?'Testing…':'Test connection'}
+                  {testing?T('测试中…','Testing…'):T('测试连接','Test connection')}
                 </Btn>
               </div>
             </div>
@@ -1163,8 +1189,8 @@ function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
 
           {/* Anthropic API Key */}
           <div>
-            <p className="text-xs font-semibold text-gray-700 mb-1">Anthropic API Key <span className="font-normal text-gray-400">(optional — for 📧 Alerts tab)</span></p>
-            <p className="text-xs text-gray-500 mb-2">Used only by the LinkedIn email watchdog. Get one at <a href="https://console.anthropic.com" target="_blank" rel="noreferrer" className="underline text-blue-600">console.anthropic.com</a> → API Keys. Costs ~$0.01–0.05 per scan.</p>
+            <p className="text-xs font-semibold text-gray-700 mb-1">Anthropic API Key <span className="font-normal text-gray-400">{T('（可选 — 用于 📧 提醒 标签页）','(optional — for 📧 Alerts tab)')}</span></p>
+            <p className="text-xs text-gray-500 mb-2">{T('仅供 LinkedIn 邮件监测使用。前往 ','Used only by the LinkedIn email watchdog. Get one at ')}<a href="https://console.anthropic.com" target="_blank" rel="noreferrer" className="underline text-blue-600">console.anthropic.com</a>{T(' → API Keys 获取。每次扫描约 $0.01–0.05。',' → API Keys. Costs ~$0.01–0.05 per scan.')}</p>
             <div className="relative">
               <input type={showAnt?'text':'password'} value={anthropicKey} onChange={e=>setAnthropicKey(e.target.value)}
                 placeholder="sk-ant-xxxxxxxxxxxxxxxx"
@@ -1175,9 +1201,9 @@ function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
           </div>
 
           <div className="flex justify-between items-center pt-1">
-            <p className="text-xs text-gray-400">Keys stay in your browser only. Never sent anywhere except their respective APIs.</p>
+            <p className="text-xs text-gray-400">{T('密钥只保存在你的浏览器，除各自的 API 外绝不发送到任何地方。','Keys stay in your browser only. Never sent anywhere except their respective APIs.')}</p>
             <Btn variant="primary" onClick={handleSave} disabled={!tok.trim()||!repo.trim()}>
-              {saved?'✅ Saved':'Save'}
+              {saved?T('✅ 已保存','✅ Saved'):T('保存','Save')}
             </Btn>
           </div>
         </div>
@@ -1257,7 +1283,7 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
   };
 
   const handleDelete = id => {
-    if (!window.confirm('Remove this section from your profile?')) return;
+    if (!window.confirm(T('从你的资料中移除此部分？','Remove this section from your profile?'))) return;
     updateSections(sections.filter(s => s.id !== id), false);
   };
 
@@ -1282,52 +1308,51 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
   return (
     <div className="space-y-3">
       <Card className="p-4">
-        <SectionHdr icon="📝" title="My profile — reference files for AI prompts"
+        <SectionHdr icon="📝" title={T('我的资料 — 给 AI 提示词的参考文件','My profile — reference files for AI prompts')}
           action={
             <div className="flex flex-wrap gap-2 items-center">
-              <FileUploadButton onFile={handleUpload} label="Upload file" />
-              <Btn onClick={()=>setShowTpl(v=>!v)}>📋 Templates</Btn>
-              <Btn onClick={handleAddManual}>➕ Add section</Btn>
+              <FileUploadButton onFile={handleUpload} label={T('上传文件','Upload file')} />
+              <Btn onClick={()=>setShowTpl(v=>!v)}>{T('📋 模板','📋 Templates')}</Btn>
+              <Btn onClick={handleAddManual}>{T('➕ 添加部分','➕ Add section')}</Btn>
               <Btn variant="primary" onClick={handleSaveAll} disabled={saving}>
-                {saving ? '⏳ Saving…' : saved ? '✅ Saved' : '💾 Save all'}
+                {saving ? T('⏳ 保存中…','⏳ Saving…') : saved ? T('✅ 已保存','✅ Saved') : T('💾 全部保存','💾 Save all')}
               </Btn>
             </div>
           }
         />
         <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 mb-3">
-          <strong>All sections below are combined and sent to Claude when you use AI prompts.</strong>{' '}
-          Upload each file separately — work history, resume templates, skills, anything you want Claude to reference.
-          Accepts .txt, .md, .docx, .pdf. <strong>Shared across all regions.</strong>
-          {totalChars > 0 && <span className="ml-1 text-blue-700">Total: {totalChars.toLocaleString()} characters across {sections.length} section{sections.length !== 1 ? 's' : ''}.</span>}
+          <strong>{T('使用 AI 提示词时，下面所有部分会被合并发送给 Claude。','All sections below are combined and sent to Claude when you use AI prompts.')}</strong>{' '}
+          {T('逐个上传文件 — 工作经历、简历模板、技能，任何你想让 Claude 参考的内容。支持 .txt、.md、.docx、.pdf。','Upload each file separately — work history, resume templates, skills, anything you want Claude to reference. Accepts .txt, .md, .docx, .pdf.')} <strong>{T('所有地区共享。','Shared across all regions.')}</strong>
+          {totalChars > 0 && <span className="ml-1 text-blue-700">{T('共 ','Total: ')}{totalChars.toLocaleString()}{T(' 个字符，分布在 ',' characters across ')}{sections.length}{T(' 个部分。', sections.length !== 1 ? ' sections.' : ' section.')}</span>}
         </div>
 
         {showTpl && (
           <div className="mb-3 p-3 border border-purple-200 bg-purple-50 rounded-md">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold text-purple-900">📋 Templates — one click to insert, then edit freely</span>
-              <button onClick={()=>setShowTpl(false)} className="text-xs text-purple-700 hover:underline">✕ close</button>
+              <span className="text-sm font-semibold text-purple-900">{T('📋 模板 — 一键插入，之后自由编辑','📋 Templates — one click to insert, then edit freely')}</span>
+              <button onClick={()=>setShowTpl(false)} className="text-xs text-purple-700 hover:underline">{T('✕ 关闭','✕ close')}</button>
             </div>
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <Btn variant="primary" onClick={insertStarter}>🧱 Generate personal-database skeleton</Btn>
-              <span className="text-xs text-purple-800">Adds Contact · Summary · Experience · Education · Skills · Projects · Certifications as editable sections to fill in.</span>
+              <Btn variant="primary" onClick={insertStarter}>{T('🧱 生成个人资料库骨架','🧱 Generate personal-database skeleton')}</Btn>
+              <span className="text-xs text-purple-800">{T('添加 联系方式 · 概述 · 经历 · 教育 · 技能 · 项目 · 证书 等可编辑部分供填写。','Adds Contact · Summary · Experience · Education · Skills · Projects · Certifications as editable sections to fill in.')}</span>
             </div>
-            <div className="text-xs font-medium text-purple-900 mb-1.5">Add a curated skills block by role:</div>
+            <div className="text-xs font-medium text-purple-900 mb-1.5">{T('按岗位添加一组精选技能：','Add a curated skills block by role:')}</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {SKILL_TEMPLATES.map(t => (
                 <button key={t.role} onClick={()=>insertSection('Skills — '+t.role, t.content)}
                   className="text-left text-xs px-2.5 py-2 rounded-md border border-purple-200 bg-white hover:bg-purple-100 transition-colors">
                   <span className="font-medium text-gray-800">{t.icon} {t.role}</span>
-                  <span className="block text-purple-600 mt-0.5">+ insert as section</span>
+                  <span className="block text-purple-600 mt-0.5">{T('+ 作为部分插入','+ insert as section')}</span>
                 </button>
               ))}
             </div>
-            <div className="mt-2 text-[11px] text-purple-700">Inserted as new sections — rename / edit / delete them freely, then click 💾 Save all to sync.</div>
+            <div className="mt-2 text-[11px] text-purple-700">{T('作为新部分插入 — 可自由重命名 / 编辑 / 删除，然后点击 💾 全部保存 同步。','Inserted as new sections — rename / edit / delete them freely, then click 💾 Save all to sync.')}</div>
           </div>
         )}
 
         {sections.length === 0 ? (
           <div className="p-6 text-center text-sm text-gray-500 border border-dashed border-gray-300 rounded-md">
-            No sections yet. Click <strong>Upload file</strong> to add your first one, or <strong>Add section</strong> to write manually.
+            {T('还没有任何部分。点击 ','No sections yet. Click ')}<strong>{T('上传文件','Upload file')}</strong>{T(' 添加第一个，或点击 ',' to add your first one, or ')}<strong>{T('添加部分','Add section')}</strong>{T(' 手动编写。',' to write manually.')}
           </div>
         ) : (
           <div className="space-y-2">
@@ -1356,9 +1381,9 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
                     </button>
                   )}
 
-                  <span className="text-xs text-gray-400 shrink-0">{(s.content || '').length.toLocaleString()} chars</span>
-                  <button onClick={() => startRename(s)} className="text-xs text-gray-400 hover:text-gray-700 shrink-0" title="Rename">✏️</button>
-                  <button onClick={() => handleDelete(s.id)} className="text-xs text-gray-400 hover:text-red-600 shrink-0" title="Remove">🗑</button>
+                  <span className="text-xs text-gray-400 shrink-0">{(s.content || '').length.toLocaleString()} {T('字符','chars')}</span>
+                  <button onClick={() => startRename(s)} className="text-xs text-gray-400 hover:text-gray-700 shrink-0" title={T('重命名','Rename')}>✏️</button>
+                  <button onClick={() => handleDelete(s.id)} className="text-xs text-gray-400 hover:text-red-600 shrink-0" title={T('移除','Remove')}>🗑</button>
                 </div>
 
                 {/* Expanded editor */}
@@ -1367,7 +1392,7 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
                     <textarea
                       value={s.content || ''}
                       onChange={e => handleContentChange(s.id, e.target.value)}
-                      placeholder="Content of this section…"
+                      placeholder={T('此部分的内容…','Content of this section…')}
                       className="w-full h-48 p-2 text-sm font-mono border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
                     />
                   </div>
@@ -1379,27 +1404,26 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
 
         {sections.length > 0 && (
           <p className="mt-3 text-xs text-gray-400">
-            Click a section name to rename it. Click ▶ to expand and edit the content. Click 💾 Save all when done.
+            {T('点击部分名称可重命名。点击 ▶ 展开并编辑内容。完成后点击 💾 全部保存。','Click a section name to rename it. Click ▶ to expand and edit the content. Click 💾 Save all when done.')}
           </p>
         )}
       </Card>
 
       {/* Translation glossary card */}
       <Card className="p-4">
-        <SectionHdr icon="📖" title="Translation glossary"
+        <SectionHdr icon="📖" title={T('翻译词汇表','Translation glossary')}
           action={
             <Btn variant="primary" onClick={async () => {
               setGlossary(glsDraft);
               await saveText('glossary', glsDraft);
               setGlsSaved(true); setTimeout(() => setGlsSaved(false), 1500);
             }}>
-              {glsSaved ? '✅ Saved' : '💾 Save'}
+              {glsSaved ? T('✅ 已保存','✅ Saved') : T('💾 保存','💾 Save')}
             </Btn>
           }
         />
         <p className="text-xs text-gray-600 mb-3">
-          Specify exact Chinese translations for your name, company names, school names, and any other terms.
-          These are injected into every <strong>Translate</strong> prompt so Claude always uses your preferred translations — one entry per line.
+          {T('为你的姓名、公司名、学校名以及其他术语指定精确的中文翻译。它们会被注入每一条','Specify exact Chinese translations for your name, company names, school names, and any other terms. These are injected into every')} <strong>{T('翻译','Translate')}</strong> {T('提示词，让 Claude 始终使用你偏好的翻译 — 每行一条。','prompt so Claude always uses your preferred translations — one entry per line.')}
         </p>
         <textarea
           value={glsDraft}
@@ -1409,43 +1433,43 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
         />
         <p className="mt-1 text-xs text-gray-400">
           {glsDraft.trim()
-            ? `✅ ${glsDraft.trim().split('\n').filter(Boolean).length} entr${glsDraft.trim().split('\n').filter(Boolean).length !== 1 ? 'ies' : 'y'} — injected into all translate prompts.`
-            : 'No glossary entries yet — Claude will use its best judgment for names.'}
+            ? T(`✅ ${glsDraft.trim().split('\n').filter(Boolean).length} 条词条 — 已注入所有翻译提示词。`, `✅ ${glsDraft.trim().split('\n').filter(Boolean).length} entr${glsDraft.trim().split('\n').filter(Boolean).length !== 1 ? 'ies' : 'y'} — injected into all translate prompts.`)
+            : T('暂无词汇表 — Claude 将自行判断姓名翻译。','No glossary entries yet — Claude will use its best judgment for names.')}
         </p>
       </Card>
 
       {/* Formatting instructions card */}
       <Card className="p-4">
-        <SectionHdr icon="🎨" title="Resume formatting requirements"
+        <SectionHdr icon="🎨" title={T('简历格式要求','Resume formatting requirements')}
           action={
             <Btn variant="primary" onClick={async () => {
               setFormatting(fmtDraft);
               await saveText('formatting', fmtDraft);
               setFmtSaved(true); setTimeout(() => setFmtSaved(false), 1500);
             }}>
-              {fmtSaved ? '✅ Saved' : '💾 Save'}
+              {fmtSaved ? T('✅ 已保存','✅ Saved') : T('💾 保存','💾 Save')}
             </Btn>
           }
         />
         <p className="text-xs text-gray-600 mb-3">
-          Describe exactly how you want your resume laid out. This is included in every <strong>Tailor Resume</strong> prompt so Claude always follows your preferred format — even though it can't read the visual styling of your uploaded files.
+          {T('准确描述你希望的简历排版方式。它会被包含进每一条','Describe exactly how you want your resume laid out. This is included in every')} <strong>{T('定制简历','Tailor Resume')}</strong> {T("提示词，让 Claude 始终遵循你偏好的格式 — 即使它无法读取你上传文件的视觉样式。","prompt so Claude always follows your preferred format — even though it can't read the visual styling of your uploaded files.")}
         </p>
         <textarea
           value={fmtDraft}
           onChange={e => setFmtDraft(e.target.value)}
-          placeholder={`Examples of what to write here:\n\n- One page maximum\n- Sections in this order: Summary, Experience, Education, Skills\n- Bullet points under each role, max 4 bullets\n- Dates on the right side, company and title on the left\n- No objective statement\n- Use bold for company names and job titles\n- Skills section: list as comma-separated, grouped by category\n- Hong Kong format: include a photo placeholder line at the top\n- Use British English spelling`}
+          placeholder={T(`在这里写什么的示例：\n\n- 最多一页\n- 章节顺序：概述、经历、教育、技能\n- 每段角色下用项目符号，最多 4 条\n- 日期靠右，公司和职位靠左\n- 不写求职目标陈述\n- 公司名和职位用加粗\n- 技能部分：逗号分隔，按类别分组\n- 香港格式：顶部加一行照片占位\n- 使用英式英语拼写`,`Examples of what to write here:\n\n- One page maximum\n- Sections in this order: Summary, Experience, Education, Skills\n- Bullet points under each role, max 4 bullets\n- Dates on the right side, company and title on the left\n- No objective statement\n- Use bold for company names and job titles\n- Skills section: list as comma-separated, grouped by category\n- Hong Kong format: include a photo placeholder line at the top\n- Use British English spelling`)}
           className="w-full h-48 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y font-mono"
         />
         <p className="mt-1 text-xs text-gray-400">
           {fmtDraft.trim()
-            ? `✅ ${fmtDraft.trim().split('\n').filter(Boolean).length} formatting rule${fmtDraft.trim().split('\n').filter(Boolean).length !== 1 ? 's' : ''} saved — included in Tailor Resume prompts.`
-            : 'No formatting rules set yet — Claude will use its default layout.'}
+            ? T(`✅ 已保存 ${fmtDraft.trim().split('\n').filter(Boolean).length} 条格式规则 — 已包含进定制简历提示词。`, `✅ ${fmtDraft.trim().split('\n').filter(Boolean).length} formatting rule${fmtDraft.trim().split('\n').filter(Boolean).length !== 1 ? 's' : ''} saved — included in Tailor Resume prompts.`)
+            : T('尚未设置格式规则 — Claude 将使用其默认排版。','No formatting rules set yet — Claude will use its default layout.')}
         </p>
       </Card>
 
       {/* Generate General Resume */}
       <Card className="p-4">
-        <SectionHdr icon="📄" title="Generate general resume" />
+        <SectionHdr icon="📄" title={T('生成通用简历','Generate general resume')} />
         <GeneralResumeSection resumeDb={resumeDb} formatting={formatting} glossary={glossary} region={region} />
       </Card>
     </div>
@@ -1459,11 +1483,11 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
 function GeneralResumeSection({ resumeDb, formatting, glossary, region }) {
   const [showModal, setShowModal] = useState(false);
   const REGION_CFG = {
-    canada:   { label:'🇨🇦 English Resume' },
-    hongkong: { label:'🇭🇰 繁體中文 + English (2 pages)' },
-    china:    { label:'🇨🇳 简体中文简历' },
+    canada:   { label:T('🇨🇦 英文简历','🇨🇦 English Resume') },
+    hongkong: { label:T('🇭🇰 繁體中文 + 英文（2 页）','🇭🇰 繁體中文 + English (2 pages)') },
+    china:    { label:T('🇨🇳 简体中文简历','🇨🇳 Simplified Chinese resume') },
   };
-  const cfg = REGION_CFG[region] || { label: `${(REGION_BY[region]||{}).flag||'🌍'} English Resume — ${(REGION_BY[region]||{}).name||'Region'}` };
+  const cfg = REGION_CFG[region] || { label: `${(REGION_BY[region]||{}).flag||'🌍'} ${T('英文简历','English Resume')} — ${rName(REGION_BY[region])||T('地区','Region')}` };
 
   function buildPrompt() {
     if (region === 'canada') {
@@ -1573,18 +1597,18 @@ CONTENT:
   return (
     <div>
       <p className="text-xs text-gray-500 mb-3">
-        Generate a general-purpose resume from your profile — not tailored to any specific job.
-        {region === 'canada' ? ' Claude generates a one-page PDF via the Analysis Tool.'
-         : region === 'hongkong' ? ' Two-page PDF: Traditional Chinese page 1, English page 2.'
-         : ' One-page PDF in Simplified Chinese via the Analysis Tool.'}
+        {T('从你的资料生成一份通用简历 — 不针对任何特定职位。','Generate a general-purpose resume from your profile — not tailored to any specific job.')}
+        {region === 'canada' ? T(' Claude 通过 Analysis 工具生成一页 PDF。',' Claude generates a one-page PDF via the Analysis Tool.')
+         : region === 'hongkong' ? T(' 两页 PDF：第 1 页繁體中文，第 2 页英文。',' Two-page PDF: Traditional Chinese page 1, English page 2.')
+         : T(' 通过 Analysis 工具生成一页简体中文 PDF。',' One-page PDF in Simplified Chinese via the Analysis Tool.')}
       </p>
       <div className="flex items-center gap-3">
         <Btn variant="primary" onClick={()=>setShowModal(true)} disabled={!resumeDb?.trim()}>
           📄 {cfg.label}
         </Btn>
-        <span className="text-xs text-gray-400">Copy-paste to Claude.ai</span>
+        <span className="text-xs text-gray-400">{T('复制粘贴到 Claude.ai','Copy-paste to Claude.ai')}</span>
       </div>
-      {!resumeDb?.trim() && <p className="text-xs text-amber-700 mt-2">Add your profile sections first.</p>}
+      {!resumeDb?.trim() && <p className="text-xs text-amber-700 mt-2">{T('请先添加你的资料部分。','Add your profile sections first.')}</p>}
       {showModal && <PromptModal title={cfg.label} prompt={buildPrompt()} onClose={()=>setShowModal(false)} />}
     </div>
   );
@@ -1605,18 +1629,18 @@ function LibraryTab({ library, setLibrary, updateSections }) {
   };
 
   const handleDelete = async id => {
-    if (!window.confirm('Delete this resume?')) return;
+    if (!window.confirm(T('删除这份简历？','Delete this resume?'))) return;
     const updated = library.filter(r=>r.id!==id); setLibrary(updated); await saveJson('library', updated);
   };
 
   const handleRename = async id => {
     const cur = library.find(r=>r.id===id); if (!cur) return;
-    const next = window.prompt('Rename:', cur.name); if (!next||next===cur.name) return;
+    const next = window.prompt(T('重命名：','Rename:'), cur.name); if (!next||next===cur.name) return;
     const updated = library.map(r=>r.id===id?{...r,name:next}:r); setLibrary(updated); await saveJson('library', updated);
   };
 
   const handleUseAsProfile = async entry => {
-    if (!window.confirm(`Replace your entire profile with "${entry.name}"?\n\nThis replaces all existing sections with one section from this resume.`)) return;
+    if (!window.confirm(T(`用「${entry.name}」替换你的整个资料？\n\n这会用此简历中的一个部分替换所有现有部分。`,`Replace your entire profile with "${entry.name}"?\n\nThis replaces all existing sections with one section from this resume.`))) return;
     const section = { id: newId(), name: entry.name, content: entry.content, source: 'library', addedAt: new Date().toISOString() };
     await updateSections([section], true);
   };
@@ -1626,14 +1650,14 @@ function LibraryTab({ library, setLibrary, updateSections }) {
       <Card className="p-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-1">📚 Resume library</h3>
-            <p className="text-xs text-gray-600">Store multiple resume versions. <strong>Shared across all regions.</strong> .txt, .md, .docx, .pdf</p>
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">{T('📚 简历库','📚 Resume library')}</h3>
+            <p className="text-xs text-gray-600">{T('存储多个简历版本。','Store multiple resume versions. ')}<strong>{T('所有地区共享。','Shared across all regions.')}</strong> .txt, .md, .docx, .pdf</p>
           </div>
-          <FileUploadButton onFile={handleUpload} label="Upload resume" primary />
+          <FileUploadButton onFile={handleUpload} label={T('上传简历','Upload resume')} primary />
         </div>
       </Card>
       {library.length === 0 ? (
-        <Card className="p-8 text-center text-sm text-gray-500">No resumes yet. Click Upload resume above.</Card>
+        <Card className="p-8 text-center text-sm text-gray-500">{T('还没有简历。点击上方的「上传简历」。','No resumes yet. Click Upload resume above.')}</Card>
       ) : (
         <div className="space-y-2">
           {library.map(r => (
@@ -1641,10 +1665,10 @@ function LibraryTab({ library, setLibrary, updateSections }) {
               <div className="flex items-start justify-between gap-2">
                 <button className="flex-1 text-left min-w-0" onClick={()=>setExpandedId(expandedId===r.id?null:r.id)}>
                   <div className="text-sm font-semibold text-gray-900 truncate">{r.name}</div>
-                  <div className="text-xs text-gray-500">{fmtDate(r.uploadedAt)} · {r.content.length.toLocaleString()} chars</div>
+                  <div className="text-xs text-gray-500">{fmtDate(r.uploadedAt)} · {r.content.length.toLocaleString()} {T('字符','chars')}</div>
                 </button>
                 <div className="flex gap-1 flex-wrap shrink-0">
-                  <Btn onClick={()=>handleUseAsProfile(r)}>👤 Use as profile</Btn>
+                  <Btn onClick={()=>handleUseAsProfile(r)}>{T('👤 用作资料','👤 Use as profile')}</Btn>
                   <DownloadMenu content={r.content} baseFilename={r.name} />
                   <Btn onClick={()=>handleRename(r.id)}>✏️</Btn>
                   <Btn variant="danger" onClick={()=>handleDelete(r.id)}>🗑</Btn>
@@ -1686,7 +1710,7 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
   };
 
   const handleSave = async () => {
-    if (!form.company.trim() && !form.role.trim()) { alert('Please enter at least a company name or role.'); return; }
+    if (!form.company.trim() && !form.role.trim()) { alert(T('请至少填写公司名称或职位。','Please enter at least a company name or role.')); return; }
     const job = { id: newId(), dateAdded: new Date().toISOString(), ...form };
     const updated = [job, ...jobs];
     setJobs(updated); await saveJson(`${region}:jobs`, updated);
@@ -1699,39 +1723,39 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
   return (
     <div className="space-y-4">
       <Card className="p-4">
-        <SectionHdr icon="➕" title="Add a job application" />
+        <SectionHdr icon="➕" title={T('添加一个职位申请','Add a job application')} />
         {/* JD textarea with upload */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-medium text-gray-700">Job description</label>
+            <label className="text-xs font-medium text-gray-700">{T('职位描述','Job description')}</label>
             <FileUploadButton
               onFile={handleJdUpload}
-              label="Upload JD file"
+              label={T('上传 JD 文件','Upload JD file')}
               accept=".txt,.md,.markdown,.docx,.pdf"
             />
           </div>
           <textarea value={form.jdText} onChange={e=>set('jdText',e.target.value)}
-            placeholder="Paste the full job description here, or upload a file above. Fields below will be auto-filled from the content."
+            placeholder={T('在此粘贴完整的职位描述，或在上方上传文件。下方字段会根据内容自动填充。','Paste the full job description here, or upload a file above. Fields below will be auto-filled from the content.')}
             className="w-full h-36 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
-          <div className="text-xs text-gray-400 mt-0.5">{form.jdText.length.toLocaleString()} chars</div>
+          <div className="text-xs text-gray-400 mt-0.5">{form.jdText.length.toLocaleString()} {T('字符','chars')}</div>
         </div>
 
         {/* Auto-fill hint banner */}
         {extracted && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-xs text-green-900">
-            <strong>✅ Auto-filled from file:</strong>{' '}
+            <strong>{T('✅ 已从文件自动填充：','✅ Auto-filled from file:')}</strong>{' '}
             {Object.entries(extracted).map(([k,v]) => (
               <span key={k} className="inline-block mr-2">
-                <span className="font-medium capitalize">{k === 'salaryRange' ? 'salary' : k === 'applicationDeadline' ? 'deadline' : k}</span>: {v}
+                <span className="font-medium capitalize">{T({company:'公司',role:'职位',location:'地点',salaryRange:'薪资',applicationDeadline:'截止日期'}[k]||k, k === 'salaryRange' ? 'salary' : k === 'applicationDeadline' ? 'deadline' : k)}</span>: {v}
               </span>
             ))}
-            <span className="text-green-700 ml-1">— Review and correct any errors below.</span>
+            <span className="text-green-700 ml-1">{T('— 请在下方检查并更正任何错误。','— Review and correct any errors below.')}</span>
           </div>
         )}
 
         {/* Form fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          {[['company','Company *','Google'],['role','Job Title *','Software Engineer'],['location','Location','Toronto, ON / Remote'],['salaryRange','Salary Range','$120k – $150k']].map(([k,lbl,ph]) => (
+          {[['company',T('公司 *','Company *'),'Google'],['role',T('职位名称 *','Job Title *'),T('软件工程师','Software Engineer')],['location',T('地点','Location'),T('多伦多 / 远程','Toronto, ON / Remote')],['salaryRange',T('薪资范围','Salary Range'),'$120k – $150k']].map(([k,lbl,ph]) => (
             <div key={k}>
               <label className="text-xs font-medium text-gray-700 mb-1 block">{lbl}</label>
               <input value={form[k]} onChange={e=>set(k,e.target.value)} placeholder={ph}
@@ -1739,27 +1763,27 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
             </div>
           ))}
           <div>
-            <label className="text-xs font-medium text-gray-700 mb-1 block">Application Deadline</label>
+            <label className="text-xs font-medium text-gray-700 mb-1 block">{T('申请截止日期','Application Deadline')}</label>
             <input type="date" value={form.applicationDeadline} onChange={e=>set('applicationDeadline',e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-700 mb-1 block">Status</label>
+            <label className="text-xs font-medium text-gray-700 mb-1 block">{T('状态','Status')}</label>
             <select value={form.status} onChange={e=>set('status',e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {STATUSES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
+              {STATUSES.map(s=><option key={s.id} value={s.id}>{T(s.zh,s.label)}</option>)}
             </select>
           </div>
         </div>
         <div className="mb-4">
-          <label className="text-xs font-medium text-gray-700 mb-1 block">Notes</label>
+          <label className="text-xs font-medium text-gray-700 mb-1 block">{T('备注','Notes')}</label>
           <textarea value={form.notes} onChange={e=>set('notes',e.target.value)}
-            placeholder="Recruiter name, how you found it, first impressions…"
+            placeholder={T('招聘者姓名、你如何找到它、第一印象…','Recruiter name, how you found it, first impressions…')}
             className="w-full h-20 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
         </div>
         <div className="flex justify-end">
           <Btn variant="primary" onClick={handleSave} className="px-4 py-2 text-sm">
-            {saved ? '✅ Saved!' : '💾 Save to Tracker'}
+            {saved ? T('✅ 已保存!','✅ Saved!') : T('💾 保存到追踪','💾 Save to Tracker')}
           </Btn>
         </div>
       </Card>
@@ -1966,7 +1990,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
     const toProcess = eligible.filter(j=>selected.has(j.id));
     if (!toProcess.length) return;
     const key = lsGet('anthropicKey');
-    if (!key) { addLog('❌ No Anthropic API key — add it in ⚙️ Settings.'); return; }
+    if (!key) { addLog(T('❌ 没有 Anthropic API 密钥 — 请在 ⚙️ 设置中添加。','❌ No Anthropic API key — add it in ⚙️ Settings.')); return; }
 
     setRunning(true);
     const initProg = {};
@@ -2018,7 +2042,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
         await ghWriteDataUrl(pdfGhPath(pdfKey), dataUrl);
 
         setProgress(p=>({...p,[job.id]:'done'}));
-        addLog(`  ✅ Saved`);
+        addLog(T('  ✅ 已保存','  ✅ Saved'));
 
         // Brief pause between calls
         if (i < toProcess.length-1) await new Promise(r=>setTimeout(r,2000));
@@ -2027,13 +2051,13 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
         setProgress(p=>({...p,[job.id]:'error'}));
         addLog(`  ❌ ${e.message}`);
         if (e.message.includes('429')) {
-          addLog('  ⏳ Rate limited — waiting 30s…');
+          addLog(T('  ⏳ 触发限流 — 等待 30 秒…','  ⏳ Rate limited — waiting 30s…'));
           await new Promise(r=>setTimeout(r,30000));
         }
       }
     }
 
-    addLog(`\nDone. Tailored resumes saved — open each job to view.`);
+    addLog(T(`\n完成。定制简历已保存 — 打开各职位查看。`,`\nDone. Tailored resumes saved — open each job to view.`));
     setRunning(false);
   }
 
@@ -2044,8 +2068,8 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
       <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full mt-8 mb-8" onClick={e=>e.stopPropagation()}>
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-gray-900">🎯 Batch Tailor Resumes</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Generates a tailored PDF resume for each job via Anthropic API (~$0.02–0.04 per resume)</p>
+            <h3 className="text-sm font-semibold text-gray-900">{T('🎯 批量定制简历','🎯 Batch Tailor Resumes')}</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{T('通过 Anthropic API 为每个职位生成一份定制简历 PDF（每份约 $0.02–0.04）','Generates a tailored PDF resume for each job via Anthropic API (~$0.02–0.04 per resume)')}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg">&times;</button>
         </div>
@@ -2053,10 +2077,10 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
           {/* Job list */}
           <div>
             <div className="flex justify-between items-center mb-2">
-              <p className="text-xs font-medium text-gray-700">{eligible.length} Interested job{eligible.length!==1?'s':''} to tailor</p>
+              <p className="text-xs font-medium text-gray-700">{eligible.length} {T('个「感兴趣」职位待定制', `Interested job${eligible.length!==1?'s':''} to tailor`)}</p>
               <div className="flex gap-3">
-                <button onClick={()=>setSelected(new Set(eligible.map(j=>j.id)))} className="text-xs text-blue-600 hover:underline">Select all</button>
-                <button onClick={()=>setSelected(new Set())} className="text-xs text-gray-500 hover:underline">Clear</button>
+                <button onClick={()=>setSelected(new Set(eligible.map(j=>j.id)))} className="text-xs text-blue-600 hover:underline">{T('全选','Select all')}</button>
+                <button onClick={()=>setSelected(new Set())} className="text-xs text-gray-500 hover:underline">{T('清除','Clear')}</button>
               </div>
             </div>
             <div className="space-y-1.5 max-h-52 overflow-y-auto">
@@ -2068,10 +2092,10 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
                   {progress[j.id] && <span className="shrink-0">{statusIcon(progress[j.id])}</span>}
                 </label>
               ))}
-              {!eligible.length && <p className="text-xs text-gray-400 p-2">No <strong>Interested</strong> jobs have JD text. Add jobs with status Interested and paste their JD first.</p>}
+              {!eligible.length && <p className="text-xs text-gray-400 p-2">{T('没有 ','No ')}<strong>{T('「感兴趣」','Interested')}</strong>{T(' 的职位包含 JD 文本。请先添加状态为「感兴趣」的职位并粘贴其 JD。',' jobs have JD text. Add jobs with status Interested and paste their JD first.')}</p>}
             </div>
-            {noJd.length > 0 && <p className="text-xs text-gray-400 mt-1">⚠ {noJd.length} Interested job{noJd.length!==1?'s':''} have no JD text — open them and paste the JD first</p>}
-            {haveResume > 0 && <p className="text-xs text-gray-400 mt-1">📄 {haveResume} Interested job{haveResume!==1?'s':''} already tailored (excluded). Delete the resume in the job to re-tailor.</p>}
+            {noJd.length > 0 && <p className="text-xs text-gray-400 mt-1">⚠ {noJd.length} {T('个「感兴趣」职位没有 JD 文本 — 打开它们并先粘贴 JD', `Interested job${noJd.length!==1?'s':''} have no JD text — open them and paste the JD first`)}</p>}
+            {haveResume > 0 && <p className="text-xs text-gray-400 mt-1">📄 {haveResume} {T('个「感兴趣」职位已定制（已排除）。在职位中删除简历可重新定制。', `Interested job${haveResume!==1?'s':''} already tailored (excluded). Delete the resume in the job to re-tailor.`)}</p>}
           </div>
 
           {/* Log */}
@@ -2082,11 +2106,11 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
           )}
 
           <div className="flex justify-between items-center">
-            <p className="text-xs text-gray-400">{selected.size} job{selected.size!==1?'s':''} selected</p>
+            <p className="text-xs text-gray-400">{selected.size} {T('个职位已选', `job${selected.size!==1?'s':''} selected`)}</p>
             <div className="flex gap-2">
-              <Btn onClick={onClose} disabled={running}>Cancel</Btn>
+              <Btn onClick={onClose} disabled={running}>{T('取消','Cancel')}</Btn>
               <Btn variant="primary" onClick={startBatch} disabled={running||!selected.size||!eligible.length}>
-                {running ? '⏳ Processing…' : `🎯 Tailor ${selected.size} resume${selected.size!==1?'s':''}`}
+                {running ? T('⏳ 处理中…','⏳ Processing…') : T(`🎯 定制 ${selected.size} 份简历`, `🎯 Tailor ${selected.size} resume${selected.size!==1?'s':''}`)}
               </Btn>
             </div>
           </div>
@@ -2113,7 +2137,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting }) {
   };
 
   const deleteJob = async id => {
-    if (!window.confirm('Delete this application?')) return;
+    if (!window.confirm(T('删除这个申请？','Delete this application?'))) return;
     // Clean up localStorage cache
     deletePdfLocal(`${region}:${id}:resume`);
     deletePdfLocal(`${region}:${id}:cover`);
@@ -2129,7 +2153,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting }) {
 
   if (!jobs.length) return (
     <Card className="p-8 text-center text-sm text-gray-500">
-      No applications yet. Go to <strong>Add Job</strong> to add your first one.
+      {T('还没有申请。前往 ','No applications yet. Go to ')}<strong>{T('添加职位','Add Job')}</strong>{T(' 添加第一个。',' to add your first one.')}
     </Card>
   );
 
@@ -2140,17 +2164,17 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting }) {
         <div className="flex flex-wrap gap-2 items-center">
           <div className="relative flex-1 min-w-[180px]">
             <span className="absolute left-2.5 top-2 text-gray-400 text-xs">🔍</span>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search company, role…"
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={T('搜索公司、职位…','Search company, role…')}
               className="w-full pl-7 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <select value={filter} onChange={e=>setFilter(e.target.value)}
             className="text-sm px-2 py-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="all">All ({jobs.length})</option>
-            {STATUSES.map(s=><option key={s.id} value={s.id}>{s.label} ({jobs.filter(j=>j.status===s.id).length})</option>)}
+            <option value="all">{T('全部','All')} ({jobs.length})</option>
+            {STATUSES.map(s=><option key={s.id} value={s.id}>{T(s.zh,s.label)} ({jobs.filter(j=>j.status===s.id).length})</option>)}
           </select>
           {lsGet('anthropicKey') && (
-            <Btn onClick={()=>setShowBatch(true)} title="Generate tailored resume PDFs for multiple jobs automatically">
-              🎯 Batch Tailor
+            <Btn onClick={()=>setShowBatch(true)} title={T('自动为多个职位生成定制简历 PDF','Generate tailored resume PDFs for multiple jobs automatically')}>
+              {T('🎯 批量定制','🎯 Batch Tailor')}
             </Btn>
           )}
         </div>
@@ -2160,25 +2184,25 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting }) {
           <div className="flex items-start justify-between gap-2">
             <button className="flex-1 text-left min-w-0" onClick={()=>onOpen(j.id)}>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-semibold text-gray-900 truncate">{j.role||'(no title)'}</span>
+                <span className="text-sm font-semibold text-gray-900 truncate">{j.role||T('（无职位名）','(no title)')}</span>
                 <StatusPill status={j.status} />
                 {j.status==='interested' && loadPdfLocal(`${region}:${j.id}:resume`) && (
-                  <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">📄 Resume ready</span>
+                  <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">{T('📄 简历就绪','📄 Resume ready')}</span>
                 )}
-                {j.applicationDeadline && new Date(j.applicationDeadline) < new Date() && j.status === 'interested' && <span className="text-xs text-red-600 font-medium">⏰ Deadline passed</span>}
+                {j.applicationDeadline && new Date(j.applicationDeadline) < new Date() && j.status === 'interested' && <span className="text-xs text-red-600 font-medium">{T('⏰ 已过截止','⏰ Deadline passed')}</span>}
               </div>
-              <div className="text-xs text-gray-600 mt-0.5">{j.company||'(no company)'}{j.location?` · ${j.location}`:''}</div>
-              <div className="text-xs text-gray-400 mt-0.5">Added {fmtDate(j.dateAdded)}{j.applicationDeadline?` · Deadline: ${fmtDate(j.applicationDeadline)}`:''}</div>
+              <div className="text-xs text-gray-600 mt-0.5">{j.company||T('（无公司）','(no company)')}{j.location?` · ${j.location}`:''}</div>
+              <div className="text-xs text-gray-400 mt-0.5">{T('添加于 ','Added ')}{fmtDate(j.dateAdded)}{j.applicationDeadline?T(` · 截止：${fmtDate(j.applicationDeadline)}`,` · Deadline: ${fmtDate(j.applicationDeadline)}`):''}</div>
             </button>
             <div className="flex gap-1.5 shrink-0 items-center">
               <StatusSelect value={j.status} onChange={s=>updateStatus(j.id,s)} />
-              <Btn onClick={()=>onOpen(j.id)}>Open →</Btn>
+              <Btn onClick={()=>onOpen(j.id)}>{T('打开 →','Open →')}</Btn>
               <Btn variant="danger" onClick={()=>deleteJob(j.id)}>🗑</Btn>
             </div>
           </div>
         </Card>
       ))}
-      {!filtered.length && <Card className="p-6 text-center text-sm text-gray-500">No applications match your filters.</Card>}
+      {!filtered.length && <Card className="p-6 text-center text-sm text-gray-500">{T('没有符合筛选条件的申请。','No applications match your filters.')}</Card>}
     </div>
   );
 }
@@ -2230,7 +2254,7 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
     const ext = (file.name.split('.').pop() || '').toLowerCase();
-    if (ext !== 'pdf') { setErr('Please upload a PDF file. Tailor Resume / Cover Letter prompts ask Claude to generate a PDF directly via the Analysis Tool — that\'s the file to upload here.'); return; }
+    if (ext !== 'pdf') { setErr(T('请上传 PDF 文件。「定制简历 / 求职信」提示词会让 Claude 通过 Analysis 工具直接生成 PDF — 那就是要在这里上传的文件。','Please upload a PDF file. Tailor Resume / Cover Letter prompts ask Claude to generate a PDF directly via the Analysis Tool — that\'s the file to upload here.')); return; }
     setBusy(true); setErr('');
     try {
       const url = await readFileAsDataUrl(file);
@@ -2241,9 +2265,9 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
       setGhSaving(true);
       await ghWriteDataUrl(pdfGhPath(pdfKey), url);
     } catch(e) {
-      const msg = e.message || 'Upload failed';
+      const msg = e.message || T('上传失败','Upload failed');
       if (msg.includes('GitHub') || msg.includes('configured')) {
-        setErr(`Saved locally. GitHub sync failed: ${msg}`);
+        setErr(T(`已保存到本地。GitHub 同步失败：${msg}`,`Saved locally. GitHub sync failed: ${msg}`));
       } else {
         setErr(msg);
       }
@@ -2252,7 +2276,7 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
   };
 
   const handleDelete = () => {
-    if (!window.confirm('Remove this file?')) return;
+    if (!window.confirm(T('移除此文件？','Remove this file?'))) return;
     deletePdfLocal(pdfKey);
     // Delete from GitHub — try both extensions for backward compat
     for (const ext of ['pdf','html']) {
@@ -2274,11 +2298,11 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 className="text-sm font-semibold text-gray-900">{icon} {label}</h3>
         <div className="flex gap-2 flex-wrap items-center">
-          {ghSaving && <span className="text-xs text-blue-600 animate-pulse">⏳ Saving to GitHub…</span>}
-          {dataUrl && <Btn onClick={handleDownload}>⬇️ Download PDF</Btn>}
+          {ghSaving && <span className="text-xs text-blue-600 animate-pulse">{T('⏳ 正在保存到 GitHub…','⏳ Saving to GitHub…')}</span>}
+          {dataUrl && <Btn onClick={handleDownload}>{T('⬇️ 下载 PDF','⬇️ Download PDF')}</Btn>}
           <input ref={ref} type="file" accept=".pdf" onChange={handleUpload} className="hidden" />
           <Btn variant="primary" onClick={() => ref.current?.click()} disabled={busy || ghSaving}>
-            {busy ? '⏳ Reading…' : '⬆️ Upload PDF'}
+            {busy ? T('⏳ 读取中…','⏳ Reading…') : T('⬆️ 上传 PDF','⬆️ Upload PDF')}
           </Btn>
           {dataUrl && <Btn variant="danger" onClick={handleDelete}>🗑</Btn>}
         </div>
@@ -2293,16 +2317,16 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
             title={label}
           />
         ) : (
-          <div className="border border-gray-200 rounded-md p-4 text-center text-xs text-gray-500">Rendering PDF…</div>
+          <div className="border border-gray-200 rounded-md p-4 text-center text-xs text-gray-500">{T('正在渲染 PDF…','Rendering PDF…')}</div>
         )
       ) : (
         <div className="border-2 border-dashed border-gray-300 rounded-md p-8 text-center">
-          <p className="text-sm text-gray-500 mb-1">No PDF uploaded yet</p>
-          <p className="text-xs text-gray-400">Upload a PDF file here</p>
+          <p className="text-sm text-gray-500 mb-1">{T('还没有上传 PDF','No PDF uploaded yet')}</p>
+          <p className="text-xs text-gray-400">{T('在此上传 PDF 文件','Upload a PDF file here')}</p>
         </div>
       )}
       <p className="mt-2 text-xs text-gray-400">
-        PDF saved to GitHub at <code className="bg-gray-100 px-1 rounded">data/files/</code> and cached locally for fast loading.
+        {T('PDF 保存在 GitHub 的 ','PDF saved to GitHub at ')}<code className="bg-gray-100 px-1 rounded">data/files/</code>{T(' 并在本地缓存以加快加载。',' and cached locally for fast loading.')}
       </p>
     </Card>
   );
@@ -2337,30 +2361,30 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
 
   return (
     <div className="space-y-4">
-      <button onClick={onBack} className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900">← Back to tracker</button>
+      <button onClick={onBack} className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900">{T('← 返回追踪','← Back to tracker')}</button>
 
       {/* Header card */}
       <Card className="p-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">{form.role||'(no title)'}</h2>
-            <div className="text-sm text-gray-600">{form.company||'(no company)'}{form.location?` · ${form.location}`:''}</div>
+            <h2 className="text-lg font-semibold text-gray-900">{form.role||T('（无职位名）','(no title)')}</h2>
+            <div className="text-sm text-gray-600">{form.company||T('（无公司）','(no company)')}{form.location?` · ${form.location}`:''}</div>
             <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-gray-500">
-              <span>Added {fmtDate(form.dateAdded)}</span>
+              <span>{T('添加于 ','Added ')}{fmtDate(form.dateAdded)}</span>
               {form.salaryRange && <span>💰 {form.salaryRange}</span>}
-              {form.applicationDeadline && <span>📅 Deadline: {fmtDate(form.applicationDeadline)}</span>}
+              {form.applicationDeadline && <span>📅 {T('截止：','Deadline: ')}{fmtDate(form.applicationDeadline)}</span>}
             </div>
           </div>
           <div className="flex gap-2 items-center">
             <StatusSelect value={form.status} onChange={v=>{set('status',v); updateJob({status:v});}} />
-            <Btn onClick={()=>setEditing(e=>!e)}>{editing?'Cancel editing':'✏️ Edit details'}</Btn>
+            <Btn onClick={()=>setEditing(e=>!e)}>{editing?T('取消编辑','Cancel editing'):T('✏️ 编辑详情','✏️ Edit details')}</Btn>
           </div>
         </div>
 
         {editing && (
           <div className="mt-4 border-t border-gray-100 pt-4 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {[['company','Company'],['role','Role'],['location','Location'],['salaryRange','Salary Range']].map(([k,lbl])=>(
+              {[['company',T('公司','Company')],['role',T('职位','Role')],['location',T('地点','Location')],['salaryRange',T('薪资范围','Salary Range')]].map(([k,lbl])=>(
                 <div key={k}>
                   <label className="text-xs text-gray-600 mb-1 block">{lbl}</label>
                   <input value={form[k]||''} onChange={e=>set(k,e.target.value)}
@@ -2368,19 +2392,19 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
                 </div>
               ))}
               <div>
-                <label className="text-xs text-gray-600 mb-1 block">Deadline</label>
+                <label className="text-xs text-gray-600 mb-1 block">{T('截止日期','Deadline')}</label>
                 <input type="date" value={form.applicationDeadline||''} onChange={e=>set('applicationDeadline',e.target.value)}
                   className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
             <div>
-              <label className="text-xs text-gray-600 mb-1 block">Job Description</label>
+              <label className="text-xs text-gray-600 mb-1 block">{T('职位描述','Job Description')}</label>
               <textarea value={form.jdText||''} onChange={e=>set('jdText',e.target.value)}
                 className="w-full h-32 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
             </div>
             <div className="flex justify-end">
               <Btn variant="primary" onClick={handleSaveAll} disabled={saving}>
-                {saving?'Saving…':'💾 Save changes'}
+                {saving?T('保存中…','Saving…'):T('💾 保存更改','💾 Save changes')}
               </Btn>
             </div>
           </div>
@@ -2393,29 +2417,29 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
       {/* How-to tip */}
       <Card className="p-3 bg-blue-50 border-blue-200">
         <p className="text-xs text-blue-900 leading-relaxed">
-          <strong>How to get the PDF from Claude:</strong>{' '}
-          Enable the <strong>Analysis tool</strong> in Claude.ai → copy prompt → paste → Claude generates a PDF via Python (reportlab) → download → upload below.
-          {' '}<strong>Separate vs combined:</strong> most online portals (LinkedIn, Workday, Greenhouse) have separate fields — upload resume and cover letter individually.
-          If applying by email or the posting asks for one file, tell Claude to combine them into a 2-page PDF (resume page 1, cover letter page 2) — it's already in the cover letter prompt instructions.
+          <strong>{T('如何从 Claude 获取 PDF：','How to get the PDF from Claude:')}</strong>{' '}
+          {T('在 Claude.ai 中启用 ','Enable the ')}<strong>{T('Analysis 工具','Analysis tool')}</strong>{T(' → 复制提示词 → 粘贴 → Claude 通过 Python (reportlab) 生成 PDF → 下载 → 在下方上传。',' in Claude.ai → copy prompt → paste → Claude generates a PDF via Python (reportlab) → download → upload below.')}
+          {' '}<strong>{T('分开还是合并：','Separate vs combined:')}</strong>{T(' 大多数在线门户（LinkedIn、Workday、Greenhouse）有独立的上传栏 — 分别上传简历和求职信。',' most online portals (LinkedIn, Workday, Greenhouse) have separate fields — upload resume and cover letter individually.')}
+          {T("如果通过邮件申请或职位要求单个文件，让 Claude 把它们合并成 2 页 PDF（第 1 页简历，第 2 页求职信）— 这已经写在求职信提示词的说明里了。","If applying by email or the posting asks for one file, tell Claude to combine them into a 2-page PDF (resume page 1, cover letter page 2) — it's already in the cover letter prompt instructions.")}
         </p>
       </Card>
 
       {/* PDF upload fields */}
-      <PdfUploadField icon="📝" label="Tailored resume" pdfKey={`${region}:${job.id}:resume`} />
-      <PdfUploadField icon="✉️" label="Cover letter (or combined resume+cover PDF)" pdfKey={`${region}:${job.id}:cover`} />
+      <PdfUploadField icon="📝" label={T('定制简历','Tailored resume')} pdfKey={`${region}:${job.id}:resume`} />
+      <PdfUploadField icon="✉️" label={T('求职信（或简历+求职信合并 PDF）','Cover letter (or combined resume+cover PDF)')} pdfKey={`${region}:${job.id}:cover`} />
 
       <Card className="p-4">
-        <SectionHdr icon="🗒" title="My notes"
-          action={<Btn variant="primary" onClick={handleSaveNotes}>{notesSaved?'✅ Saved':'💾 Save'}</Btn>}
+        <SectionHdr icon="🗒" title={T('我的备注','My notes')}
+          action={<Btn variant="primary" onClick={handleSaveNotes}>{notesSaved?T('✅ 已保存','✅ Saved'):T('💾 保存','💾 Save')}</Btn>}
         />
         <textarea value={form.notes||''} onChange={e=>set('notes',e.target.value)}
-          placeholder="Recruiter names, what they asked, follow-ups, why rejected, general vibes…"
+          placeholder={T('招聘者姓名、他们问了什么、跟进、被拒原因、总体感受…','Recruiter names, what they asked, follow-ups, why rejected, general vibes…')}
           className="w-full h-32 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
       </Card>
 
       {form.jdText && (
         <details className="bg-white border border-gray-200 rounded-lg">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">Original job description</summary>
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">{T('原始职位描述','Original job description')}</summary>
           <div className="px-4 pb-4 text-xs text-gray-700 whitespace-pre-wrap font-mono max-h-80 overflow-y-auto">{form.jdText}</div>
         </details>
       )}
@@ -2449,7 +2473,7 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
 
   async function callClaude(messages, useWebSearch = false) {
     const key = anthropicKey();
-    if (!key) throw new Error('No Anthropic API key — add it in ⚙️ Settings.');
+    if (!key) throw new Error(T('没有 Anthropic API 密钥 — 请在 ⚙️ 设置中添加。','No Anthropic API key — add it in ⚙️ Settings.'));
     const body = {
       model:'claude-haiku-4-5-20251001',
       max_tokens:8192,
@@ -2468,14 +2492,14 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
       body: JSON.stringify(body),
     });
     if (res.status === 429) {
-      setMsg('Rate limited — waiting 30s and retrying…');
+      setMsg(T('触发限流 — 等待 30 秒后重试…','Rate limited — waiting 30s and retrying…'));
       await new Promise(r => setTimeout(r, 30000));
       const retry = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-api-key': key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
         body: JSON.stringify(body),
       });
-      if (!retry.ok) { const e = await retry.json().catch(()=>({})); throw new Error(`API ${retry.status}: ${e.error?.message||'Rate limit — wait a minute and try again.'}`); }
+      if (!retry.ok) { const e = await retry.json().catch(()=>({})); throw new Error(`API ${retry.status}: ${e.error?.message||T('触发限流 — 请等待一分钟后再试。','Rate limit — wait a minute and try again.')}`); }
       const data = await retry.json();
       return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
     }
@@ -2498,7 +2522,7 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
   async function scan() {
     if (!pastedText.trim()) return;
     setStep('scanning'); setFound([]); setSelected(new Set());
-    setMsg('Reading pasted text and searching for full job details…');
+    setMsg(T('正在读取粘贴的文本并搜索完整职位详情…','Reading pasted text and searching for full job details…'));
     try {
       // Truncate inputs to stay under rate limits
       const trimmedText = pastedText.slice(0, 8000);
@@ -2524,7 +2548,7 @@ ${trimmedText}` }], true);
 
       const rawJobs = parseArr(resultText);
       if (!rawJobs.length) {
-        setMsg('Could not extract any job listings. Try copying more of the email.');
+        setMsg(T('未能提取到任何职位。请尝试复制更多邮件内容。','Could not extract any job listings. Try copying more of the email.'));
         setStep('review'); return;
       }
 
@@ -2534,21 +2558,21 @@ ${trimmedText}` }], true);
 
       setFound(merged);
       setSelected(new Set(merged.filter(j=>j.score>=7).map(j=>j._id)));
-      setMsg(`${merged.length} jobs found — ${merged.filter(j=>j.score>=7).length} high-fit (≥7) pre-selected.`);
+      setMsg(T(`找到 ${merged.length} 个职位 — 已预选 ${merged.filter(j=>j.score>=7).length} 个高匹配（≥7）。`,`${merged.length} jobs found — ${merged.filter(j=>j.score>=7).length} high-fit (≥7) pre-selected.`));
       setStep('review');
-    } catch(e) { setMsg(`Error: ${e.message}`); setStep('review'); }
+    } catch(e) { setMsg(T(`错误：${e.message}`,`Error: ${e.message}`)); setStep('review'); }
   }
 
   const REGION_LABELS = { canada:'Canada', hongkong:'Hong Kong', china:'Mainland China' };
 
   async function manualSearch() {
     if (!profile || profile.startsWith('Edit this profile')) {
-      setMsg('⚠ Please write your profile summary first — Claude needs it to know what jobs to search for.');
+      setMsg(T('⚠ 请先填写你的资料概述 — Claude 需要它来确定要搜索哪些职位。','⚠ Please write your profile summary first — Claude needs it to know what jobs to search for.'));
       return;
     }
     setStep('scanning'); setFound([]); setSelected(new Set());
     const loc = REGION_LABELS[region] || 'Canada';
-    setMsg(`Searching for jobs in ${loc}…`);
+    setMsg(T(`正在搜索 ${loc} 的职位…`,`Searching for jobs in ${loc}…`));
     try {
       const trimmedProfile = profile.slice(0, 500);
       const resultText = await callClaude([{ role:'user', content:
@@ -2572,7 +2596,7 @@ Return JSON only:
       if (!rawJobs.length) {
         const len = (resultText||'').length;
         const tail = (resultText || '(empty)').slice(-500);
-        setMsg(`Could not parse JSON from response (${len} chars). End of response: "…${tail}"`);
+        setMsg(T(`无法从响应中解析 JSON（${len} 字符）。响应结尾："…${tail}"`,`Could not parse JSON from response (${len} chars). End of response: "…${tail}"`));
         setStep('review'); return;
       }
 
@@ -2582,9 +2606,9 @@ Return JSON only:
 
       setFound(merged);
       setSelected(new Set(merged.filter(j=>j.score>=7).map(j=>j._id)));
-      setMsg(`${merged.length} jobs found in ${loc} — ${merged.filter(j=>j.score>=7).length} high-fit (≥7) pre-selected.`);
+      setMsg(T(`在 ${loc} 找到 ${merged.length} 个职位 — 已预选 ${merged.filter(j=>j.score>=7).length} 个高匹配（≥7）。`,`${merged.length} jobs found in ${loc} — ${merged.filter(j=>j.score>=7).length} high-fit (≥7) pre-selected.`));
       setStep('review');
-    } catch(e) { setMsg(`Error: ${e.message}`); setStep('review'); }
+    } catch(e) { setMsg(T(`错误：${e.message}`,`Error: ${e.message}`)); setStep('review'); }
   }
 
   // Fuzzy match for duplicate detection — handles "RBC" vs "Royal Bank of Canada", "Analyst" vs "Financial Analyst I"
@@ -2600,12 +2624,12 @@ Return JSON only:
       if (jobs.some(e => fuzzy(e.company, j.company) && fuzzy(e.role, j.role))) { skipped++; continue; }
       newJobs.push({ id:newId(), dateAdded:new Date().toISOString(), company:j.company||'', role:j.role||'', location:j.location||'', salaryRange:j.salary||'', applicationDeadline:'', status:'interested', jdText:j.description||'', notes:[j.url?`Apply: ${j.url}`:'', j.salary?`Salary: ${j.salary}`:''].filter(Boolean).join('\n') });
     }
-    if (!newJobs.length) { setMsg(`All ${skipped} selected job${skipped!==1?'s':''} already in your tracker (fuzzy-matched by company + role).`); setAdding(false); return; }
+    if (!newJobs.length) { setMsg(T(`所选的 ${skipped} 个职位都已在你的追踪中（按公司+职位模糊匹配）。`,`All ${skipped} selected job${skipped!==1?'s':''} already in your tracker (fuzzy-matched by company + role).`)); setAdding(false); return; }
     const updated = [...jobs, ...newJobs];
     setJobs(updated);
     await saveJson(`${region}:jobs`, updated);
     setAdded(newJobs);
-    setMsg(`${newJobs.length} job${newJobs.length!==1?'s':''} added.${skipped ? ` ${skipped} skipped (already in tracker).` : ''}`);
+    setMsg(T(`已添加 ${newJobs.length} 个职位。${skipped ? ` 跳过 ${skipped} 个（已在追踪中）。` : ''}`,`${newJobs.length} job${newJobs.length!==1?'s':''} added.${skipped ? ` ${skipped} skipped (already in tracker).` : ''}`));
     setStep('done');
     setAdding(false);
   }
@@ -2619,55 +2643,55 @@ Return JSON only:
   return (
     <div className="space-y-3">
       <Card className="p-4">
-        <SectionHdr icon="📧" title="LinkedIn job alert scanner" />
+        <SectionHdr icon="📧" title={T('LinkedIn 职位提醒扫描器','LinkedIn job alert scanner')} />
         <p className="text-xs text-gray-500 mb-3">
-          Paste a LinkedIn job alert email → Claude searches each company's career page for the full JD → scores against your profile → batch-add to tracker with descriptions ready for resume tailoring.
+          {T('粘贴一封 LinkedIn 职位提醒邮件 → Claude 在每家公司的招聘页搜索完整 JD → 对照你的资料评分 → 批量加入追踪，描述已就绪可用于简历定制。',"Paste a LinkedIn job alert email → Claude searches each company's career page for the full JD → scores against your profile → batch-add to tracker with descriptions ready for resume tailoring.")}
         </p>
 
         {!hasKey && (
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-800 mb-3">
-            ⚠ No Anthropic API key set. Add one in <strong>⚙️ Settings</strong> to use this feature.
+            ⚠ {T('未设置 Anthropic API 密钥。在 ','No Anthropic API key set. Add one in ')}<strong>⚙️ {T('设置','Settings')}</strong>{T(' 中添加以使用此功能。',' to use this feature.')}
           </div>
         )}
 
         {step === 'setup' && (
           <div className="space-y-3">
             <div>
-              <label className="block text-xs text-gray-600 mb-1 font-medium">Your profile (used for matching &amp; scoring)</label>
+              <label className="block text-xs text-gray-600 mb-1 font-medium">{T('你的资料（用于匹配与评分）','Your profile (used for matching & scoring)')}</label>
               <textarea value={profile} onChange={e=>setProfile(e.target.value)} onBlur={e=>saveText('watchdogProfile', e.target.value)} rows={3}
                 className="w-full text-xs border border-gray-200 rounded-md p-2 resize-none text-gray-700 focus:outline-none focus:border-gray-400"
-                placeholder="Describe yourself in 2-3 sentences for job matching…" />
+                placeholder={T('用 2-3 句话描述你自己以便职位匹配…','Describe yourself in 2-3 sentences for job matching…')} />
               <div className="flex justify-between items-center mt-1">
-                <p className="text-xs text-gray-400">Saved to GitHub when you click away.</p>
-                <button onClick={()=>saveProfile(DEFAULT_PROFILE)} className="text-xs text-gray-400 hover:text-gray-600 hover:underline">Reset to default</button>
+                <p className="text-xs text-gray-400">{T('点击其他位置时会保存到 GitHub。','Saved to GitHub when you click away.')}</p>
+                <button onClick={()=>saveProfile(DEFAULT_PROFILE)} className="text-xs text-gray-400 hover:text-gray-600 hover:underline">{T('重置为默认','Reset to default')}</button>
               </div>
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1 font-medium">
-                Paste LinkedIn job alert email
+                {T('粘贴 LinkedIn 职位提醒邮件','Paste LinkedIn job alert email')}
               </label>
               <textarea value={pastedText} onChange={e=>setPastedText(e.target.value)} rows={8}
                 className="w-full text-xs border border-gray-200 rounded-md p-2 resize-y text-gray-700 focus:outline-none focus:border-gray-400"
-                placeholder={"Open a LinkedIn job alert email → Ctrl+A → Ctrl+C → paste here.\nThe email has job titles and company names — that's all Claude needs to search for the full listings."} />
+                placeholder={T("打开一封 LinkedIn 职位提醒邮件 → Ctrl+A → Ctrl+C → 粘贴到这里。\n邮件里有职位名称和公司名 — 这就是 Claude 搜索完整职位所需的全部。","Open a LinkedIn job alert email → Ctrl+A → Ctrl+C → paste here.\nThe email has job titles and company names — that's all Claude needs to search for the full listings.")} />
             </div>
             <Btn variant="primary" onClick={scan} disabled={!profile.trim()||!pastedText.trim()||!hasKey}>
-              🔍 Search &amp; score jobs
+              {T('🔍 搜索并评分职位','🔍 Search & score jobs')}
             </Btn>
 
             {/* Divider */}
             <div className="flex items-center gap-3 pt-1">
               <div className="flex-1 border-t border-gray-200" />
-              <span className="text-xs text-gray-400">or</span>
+              <span className="text-xs text-gray-400">{T('或','or')}</span>
               <div className="flex-1 border-t border-gray-200" />
             </div>
 
             {/* Manual search */}
             <div className="bg-gray-50 rounded-md p-3 border border-gray-200">
               <p className="text-xs text-gray-600 mb-2">
-                <strong>🌐 Discover new jobs</strong> — Claude searches the web for fresh postings in <strong>{REGION_LABELS[region]||region}</strong> matching your profile. No email needed.
+                <strong>{T('🌐 发现新职位','🌐 Discover new jobs')}</strong>{T(' — Claude 在网络上搜索 ',' — Claude searches the web for fresh postings in ')}<strong>{REGION_LABELS[region]||region}</strong>{T(' 中符合你资料的最新职位。无需邮件。',' matching your profile. No email needed.')}
               </p>
               <Btn onClick={manualSearch} disabled={!profile.trim()||!hasKey}>
-                🌐 Search new jobs (last 24h)
+                {T('🌐 搜索新职位（近 24 小时）','🌐 Search new jobs (last 24h)')}
               </Btn>
             </div>
           </div>
@@ -2677,7 +2701,7 @@ Return JSON only:
           <div className="flex flex-col items-center gap-3 py-8">
             <div className="w-7 h-7 border-2 border-gray-200 border-t-gray-700 rounded-full animate-spin" />
             <p className="text-sm text-gray-500 text-center max-w-sm">{msg}</p>
-            <p className="text-xs text-gray-400 text-center">This may take 20–40 seconds (web search for each job)</p>
+            <p className="text-xs text-gray-400 text-center">{T('这可能需要 20–40 秒（为每个职位进行网络搜索）','This may take 20–40 seconds (web search for each job)')}</p>
           </div>
         )}
 
@@ -2687,11 +2711,11 @@ Return JSON only:
             {found.length > 0 && (
               <>
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs text-gray-600">{selected.size} of {found.length} selected</span>
+                  <span className="text-xs text-gray-600">{T('已选 ','')}{selected.size} / {found.length}{T(' 项',' selected')}</span>
                   <div className="flex gap-3">
-                    <button onClick={()=>setSelected(new Set(found.map(j=>j._id)))} className="text-xs text-blue-600 hover:underline">Select all</button>
-                    <button onClick={()=>setSelected(new Set())} className="text-xs text-gray-500 hover:underline">Clear</button>
-                    <button onClick={()=>setStep('setup')} className="text-xs text-gray-500 hover:underline">← Back</button>
+                    <button onClick={()=>setSelected(new Set(found.map(j=>j._id)))} className="text-xs text-blue-600 hover:underline">{T('全选','Select all')}</button>
+                    <button onClick={()=>setSelected(new Set())} className="text-xs text-gray-500 hover:underline">{T('清除','Clear')}</button>
+                    <button onClick={()=>setStep('setup')} className="text-xs text-gray-500 hover:underline">{T('← 返回','← Back')}</button>
                   </div>
                 </div>
                 <div className="space-y-2 mb-3">
@@ -2708,10 +2732,10 @@ Return JSON only:
                             <p className="text-sm font-medium text-gray-900">{j.role} <span className="font-normal text-gray-500">· {j.company}</span></p>
                             <div className="flex items-center gap-1.5 shrink-0">
                               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${scoreColor(j.score)}`}>{j.score}/10</span>
-                              {isDup && <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">In tracker</span>}
+                              {isDup && <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">{T('已在追踪','In tracker')}</span>}
                               <button onClick={e=>{e.stopPropagation(); setEditingId(isEdit?null:j._id);}}
                                 className={`text-xs px-1.5 py-0.5 rounded border ${isEdit?'bg-gray-200 border-gray-300':'border-gray-200 hover:bg-gray-100'}`}
-                                title="Edit">✏️</button>
+                                title={T('编辑','Edit')}>✏️</button>
                             </div>
                           </div>
                           {!isEdit && j.location && <p className="text-xs text-gray-400 mb-0.5">{j.location}</p>}
@@ -2720,31 +2744,31 @@ Return JSON only:
                           {!isEdit && j.description && <p className="text-xs text-gray-400 italic mb-1">{j.description.slice(0,300)}{j.description.length>300?'…':''}</p>}
                           {!isEdit && (j.url) && (
                             <a href={j.url} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()}
-                              className="text-xs text-blue-500 hover:underline inline-flex items-center gap-1">↗ View &amp; apply</a>
+                              className="text-xs text-blue-500 hover:underline inline-flex items-center gap-1">{T('↗ 查看并申请','↗ View & apply')}</a>
                           )}
                         </div>
                       </div>
                       {isEdit && (
                         <div className="px-3 pb-3 pt-1 space-y-2 border-t border-gray-100 ml-6" onClick={e=>e.stopPropagation()}>
                           <div className="grid grid-cols-2 gap-2">
-                            <div><label className="text-xs text-gray-500 mb-0.5 block">Company</label>
+                            <div><label className="text-xs text-gray-500 mb-0.5 block">{T('公司','Company')}</label>
                               <input value={j.company||''} onChange={e=>updateJob(j._id,'company',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-gray-400" /></div>
-                            <div><label className="text-xs text-gray-500 mb-0.5 block">Role</label>
+                            <div><label className="text-xs text-gray-500 mb-0.5 block">{T('职位','Role')}</label>
                               <input value={j.role||''} onChange={e=>updateJob(j._id,'role',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-gray-400" /></div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
-                            <div><label className="text-xs text-gray-500 mb-0.5 block">Location</label>
+                            <div><label className="text-xs text-gray-500 mb-0.5 block">{T('地点','Location')}</label>
                               <input value={j.location||''} onChange={e=>updateJob(j._id,'location',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-gray-400" /></div>
-                            <div><label className="text-xs text-gray-500 mb-0.5 block">Salary</label>
+                            <div><label className="text-xs text-gray-500 mb-0.5 block">{T('薪资','Salary')}</label>
                               <input value={j.salary||''} onChange={e=>updateJob(j._id,'salary',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-gray-400" /></div>
                           </div>
-                          <div><label className="text-xs text-gray-500 mb-0.5 block">Apply URL</label>
+                          <div><label className="text-xs text-gray-500 mb-0.5 block">{T('申请链接','Apply URL')}</label>
                             <input value={j.url||''} onChange={e=>updateJob(j._id,'url',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 font-mono focus:outline-none focus:border-gray-400" /></div>
-                          <div><label className="text-xs text-gray-500 mb-0.5 block">Job description</label>
+                          <div><label className="text-xs text-gray-500 mb-0.5 block">{T('职位描述','Job description')}</label>
                             <textarea value={j.description||''} onChange={e=>updateJob(j._id,'description',e.target.value)} rows={6}
                               className="w-full text-xs border border-gray-200 rounded px-2 py-1 resize-y focus:outline-none focus:border-gray-400" /></div>
                           <div className="flex justify-end">
-                            <button onClick={()=>setEditingId(null)} className="text-xs px-3 py-1 rounded bg-gray-900 text-white hover:bg-gray-700">Done</button>
+                            <button onClick={()=>setEditingId(null)} className="text-xs px-3 py-1 rounded bg-gray-900 text-white hover:bg-gray-700">{T('完成','Done')}</button>
                           </div>
                         </div>
                       )}
@@ -2752,7 +2776,7 @@ Return JSON only:
                   })}
                 </div>
                 <Btn variant="primary" onClick={addToTracker} disabled={!selected.size||adding}>
-                  {adding?'⏳ Adding…':`➕ Add ${selected.size} job${selected.size!==1?'s':''} to tracker`}
+                  {adding?T('⏳ 添加中…','⏳ Adding…'):T(`➕ 添加 ${selected.size} 个职位到追踪`,`➕ Add ${selected.size} job${selected.size!==1?'s':''} to tracker`)}
                 </Btn>
               </>
             )}
@@ -2772,7 +2796,7 @@ Return JSON only:
                 </div>
               ))}
             </div>
-            <Btn onClick={()=>{setStep('setup');setFound([]);setAdded([]);setMsg('');setSelected(new Set());}}>📧 Scan more jobs</Btn>
+            <Btn onClick={()=>{setStep('setup');setFound([]);setAdded([]);setMsg('');setSelected(new Set());}}>{T('📧 扫描更多职位','📧 Scan more jobs')}</Btn>
           </div>
         )}
       </Card>
@@ -2790,11 +2814,11 @@ function InsightsTab({ jobs, regionName }) {
     const rank = { interested:0, applied:1, interviewing:2, offered:3, rejected:1, interview_rejected:2 };
     const atLeast = (stage) => jobs.filter(j => (rank[j.status]??0) >= rank[stage]).length;
     const pipeline = [
-      { id:'interested',   label:'Interested',   count: jobs.filter(j=>j.status==='interested').length, color:'#a78bfa' },
-      { id:'applied',      label:'Applied',       count: atLeast('applied'),      color:'#60a5fa' },
-      { id:'interviewing', label:'Interviewing',  count: atLeast('interviewing'), color:'#fbbf24' },
-      { id:'offered',      label:'Offered',       count: atLeast('offered'),      color:'#34d399' },
-      { id:'rejected',     label:'Rejected',      count: jobs.filter(j=>j.status==='rejected'||j.status==='interview_rejected').length, color:'#f87171' },
+      { id:'interested',   label:T('感兴趣','Interested'),   count: jobs.filter(j=>j.status==='interested').length, color:'#a78bfa' },
+      { id:'applied',      label:T('已投递','Applied'),       count: atLeast('applied'),      color:'#60a5fa' },
+      { id:'interviewing', label:T('面试中','Interviewing'),  count: atLeast('interviewing'), color:'#fbbf24' },
+      { id:'offered',      label:T('已获 Offer','Offered'),       count: atLeast('offered'),      color:'#34d399' },
+      { id:'rejected',     label:T('已被拒','Rejected'),      count: jobs.filter(j=>j.status==='rejected'||j.status==='interview_rejected').length, color:'#f87171' },
     ];
     const total  = jobs.length;
     const applied = jobs.filter(j => j.status !== 'interested').length;
@@ -2810,7 +2834,7 @@ function InsightsTab({ jobs, regionName }) {
     return { pipeline, responseRate, offerRate, last7, last30, topCos, total, applied, upcoming };
   }, [jobs]);
 
-  if (!jobs.length) return <Card className="p-8 text-center text-sm text-gray-500">No data yet — add some applications first.</Card>;
+  if (!jobs.length) return <Card className="p-8 text-center text-sm text-gray-500">{T('暂无数据 — 请先添加一些申请。','No data yet — add some applications first.')}</Card>;
 
   // ── Sankey data ──────────────────────────────────────────
   const c = {};
@@ -2844,9 +2868,9 @@ function InsightsTab({ jobs, regionName }) {
     // Column 1: No Answer, Rejected, Interviews (stacked from top of appNode)
     const c1 = [];
     let y1 = appY;
-    if (noAnswer > 0)   { c1.push({ id:'noanswer',  y:y1, h:h(noAnswer),   n:noAnswer,   label:'No Answer',  color:'#f4b8c1' }); y1 += h(noAnswer) + gap; }
-    if (rejected > 0)   { c1.push({ id:'rejected',  y:y1, h:h(rejected),   n:rejected,   label:'Rejected',   color:'#c9a0c9' }); y1 += h(rejected) + gap; }
-    if (interviews > 0) { c1.push({ id:'interviews', y:y1, h:h(interviews), n:interviews, label:'Interviews', color:'#8fbc8f' }); y1 += h(interviews) + gap; }
+    if (noAnswer > 0)   { c1.push({ id:'noanswer',  y:y1, h:h(noAnswer),   n:noAnswer,   label:T('未回复','No Answer'),  color:'#f4b8c1' }); y1 += h(noAnswer) + gap; }
+    if (rejected > 0)   { c1.push({ id:'rejected',  y:y1, h:h(rejected),   n:rejected,   label:T('已被拒','Rejected'),   color:'#c9a0c9' }); y1 += h(rejected) + gap; }
+    if (interviews > 0) { c1.push({ id:'interviews', y:y1, h:h(interviews), n:interviews, label:T('面试','Interviews'), color:'#8fbc8f' }); y1 += h(interviews) + gap; }
 
     // Column 2: Offers, In Progress, No Offer (stacked from Interviews node)
     const intNode = c1.find(n => n.id === 'interviews');
@@ -2854,9 +2878,9 @@ function InsightsTab({ jobs, regionName }) {
     if (intNode) {
       const intScale = intNode.h / Math.max(interviews, 1);
       let y2 = intNode.y;
-      if (offered > 0)    { c2.push({ id:'offered',    y:y2, h:Math.max(offered*intScale, minH),    n:offered,    label:'Offers',      color:'#a8d5a2' }); y2 += Math.max(offered*intScale, minH) + gap; }
-      if (inProgress > 0) { c2.push({ id:'inprogress', y:y2, h:Math.max(inProgress*intScale, minH), n:inProgress, label:'In Progress', color:'#b8c9b8' }); y2 += Math.max(inProgress*intScale, minH) + gap; }
-      if (noOffer > 0)    { c2.push({ id:'nooffer',    y:y2, h:Math.max(noOffer*intScale, minH),    n:noOffer,    label:'No Offer',    color:'#f4a0a0' }); }
+      if (offered > 0)    { c2.push({ id:'offered',    y:y2, h:Math.max(offered*intScale, minH),    n:offered,    label:T('Offer','Offers'),      color:'#a8d5a2' }); y2 += Math.max(offered*intScale, minH) + gap; }
+      if (inProgress > 0) { c2.push({ id:'inprogress', y:y2, h:Math.max(inProgress*intScale, minH), n:inProgress, label:T('进行中','In Progress'), color:'#b8c9b8' }); y2 += Math.max(inProgress*intScale, minH) + gap; }
+      if (noOffer > 0)    { c2.push({ id:'nooffer',    y:y2, h:Math.max(noOffer*intScale, minH),    n:noOffer,    label:T('无 Offer','No Offer'),    color:'#f4a0a0' }); }
     }
 
     // Curved band path
@@ -2893,7 +2917,7 @@ function InsightsTab({ jobs, regionName }) {
         {/* Node: Applications */}
         <rect x={cols[0]} y={appY} width={nw} height={appH} fill="#4a9ebb" rx={2} />
         <text x={cols[0]-4} y={appY + appH/2 - 8} textAnchor="end" fontSize={18} fontWeight={700} fill="#333">{appliedTotal}</text>
-        <text x={cols[0]-4} y={appY + appH/2 + 10} textAnchor="end" fontSize={11} fill="#666">Applications</text>
+        <text x={cols[0]-4} y={appY + appH/2 + 10} textAnchor="end" fontSize={11} fill="#666">{T('申请','Applications')}</text>
 
         {/* Nodes col1 */}
         {c1.map(node => (
@@ -2915,7 +2939,7 @@ function InsightsTab({ jobs, regionName }) {
 
         {/* Interested note */}
         {interested > 0 && (
-          <text x={cols[0]} y={20} fontSize={11} fill="#8b5cf6">+ {interested} interested (not yet applied)</text>
+          <text x={cols[0]} y={20} fontSize={11} fill="#8b5cf6">+ {interested} {T('个感兴趣（尚未申请）','interested (not yet applied)')}</text>
         )}
       </svg>
     );
@@ -2926,40 +2950,40 @@ function InsightsTab({ jobs, regionName }) {
 
       {/* Sankey flow chart */}
       <Card className="p-4">
-        <SectionHdr icon="📊" title={`${regionName} pipeline`} />
+        <SectionHdr icon="📊" title={T(`${regionName} 流程`,`${regionName} pipeline`)} />
         <div className="mt-2">
           <SankeyChart />
-          <p className="text-xs text-gray-400 mt-2">Flows show how applications move through your pipeline.</p>
+          <p className="text-xs text-gray-400 mt-2">{T('流向图展示申请如何在你的流程中流转。','Flows show how applications move through your pipeline.')}</p>
         </div>
       </Card>
 
       {/* Stats row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Card className="p-4">
-          <SectionHdr title="Activity" />
+          <SectionHdr title={T('活动','Activity')} />
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-600">Total tracked</span><strong>{stats.total}</strong></div>
-            <div className="flex justify-between"><span className="text-gray-600">Last 7 days</span><strong>{stats.last7}</strong></div>
-            <div className="flex justify-between"><span className="text-gray-600">Last 30 days</span><strong>{stats.last30}</strong></div>
+            <div className="flex justify-between"><span className="text-gray-600">{T('追踪总数','Total tracked')}</span><strong>{stats.total}</strong></div>
+            <div className="flex justify-between"><span className="text-gray-600">{T('近 7 天','Last 7 days')}</span><strong>{stats.last7}</strong></div>
+            <div className="flex justify-between"><span className="text-gray-600">{T('近 30 天','Last 30 days')}</span><strong>{stats.last30}</strong></div>
           </div>
         </Card>
         <Card className="p-4">
-          <SectionHdr title="Conversion" />
+          <SectionHdr title={T('转化','Conversion')} />
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-600">Response rate</span><strong>{stats.responseRate}%</strong></div>
-            <div className="flex justify-between"><span className="text-gray-600">Offer rate</span><strong>{stats.offerRate}%</strong></div>
-            <div className="text-xs text-gray-400 mt-1">Based on {stats.applied} applied job{stats.applied !== 1 ? 's' : ''} (excludes Interested)</div>
+            <div className="flex justify-between"><span className="text-gray-600">{T('回应率','Response rate')}</span><strong>{stats.responseRate}%</strong></div>
+            <div className="flex justify-between"><span className="text-gray-600">{T('Offer 率','Offer rate')}</span><strong>{stats.offerRate}%</strong></div>
+            <div className="text-xs text-gray-400 mt-1">{T('基于 ','Based on ')}{stats.applied} {T('个已投递职位（不含「感兴趣」）', `applied job${stats.applied !== 1 ? 's' : ''} (excludes Interested)`)}</div>
           </div>
         </Card>
       </div>
 
       {stats.upcoming.length>0 && (
         <Card className="p-4">
-          <SectionHdr title="📅 Upcoming deadlines" />
+          <SectionHdr title={T('📅 即将到来的截止','📅 Upcoming deadlines')} />
           <div className="space-y-1.5">
             {stats.upcoming.map(j=>(
               <div key={j.id} className="flex justify-between text-sm">
-                <span className="text-gray-700">{j.role} at {j.company}</span>
+                <span className="text-gray-700">{j.role} {T('·','at')} {j.company}</span>
                 <span className="text-gray-500">{fmtDate(j.applicationDeadline)}</span>
               </div>
             ))}
@@ -2968,7 +2992,7 @@ function InsightsTab({ jobs, regionName }) {
       )}
       {stats.topCos.length>0 && (
         <Card className="p-4">
-          <SectionHdr title="Top companies" />
+          <SectionHdr title={T('热门公司','Top companies')} />
           <div className="space-y-1.5">
             {stats.topCos.map(([co,n])=>(
               <div key={co} className="flex justify-between text-sm">
@@ -3002,7 +3026,7 @@ function RegionApp({ region, resumeDb, sections, updateSections, formatting, set
     return () => { cancelled=true; };
   }, [region]);
 
-  if (loading) return <div className="p-8 text-center text-sm text-gray-500">⏳ Loading {regionMeta.name} data…</div>;
+  if (loading) return <div className="p-8 text-center text-sm text-gray-500">⏳ {T('正在加载','Loading')} {rName(regionMeta)} {T('数据…','data…')}</div>;
 
   const openJob = jobs.find(j=>j.id===openJobId);
   const switchTab = t => { setTab(t); setOpenJobId(null); };
@@ -3016,7 +3040,7 @@ function RegionApp({ region, resumeDb, sections, updateSections, formatting, set
             className={`inline-flex items-center gap-1 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               tab===t.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
             }`}>
-            <span>{t.icon}</span>{t.label}
+            <span>{t.icon}</span>{T(t.zh,t.label)}
             {t.id==='tracker' && jobs.length>0 && (
               <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full">{jobs.length}</span>
             )}
@@ -3030,7 +3054,7 @@ function RegionApp({ region, resumeDb, sections, updateSections, formatting, set
       {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>setOpenJobId(null)} />}
       {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} glossary={glossary} setGlossary={setGlossary} region={region} resumeDb={resumeDb} />}
       {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}
-      {tab==='insights'&& <InsightsTab jobs={jobs} regionName={regionMeta.name} />}
+      {tab==='insights'&& <InsightsTab jobs={jobs} regionName={rName(regionMeta)} />}
       {tab==='watchdog'&& <WatchdogTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} />}
     </div>
   );
@@ -3041,6 +3065,7 @@ function RegionApp({ region, resumeDb, sections, updateSections, formatting, set
 // ════════════════════════════════════════════════════════════════
 
 function App() {
+  useLangToggle();
   const [region, setRegion] = useState('canada');
   const [sections, setSections]     = useState([]);
   const [resumeDb, setResumeDb]     = useState('');
@@ -3121,40 +3146,46 @@ function App() {
         {/* Header */}
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">💼 Job Application Command Center</h1>
+            <h1 className="text-xl font-bold text-gray-900">💼 {T('求职指挥中心','Job Application Command Center')}</h1>
           </div>
-          <button onClick={()=>setSettingsOpen(true)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border shrink-0 ${
-              ghOk ? 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50' : 'text-amber-900 bg-amber-50 border-amber-300 hover:bg-amber-100'
-            }`}>
-            ⚙️ {ghOk ? 'Settings' : 'Setup required'}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={toggleLang} title="中 / EN"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">
+              🌐 {T('EN','中')}
+            </button>
+            <button onClick={()=>setSettingsOpen(true)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border ${
+                ghOk ? 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50' : 'text-amber-900 bg-amber-50 border-amber-300 hover:bg-amber-100'
+              }`}>
+              ⚙️ {ghOk ? T('设置','Settings') : T('需要设置','Setup required')}
+            </button>
+          </div>
         </div>
 
         {/* Banners */}
         {!ghOk && (
           <div className="mb-4">
             <Alert type="warning">
-              GitHub not configured — data won't be saved.{' '}
-              <button onClick={()=>setSettingsOpen(true)} className="underline font-medium">Open Settings to set it up.</button>
+              {T('GitHub 未配置 — 数据不会被保存。',"GitHub not configured — data won't be saved.")}{' '}
+              <button onClick={()=>setSettingsOpen(true)} className="underline font-medium">{T('打开设置去配置。','Open Settings to set it up.')}</button>
             </Alert>
           </div>
         )}
         {saveErr && (
-          <div className="mb-4"><Alert type="error">Save error: {saveErr}</Alert></div>
+          <div className="mb-4"><Alert type="error">{T('保存出错','Save error')}: {saveErr}</Alert></div>
         )}
 
         {/* Region selector (dropdown) */}
         <div className={`flex items-center gap-3 mb-5 px-4 py-3 rounded-lg border ${(REGION_BY[region]||{}).accent||'bg-white border-gray-200'}`}>
           <span className={`w-2.5 h-2.5 rounded-full ${(REGION_BY[region]||{}).dot||'bg-gray-400'}`} />
-          <label className="text-sm font-medium text-gray-700">Region / 地区</label>
+          <label className="text-sm font-medium text-gray-700">{T('地区','Region')}</label>
           <select value={region} onChange={e=>setRegion(e.target.value)}
             className="flex-1 max-w-xs text-sm font-medium px-3 py-2 rounded-md border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
             {REGIONS.map(r => (
-              <option key={r.id} value={r.id}>{r.flag} {r.name}</option>
+              <option key={r.id} value={r.id}>{r.flag} {rName(r)}</option>
             ))}
           </select>
-          <span className="text-xs text-gray-500 hidden sm:inline">each region keeps its own job list & tailored resumes</span>
+          <span className="text-xs text-gray-500 hidden sm:inline">{T('每个地区保留各自的职位列表与定制简历','each region keeps its own job list & tailored resumes')}</span>
         </div>
 
         {/* App */}
@@ -3175,7 +3206,7 @@ function App() {
         )}
 
         <div className="mt-8 text-center text-xs text-gray-400">
-          GitHub credentials stay in your browser. All app data commits to your private repo. No Anthropic API needed.
+          {T('GitHub 凭证只保存在你的浏览器。所有数据都提交到你的私有仓库。无需 Anthropic API。','GitHub credentials stay in your browser. All app data commits to your private repo. No Anthropic API needed.')}
         </div>
       </div>
     </div>
