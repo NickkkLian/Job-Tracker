@@ -13,7 +13,20 @@
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     #loading { display:flex; align-items:center; justify-content:center; min-height:100vh; color:#6b7280; font-size:14px; }
-  </style>
+  
+/* ===== 移动端与无障碍基线（2026-07-31 统一注入；规则源：web-interface-guidelines）===== */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important;scroll-behavior:auto!important;
+  }
+}
+button,a,summary,label,[role="button"],[onclick]{
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+}
+:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+</style>
 </head>
 <body class="bg-gray-50">
   <div id="loading">Loading app…</div>
