@@ -50,6 +50,17 @@ function toggleLang() {
   _langSubs.slice().forEach(fn => { try { fn(); } catch (e) {} });
 }
 // 顶层订阅一次即可：App 重渲染会级联整棵树（组件未 memo 化），所有 T() 重新求值
+/* 模态框 Esc 关闭（无障碍：遮罩层点击关闭对键盘用户不可用，
+   正确做法是 Esc，而不是给全屏遮罩加 tabindex 造一个巨大的假停靠点）*/
+function useEscapeClose(onClose) {
+  useEffect(() => {
+    if (!onClose) return;
+    const h = e => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+}
+
 function useLangToggle() {
   const [, f] = useState(0);
   useEffect(() => {
@@ -858,6 +869,7 @@ function PromptModal({ title, prompt, onClose }) {
   const handleCopy = async () => {
     try { await navigator.clipboard.writeText(prompt); setCopied(true); setTimeout(()=>setCopied(false),2000); } catch {}
   };
+  useEscapeClose(onClose);
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mt-8 mb-8" onClick={e=>e.stopPropagation()}>
@@ -927,6 +939,7 @@ function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, o
     try { await navigator.clipboard.writeText(prompt); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
   };
 
+  useEscapeClose(onClose);
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mt-8 mb-8" onClick={e => e.stopPropagation()}>
@@ -1145,6 +1158,7 @@ function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
     lsDel('githubToken'); lsDel('githubRepo'); setTok(''); setRepo(''); onGhChange?.(false);
   };
 
+  useEscapeClose(onClose);
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mt-8 mb-8" onClick={e=>e.stopPropagation()}>
@@ -2076,6 +2090,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
 
   const statusIcon = s => ({ queued:'⏳', running:'🔄', done:'✅', error:'❌', skip:'⏭' }[s]||'');
 
+  useEscapeClose(onClose);
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full mt-8 mb-8" onClick={e=>e.stopPropagation()}>
@@ -2739,7 +2754,7 @@ Return JSON only:
                     return (
                     <div key={j._id} className={`rounded-md border transition-colors ${isDup?'border-orange-200 bg-orange-50/50':isSel?'border-blue-200 bg-blue-50':'border-gray-200 bg-white'}`}>
                       <div className="flex gap-2 p-3 cursor-pointer" onClick={()=>{ if(!isEdit) toggle(j._id); }}>
-                        <input type="checkbox" checked={isSel} onChange={()=>{}} className="mt-0.5 shrink-0" />
+                        <input type="checkbox" checked={isSel} onChange={()=>{ if(!isEdit) toggle(j._id); }} aria-label={T('选择这条职位','Select this job')} className="mt-0.5 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-start gap-2 mb-0.5">
                             <p className="text-sm font-medium text-gray-900">{j.role} <span className="font-normal text-gray-500">· {j.company}</span></p>
