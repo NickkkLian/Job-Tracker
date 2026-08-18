@@ -97,6 +97,7 @@ const PATHS = {
   canadaJobs:     'data/canada_jobs.json',
   hongkongJobs:   'data/hongkong_jobs.json',
   chinaJobs:      'data/china_jobs.json',
+  diagnosis:      'data/diagnosis.json',
 };
 
 const KEY_TO_PATH = {
@@ -109,6 +110,7 @@ const KEY_TO_PATH = {
   'canada:jobs':   PATHS.canadaJobs,
   'hongkong:jobs': PATHS.hongkongJobs,
   'china:jobs':    PATHS.chinaJobs,
+  diagnosis:       PATHS.diagnosis,
 };
 
 // 任意地区都按 data/<id>_jobs.json 派生路径，新增地区无需改这里
@@ -317,6 +319,7 @@ const TABS = [
   { id:'addjob',   label:'Add Job',    zh:'添加职位',   icon:'➕' },
   { id:'tracker',  label:'Tracker',    zh:'追踪',       icon:'📋' },
   { id:'profile',  label:'My Profile', zh:'我的资料',   icon:'📝' },
+  { id:'diagnosis',label:'Diagnosis',  zh:'诊断',       icon:'🧭' },
   { id:'library',  label:'Resumes',    zh:'简历库',     icon:'📚' },
   { id:'insights', label:'Insights',   zh:'数据',       icon:'📊' },
   { id:'watchdog', label:'Alerts',     zh:'提醒',       icon:'📧' },
@@ -3034,11 +3037,188 @@ function InsightsTab({ jobs, regionName }) {
   );
 }
 
+
+// ════════════════════════════════════════════════════════════════
+// DIAGNOSIS TAB —— 求职诊断（Innermatch 六步漏斗自用版，2026-08-18）
+// 顺序：阶段 → 优势 → 目标画像 → 岗位对齐 → 简历叙事 → 关键决策
+// ════════════════════════════════════════════════════════════════
+
+const DIAG_DEFAULT = () => ({
+  stage: '', stageNote: '',
+  strengths: [],
+  target: { industry: '', role: '', constraints: '', note: '' },
+  alignment: [],
+  resume: { checks: {}, note: '' },
+  decisions: [],
+  updatedAt: null,
+});
+
+const RESUME_CHECKS = [
+  { id: 'r1', zh: '讲的是行为模式与轨迹，不是关键词堆砌', en: 'Tells behavioral patterns & trajectory, not keyword stuffing' },
+  { id: 'r2', zh: '每段经历都回答「我怎么做的、带来什么变化」', en: 'Each entry answers "what I did and what changed"' },
+  { id: 'r3', zh: '与下面第③步的目标画像对齐', en: 'Aligned with the target profile in step 3' },
+  { id: 'r4', zh: '读起来像自己说话，只是更清晰', en: 'Sounds like you, only sharper' },
+  { id: 'r5', zh: '整页有一条叙事线，不是条目拼盘', en: 'The page reads as one narrative, not a list of fragments' },
+];
+
+function DiagSection({ num, title, hint, children }) {
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
+      <div className="flex items-baseline gap-2 mb-1">
+        <span className="text-xs font-bold text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">{num}</span>
+        <h3 className="font-semibold text-gray-900">{title}</h3>
+      </div>
+      {hint && <p className="text-xs text-gray-500 mb-3">{hint}</p>}
+      {children}
+    </div>
+  );
+}
+
+function DiagList({ items, onAdd, onRemove, onToggle, placeholder, checkable }) {
+  const [draft, setDraft] = useState('');
+  const add = () => { const t = draft.trim(); if (!t) return; onAdd(t); setDraft(''); };
+  return (
+    <div>
+      {(items || []).map(it => (
+        <div key={it.id} className="flex items-start gap-2 py-1 group">
+          {checkable && (
+            <input type="checkbox" checked={!!it.done} onChange={() => onToggle(it.id)}
+              className="mt-1 h-4 w-4 text-blue-600 rounded" />
+          )}
+          <span className={'flex-1 text-sm ' + (it.done ? 'line-through text-gray-400' : 'text-gray-800')}>{it.text}</span>
+          <button onClick={() => onRemove(it.id)}
+            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 text-xs px-1">✕</button>
+        </div>
+      ))}
+      <div className="flex gap-2 mt-2">
+        <input value={draft} onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') add(); }}
+          placeholder={placeholder}
+          className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+        <button onClick={add} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-sm text-gray-700">{T('添加','Add')}</button>
+      </div>
+    </div>
+  );
+}
+
+function DiagnosisTab({ diagnosis, setDiagnosis }) {
+  const d = diagnosis || DIAG_DEFAULT();
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  const patch = (p) => setDiagnosis({ ...d, ...p });
+  const patchTarget = (p) => patch({ target: { ...d.target, ...p } });
+  const patchResume = (p) => patch({ resume: { ...d.resume, ...p } });
+
+  const listOps = (key, checkable) => ({
+    onAdd:    t  => patch({ [key]: [...(d[key]||[]), { id: newId(), text: t, ...(checkable ? { done:false } : {}) }] }),
+    onRemove: id => patch({ [key]: (d[key]||[]).filter(x => x.id !== id) }),
+    onToggle: id => patch({ [key]: (d[key]||[]).map(x => x.id === id ? { ...x, done: !x.done } : x) }),
+  });
+
+  const save = async () => {
+    setSaving(true);
+    const next = { ...d, updatedAt: new Date().toISOString() };
+    setDiagnosis(next);
+    await saveJson('diagnosis', next);
+    setSaving(false); setSavedFlash(true); setTimeout(() => setSavedFlash(false), 1800);
+  };
+
+  const stageBtn = (val, zh, en, desc) => (
+    <button onClick={() => patch({ stage: d.stage === val ? '' : val })}
+      className={'flex-1 rounded-lg border p-3 text-left transition ' +
+        (d.stage === val ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600' : 'border-gray-300 bg-white hover:border-gray-400')}>
+      <div className="font-medium text-sm text-gray-900">{T(zh, en)}</div>
+      <div className="text-xs text-gray-500 mt-0.5">{desc}</div>
+    </button>
+  );
+
+  const inp = (props) => (
+    <input {...props} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+  );
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">{T('求职诊断','Career Diagnosis')}</h2>
+          <p className="text-xs text-gray-500">
+            {T('先想清楚，再投递——六步走完再回「添加职位」。','Think first, then apply — finish the six steps before Add Job.')}
+            {d.updatedAt && <span className="ml-2">{T('上次保存：','Last saved: ')}{new Date(d.updatedAt).toLocaleString()}</span>}
+          </p>
+        </div>
+        <button onClick={save} disabled={saving}
+          className={'px-4 py-2 rounded-lg text-sm font-medium text-white ' + (savedFlash ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700') + (saving ? ' opacity-60' : '')}>
+          {saving ? T('保存中…','Saving…') : savedFlash ? T('已保存 ✓','Saved ✓') : T('保存','Save')}
+        </button>
+      </div>
+
+      <DiagSection num="①" title={T('阶段定位','Where you are')}
+        hint={T('两种状态要的动作完全不同：定方向阶段狂投是弯路，攻坚阶段反复自省是拖延。','The two stages need different actions: mass-applying while lost is a detour; endless self-reflection while executing is procrastination.')}>
+        <div className="flex gap-3">
+          {stageBtn('explore', '探索方向', 'Exploring direction', T('还不确定要做什么/去哪个行业','Not yet sure what role or industry'))}
+          {stageBtn('execute', '攻坚投递', 'Executing search', T('目标明确，卡在拿面试/过面试','Target clear; stuck on getting or passing interviews'))}
+        </div>
+        <textarea value={d.stageNote} onChange={e => patch({ stageNote: e.target.value })}
+          placeholder={T('现在最卡的一件事是什么？','What is the single biggest blocker right now?')}
+          className="w-full mt-3 border border-gray-300 rounded px-2 py-1.5 text-sm h-16 focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+      </DiagSection>
+
+      <DiagSection num="②" title={T('优势清单','Strengths')}
+        hint={T('写「我反复被证明擅长的事」，不是「我会的技能名词」。每条最好带一个真实事例。','List what you are repeatedly proven good at — not skill nouns. Each item ideally carries one real example.')}>
+        <DiagList items={d.strengths} {...listOps('strengths')} placeholder={T('例：把混乱信息整理成能执行的清单（例子：××项目）','e.g. Turning messy info into executable checklists (example: ...)')} />
+      </DiagSection>
+
+      <DiagSection num="③" title={T('目标画像','Target profile')}
+        hint={T('从②推出来，不是从招聘网站上抄下来。','Derived from step 2 — not copied from job boards.')}>
+        <div className="grid grid-cols-2 gap-3 mb-2">
+          <div>
+            <label className="text-xs text-gray-600">{T('目标行业','Industry')}</label>
+            {inp({ value: d.target.industry, onChange: e => patchTarget({ industry: e.target.value }), placeholder: T('哪个行业需要②里的东西','Which industry needs step 2') })}
+          </div>
+          <div>
+            <label className="text-xs text-gray-600">{T('目标岗位','Role')}</label>
+            {inp({ value: d.target.role, onChange: e => patchTarget({ role: e.target.value }), placeholder: T('岗位名（可以不止一个）','Role title(s)') })}
+          </div>
+        </div>
+        <label className="text-xs text-gray-600">{T('硬约束','Hard constraints')}</label>
+        {inp({ value: d.target.constraints, onChange: e => patchTarget({ constraints: e.target.value }), placeholder: T('地点/签证/最低薪资/时间窗……','Location / visa / salary floor / timing...') })}
+      </DiagSection>
+
+      <DiagSection num="④" title={T('岗位对齐','Reality check')}
+        hint={T('拿 3–5 个真实 JD 对照③：他们反复要求、而我没证据的能力，逐条记在这里补。','Check 3–5 real JDs against step 3. What they repeatedly ask for and you cannot yet evidence — list here to fix.')}>
+        <DiagList items={d.alignment} {...listOps('alignment', true)} checkable
+          placeholder={T('例：JD 都要 SQL，我只有课程练习 → 做一个真数据集项目','e.g. JDs want SQL; I only have coursework → build one real-data project')} />
+      </DiagSection>
+
+      <DiagSection num="⑤" title={T('简历叙事自查','Resume story check')}
+        hint={T('多数 AI 简历工具只是往 CV 里塞关键词；这五条检查的是叙事。改完简历回来逐条勾。','Most AI resume tools stuff keywords. These five check the narrative. Re-check after each resume revision.')}>
+        {RESUME_CHECKS.map(c => (
+          <label key={c.id} className="flex items-start gap-2 py-1 cursor-pointer">
+            <input type="checkbox" checked={!!d.resume.checks[c.id]}
+              onChange={() => patchResume({ checks: { ...d.resume.checks, [c.id]: !d.resume.checks[c.id] } })}
+              className="mt-1 h-4 w-4 text-blue-600 rounded" />
+            <span className="text-sm text-gray-800">{T(c.zh, c.en)}</span>
+          </label>
+        ))}
+        <textarea value={d.resume.note} onChange={e => patchResume({ note: e.target.value })}
+          placeholder={T('没过的那几条，差在哪？','For unchecked items — what exactly is missing?')}
+          className="w-full mt-2 border border-gray-300 rounded px-2 py-1.5 text-sm h-16 focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+      </DiagSection>
+
+      <DiagSection num="⑥" title={T('关键决策','High-stakes decisions')}
+        hint={T('记下会改变方向的大决定（接不接 offer、转不转赛道、搬不搬家），写清「什么条件下选哪边」。','Log direction-changing decisions (offers, pivots, relocation) with the condition that decides each.')}>
+        <DiagList items={d.decisions} {...listOps('decisions')} placeholder={T('例：若 X 月前拿不到 Y，则转 Z','e.g. If no Y by month X, switch to Z')} />
+      </DiagSection>
+    </div>
+  );
+}
+
 // ════════════════════════════════════════════════════════════════
 // REGION APP
 // ════════════════════════════════════════════════════════════════
 
-function RegionApp({ region, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary }) {
+function RegionApp({ region, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary, diagnosis, setDiagnosis }) {
   const regionMeta = REGIONS.find(r=>r.id===region);
   const [tab, setTab] = useState('addjob');
   const [jobs, setJobs] = useState([]);
@@ -3081,6 +3261,7 @@ function RegionApp({ region, resumeDb, sections, updateSections, formatting, set
       {tab==='tracker' && !openJob && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} formatting={formatting} onOpen={id=>{setOpenJobId(id);}} />}
       {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>setOpenJobId(null)} />}
       {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} glossary={glossary} setGlossary={setGlossary} region={region} resumeDb={resumeDb} />}
+      {tab==='diagnosis' && <DiagnosisTab diagnosis={diagnosis} setDiagnosis={setDiagnosis} />}
       {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}
       {tab==='insights'&& <InsightsTab jobs={jobs} regionName={rName(regionMeta)} />}
       {tab==='watchdog'&& <WatchdogTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} />}
@@ -3100,6 +3281,7 @@ function App() {
   const [formatting, setFormatting] = useState('');
   const [glossary, setGlossary]     = useState('');
   const [library, setLibrary]       = useState([]);
+  const [diagnosis, setDiagnosis]   = useState(null);
   const [loaded, setLoaded]       = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ghOk, setGhOk]           = useState(false);
@@ -3114,13 +3296,15 @@ function App() {
     const ok = ghConfigured(); setGhOk(ok);
     if (!ok) { setLoaded(true); setSettingsOpen(true); return; }
     (async () => {
-      const [rawSecs, oldDb, fmt, gls, lib] = await Promise.all([
+      const [rawSecs, oldDb, fmt, gls, lib, diag] = await Promise.all([
         loadJson('resumeSections'),
         loadText('resumeDb'),
         loadText('formatting'),
         loadText('glossary'),
         loadJson('library'),
+        loadJson('diagnosis'),
       ]);
+      setDiagnosis(diag && !Array.isArray(diag) ? diag : null);
       let secs = rawSecs;
       if ((!secs || secs.length === 0) && oldDb.trim()) {
         secs = [{ id: newId(), name: 'My Profile', content: oldDb, source: 'manual', addedAt: new Date().toISOString() }];
@@ -3223,6 +3407,8 @@ function App() {
             region={region}
             resumeDb={resumeDb}
             sections={sections}
+            diagnosis={diagnosis}
+            setDiagnosis={setDiagnosis}
             updateSections={updateSections}
             formatting={formatting}
             setFormatting={setFormatting}
