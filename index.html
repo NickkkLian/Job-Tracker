@@ -1944,23 +1944,6 @@ function renderResumePDF(data) {
     if (y+need > PH-MB) { doc.addPage(); y=MT; }
   }
 
-  function drawText(txt, x, yy, opts={}) {
-    const { size=9.5, bold=false, align='left', color='#111111', maxW=CONTENT_W } = opts;
-    doc.setFont('Helvetica', bold?'bold':'normal');
-    doc.setFontSize(size);
-    doc.setTextColor(color);
-    if (align==='right') {
-      doc.text(String(txt||''), x, yy, { align:'right' });
-    } else if (align==='center') {
-      doc.text(String(txt||''), x, yy, { align:'center' });
-    } else {
-      const lines = doc.splitTextToSize(String(txt||''), maxW);
-      lines.forEach((ln, i) => {
-        if (i>0) { checkPage(); y+=11; yy=y; }
-        doc.text(ln, x, yy);
-      });
-    }
-  }
 
   // ── Header ───────────────────────────────────────────────────
   doc.setFont('Helvetica','bold'); doc.setFontSize(16); doc.setTextColor('#111');
