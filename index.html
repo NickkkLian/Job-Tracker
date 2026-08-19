@@ -309,10 +309,46 @@ const STATUSES = [
   { id:'applied',          label:'Applied',             zh:'已投递',       cls:'bg-blue-100 text-blue-800 border-blue-200'   },
   { id:'interviewing',     label:'Interviewing',        zh:'面试中',       cls:'bg-yellow-100 text-yellow-800 border-yellow-200' },
   { id:'offered',          label:'Offered',             zh:'已获 Offer',   cls:'bg-green-100 text-green-800 border-green-200'  },
+  { id:'working',          label:'Working (CEC hours)', zh:'在职·计工时',  cls:'bg-teal-100 text-teal-800 border-teal-200'    },
   { id:'rejected',         label:'Rejected',            zh:'已被拒',       cls:'bg-red-100 text-red-800 border-red-200'      },
   { id:'interview_rejected', label:'Interviewed, Rejected', zh:'面试后被拒', cls:'bg-orange-100 text-orange-800 border-orange-200' },
 ];
 // 显示用：存储值是 id（interested/applied…），label/zh 只是显示层
+// ── CEC 工时账：超过 30h/周不计；只统计 status='working' 且填了入职日期与周工时的
+const CEC_TARGET = 1560;
+const teerOf = noc => (noc && /^\d{5}$/.test(noc.trim())) ? noc.trim()[1] : '';
+const teerOk  = noc => ['1','2','3'].includes(teerOf(noc));
+function cecHours(jobs){
+  // ⚠ IRCC 的 30h/周上限是**跨所有工作合计**，不是每份各自封顶。
+  // 做法：按周切片，每周把当周所有在职岗位的工时加起来后再封顶 30h。
+  const now = new Date(); const MS = 7*24*3600*1000;
+  const live = (jobs||[]).filter(j => j.status==='working' && j.startDate && j.weeklyHours &&
+      !isNaN(new Date(j.startDate)) && teerOk(j.noc||'12200'));
+  if (!live.length) return { total:0, per:[], weeklyRate:0, remain:CEC_TARGET, eta:null, capped:0 };
+  const starts = live.map(j=>new Date(j.startDate).getTime());
+  const t0 = Math.min(...starts);
+  const t1 = Math.max(...live.map(j => j.endDate && !isNaN(new Date(j.endDate)) ? new Date(j.endDate).getTime() : now.getTime()));
+  let total = 0, capped = 0;
+  const per = live.map(j => ({ id:j.id, role:j.role, company:j.company, noc:j.noc||'', weekly:parseFloat(j.weeklyHours)||0, hours:0 }));
+  for (let t = t0; t < t1; t += MS) {
+    const frac = Math.min(1, (t1 - t) / MS);
+    let raw = 0; const active = [];
+    live.forEach((j, i) => {
+      const st = new Date(j.startDate).getTime();
+      const en = j.endDate && !isNaN(new Date(j.endDate)) ? new Date(j.endDate).getTime() : now.getTime();
+      if (t >= st && t < en) { raw += (parseFloat(j.weeklyHours)||0); active.push(i); }
+    });
+    const eff = Math.min(raw, 30);
+    if (raw > 30) capped += (raw - 30) * frac;
+    total += eff * frac;
+    if (raw > 0) active.forEach(i => { per[i].hours += (parseFloat(live[i].weeklyHours)||0) / raw * eff * frac; });
+  }
+  const weeklyRate = Math.min(30, live.filter(j => !j.endDate || new Date(j.endDate) > now)
+                                      .reduce((a,j)=>a+(parseFloat(j.weeklyHours)||0),0));
+  const remain = Math.max(0, CEC_TARGET - total);
+  const eta = weeklyRate > 0 ? new Date(Date.now() + remain/weeklyRate*7*24*3600*1000) : null;
+  return { total, per, weeklyRate, remain, eta, capped };
+}
 const statusLabel = id => { const s = STATUSES.find(x => x.id === id) || STATUSES[0]; return T(s.zh, s.label); };
 
 const TABS = [
@@ -1720,7 +1756,7 @@ function LibraryTab({ library, setLibrary, updateSections }) {
 // ════════════════════════════════════════════════════════════════
 
 function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved }) {
-  const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'interested', jdText:'', notes:'' };
+  const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'interested', jdText:'', notes:'', noc:'', weeklyHours:'', empType:'', applyMethod:'', startDate:'', endDate:'' };
   const [form, setForm]       = useState(empty);
   const [saved, setSaved]     = useState(false);
   const [extracted, setExtracted] = useState(null); // fields extracted from upload, for the hint banner
@@ -1785,7 +1821,13 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
 
         {/* Form fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          {[['company',T('公司 *','Company *'),'Google'],['role',T('职位名称 *','Job Title *'),T('软件工程师','Software Engineer')],['location',T('地点','Location'),T('多伦多 / 远程','Toronto, ON / Remote')],['salaryRange',T('薪资范围','Salary Range'),'$120k – $150k']].map(([k,lbl,ph]) => (
+          {[['company',T('公司 *','Company *'),'Google'],['role',T('职位名称 *','Job Title *'),T('软件工程师','Software Engineer')],['location',T('地点','Location'),T('多伦多 / 远程','Toronto, ON / Remote')],['salaryRange',T('薪资范围','Salary Range'),'$120k – $150k'],
+            ['noc',T('NOC 编码（第二位＝TEER）','NOC code'),'12200'],
+            ['weeklyHours',T('周工时','Weekly hours'),'30'],
+            ['empType',T('雇佣类型','Employment type'),T('T4雇员 / 承包人 / 未确认','T4 employee / contractor / unknown')],
+            ['applyMethod',T('投递方式','Apply method'),T('Easy Apply / 站内直投 / ATS','Easy Apply / direct / ATS')],
+            ['startDate',T('入职日期（算工时用）','Start date'),'YYYY-MM-DD'],
+            ['endDate',T('离职日期（空＝在职）','End date'),'']].map(([k,lbl,ph]) => (
             <div key={k}>
               <label className="text-xs font-medium text-gray-700 mb-1 block">{lbl}</label>
               <input value={form[k]} onChange={e=>set(k,e.target.value)} placeholder={ph}
@@ -2415,7 +2457,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
         {editing && (
           <div className="mt-4 border-t border-gray-100 pt-4 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {[['company',T('公司','Company')],['role',T('职位','Role')],['location',T('地点','Location')],['salaryRange',T('薪资范围','Salary Range')]].map(([k,lbl])=>(
+              {[['company',T('公司','Company')],['role',T('职位','Role')],['location',T('地点','Location')],['salaryRange',T('薪资范围','Salary Range')],['noc',T('NOC 编码','NOC')],['weeklyHours',T('周工时','Weekly hrs')],['empType',T('雇佣类型','Emp type')],['applyMethod',T('投递方式','Apply via')],['startDate',T('入职日期','Start')],['endDate',T('离职日期','End')]].map(([k,lbl])=>(
                 <div key={k}>
                   <label className="text-xs text-gray-600 mb-1 block">{lbl}</label>
                   <input value={form[k]||''} onChange={e=>set(k,e.target.value)}
@@ -2842,7 +2884,7 @@ Return JSON only:
 function InsightsTab({ jobs, regionName }) {
   const stats = useMemo(() => {
     // Cumulative pipeline — a job at "Interviewing" also counts toward "Applied"
-    const rank = { interested:0, applied:1, interviewing:2, offered:3, rejected:1, interview_rejected:2 };
+    const rank = { interested:0, applied:1, interviewing:2, offered:3, working:4, rejected:1, interview_rejected:2 };
     const atLeast = (stage) => jobs.filter(j => (rank[j.status]??0) >= rank[stage]).length;
     const pipeline = [
       { id:'interested',   label:T('感兴趣','Interested'),   count: jobs.filter(j=>j.status==='interested').length, color:'#a78bfa' },
@@ -2865,7 +2907,44 @@ function InsightsTab({ jobs, regionName }) {
     return { pipeline, responseRate, offerRate, last7, last30, topCos, total, applied, upcoming };
   }, [jobs]);
 
-  if (!jobs.length) return <Card className="p-8 text-center text-sm text-gray-500">{T('暂无数据 — 请先添加一些申请。','No data yet — add some applications first.')}</Card>;
+  const cecPanel = (<>
+        {(() => {
+          const c = cecHours(jobs);
+          const pct = Math.min(100, c.total / CEC_TARGET * 100);
+          const bad = jobs.filter(j => j.status==='working' && j.noc && !teerOk(j.noc));
+          const noType = jobs.filter(j => j.status==='working' && !(j.empType||'').trim());
+          return (
+            <div className="mb-5 rounded-lg border border-teal-200 bg-teal-50 p-4">
+              <div className="flex items-baseline justify-between mb-2">
+                <div className="font-semibold text-teal-900">{T('CEC 工时账（经验类移民）','CEC hours ledger')}</div>
+                <div className="text-sm text-teal-800">{Math.round(c.total)} / {CEC_TARGET} {T('小时','hrs')}</div>
+              </div>
+              <div className="h-3 w-full rounded bg-teal-100 overflow-hidden">
+                <div className="h-3 bg-teal-500" style={{width: pct + '%'}}></div>
+              </div>
+              <div className="mt-2 text-xs text-teal-900 space-y-1">
+                <div>{T('超过 30 小时/周的部分不计入，已按此封顶。','Hours above 30/week do not count; capped accordingly.')}</div>
+                {c.weeklyRate > 0
+                  ? <div>{T('当前每周计入 ','Weekly rate ')}<b>{c.weeklyRate}h</b>{T('，还差 ',', remaining ')}<b>{Math.round(c.remain)}h</b>{c.eta ? T('，预计达成 ', ', ETA ') + c.eta.toISOString().slice(0,10) : ''}</div>
+                  : <div className="text-teal-700">{T('把在职岗位状态设为「在职·计工时」并填入职日期与周工时，这里才开始计数。','Set a job to Working (CEC hours) with start date and weekly hours to start counting.')}</div>}
+                {bad.length > 0 && <div className="text-red-700">{T('⚠ 有在职岗位的 NOC 不在 TEER 1-3，这些工时不算数：','⚠ Job(s) with NOC outside TEER 1-3 will not count: ')}{bad.length}</div>}
+                {noType.length > 0 && <div className="text-amber-700">{T('⚠ 有在职岗位没填雇佣类型——自雇/承包人一小时都不计，务必确认是 T4 雇员：','⚠ Job(s) missing employment type — contractor hours do not count: ')}{noType.length}</div>}
+              </div>
+              {c.per.length > 0 && (
+                <div className="mt-3 text-xs">
+                  {c.per.map(x => (
+                    <div key={x.id} className="flex justify-between border-t border-teal-200 pt-1">
+                      <span>{(x.role || '(role)') + ' · ' + (x.company || '(company)') + (x.noc ? ' · NOC ' + x.noc + ' (TEER ' + teerOf(x.noc) + ')' : '')}</span>
+                      <span className="font-medium">{Math.round(x.hours)}h</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+  </>);
+  if (!jobs.length) return <div className="space-y-4">{cecPanel}<Card className="p-8 text-center text-sm text-gray-500">{T('暂无申请数据 — 先添加职位。','No applications yet — add some jobs first.')}</Card></div>;
 
   // ── Sankey data ──────────────────────────────────────────
   const c = {};
@@ -2981,6 +3060,7 @@ function InsightsTab({ jobs, regionName }) {
 
       {/* Sankey flow chart */}
       <Card className="p-4">
+        {cecPanel}
         <SectionHdr icon="📊" title={T(`${regionName} 流程`,`${regionName} pipeline`)} />
         <div className="mt-2">
           <SankeyChart />
