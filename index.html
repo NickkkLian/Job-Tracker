@@ -316,6 +316,14 @@ const STATUSES = [
 // 显示用：存储值是 id（interested/applied…），label/zh 只是显示层
 // ── CEC 工时账：超过 30h/周不计；只统计 status='working' 且填了入职日期与周工时的
 const CEC_TARGET = 1560;
+// 投递梯队：priority 字段存 T1..T4，空＝未分级
+const TIERS = [
+  { id:'T1', zh:'第一梯队 · 立刻投', en:'Tier 1 — apply now',   cls:'bg-red-100 text-red-800 border-red-200' },
+  { id:'T2', zh:'第二梯队 · 优先',   en:'Tier 2 — high',        cls:'bg-orange-100 text-orange-800 border-orange-200' },
+  { id:'T3', zh:'第三梯队 · 常规',   en:'Tier 3 — normal',      cls:'bg-sky-100 text-sky-800 border-sky-200' },
+  { id:'T4', zh:'第四梯队 · 备选',   en:'Tier 4 — backup',      cls:'bg-gray-100 text-gray-700 border-gray-200' },
+];
+const tierMeta = id => TIERS.find(t => t.id === id) || null;
 const teerOf = noc => (noc && /^\d{5}$/.test(noc.trim())) ? noc.trim()[1] : '';
 const teerOk  = noc => ['1','2','3'].includes(teerOf(noc));
 function cecHours(jobs){
@@ -812,6 +820,12 @@ function Btn({ children, onClick, variant='secondary', disabled=false, className
 function StatusPill({ status }) {
   const s = STATUSES.find(x => x.id === status) || STATUSES[0];
   return <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full border ${s.cls}`}>{T(s.zh,s.label)}</span>;
+}
+
+function TierPill({ tier }) {
+  const t = tierMeta(tier);
+  if (!t) return null;
+  return <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full border ${t.cls}`}>{T(t.zh, t.en)}</span>;
 }
 
 function StatusSelect({ value, onChange }) {
@@ -1756,7 +1770,7 @@ function LibraryTab({ library, setLibrary, updateSections }) {
 // ════════════════════════════════════════════════════════════════
 
 function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved }) {
-  const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'interested', jdText:'', notes:'', noc:'', weeklyHours:'', empType:'', applyMethod:'', startDate:'', endDate:'' };
+  const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'interested', jdText:'', notes:'', noc:'', weeklyHours:'', empType:'', applyMethod:'', startDate:'', endDate:'', priority:'' };
   const [form, setForm]       = useState(empty);
   const [saved, setSaved]     = useState(false);
   const [extracted, setExtracted] = useState(null); // fields extracted from upload, for the hint banner
@@ -1827,7 +1841,8 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
             ['empType',T('雇佣类型','Employment type'),T('T4雇员 / 承包人 / 未确认','T4 employee / contractor / unknown')],
             ['applyMethod',T('投递方式','Apply method'),T('Easy Apply / 站内直投 / ATS','Easy Apply / direct / ATS')],
             ['startDate',T('入职日期（算工时用）','Start date'),'YYYY-MM-DD'],
-            ['endDate',T('离职日期（空＝在职）','End date'),'']].map(([k,lbl,ph]) => (
+            ['endDate',T('离职日期（空＝在职）','End date'),''],
+            ['priority',T('投递梯队（T1–T4）','Tier'),'T1']].map(([k,lbl,ph]) => (
             <div key={k}>
               <label className="text-xs font-medium text-gray-700 mb-1 block">{lbl}</label>
               <input value={form[k]} onChange={e=>set(k,e.target.value)} placeholder={ph}
@@ -2179,14 +2194,19 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
 
 function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting }) {
   const [filter, setFilter] = useState('all');
+  const [tierFilter, setTierFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showBatch, setShowBatch] = useState(false);
 
   const filtered = useMemo(() => jobs.filter(j => {
     if (filter!=='all' && j.status!==filter) return false;
+    if (tierFilter!=='all' && (j.priority||'') !== tierFilter) return false;
     if (search) { const q=search.toLowerCase(); if (!`${j.company} ${j.role} ${j.location}`.toLowerCase().includes(q)) return false; }
     return true;
-  }), [jobs, filter, search]);
+  }).sort((a,b)=>{
+    const r=t=>({T1:1,T2:2,T3:3,T4:4}[t||'']||9);
+    return r(a.priority)-r(b.priority) || String(a.company||'').localeCompare(String(b.company||''));
+  }), [jobs, filter, tierFilter, search]);
 
   const updateStatus = async (id, status) => {
     const updated = jobs.map(j=>j.id===id?{...j,status}:j); setJobs(updated); await saveJson(`${region}:jobs`, updated);
@@ -2228,6 +2248,12 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting }) {
             <option value="all">{T('全部','All')} ({jobs.length})</option>
             {STATUSES.map(s=><option key={s.id} value={s.id}>{T(s.zh,s.label)} ({jobs.filter(j=>j.status===s.id).length})</option>)}
           </select>
+          <select value={tierFilter} onChange={e=>setTierFilter(e.target.value)}
+            className="text-sm px-2 py-1.5 border border-gray-300 rounded-md bg-white">
+            <option value="all">{T('全部梯队','All tiers')}</option>
+            {TIERS.map(t=><option key={t.id} value={t.id}>{T(t.zh,t.en)}（{jobs.filter(j=>j.priority===t.id).length}）</option>)}
+            <option value="">{T('未分级','Unranked')}（{jobs.filter(j=>!j.priority).length}）</option>
+          </select>
           {lsGet('anthropicKey') && (
             <Btn onClick={()=>setShowBatch(true)} title={T('自动为多个职位生成定制简历 PDF','Generate tailored resume PDFs for multiple jobs automatically')}>
               {T('🎯 批量定制','🎯 Batch Tailor')}
@@ -2242,6 +2268,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-semibold text-gray-900 truncate">{j.role||T('（无职位名）','(no title)')}</span>
                 <StatusPill status={j.status} />
+                <TierPill tier={j.priority} />
                 {j.status==='interested' && loadPdfLocal(`${region}:${j.id}:resume`) && (
                   <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">{T('📄 简历就绪','📄 Resume ready')}</span>
                 )}
@@ -2440,7 +2467,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
         {editing && (
           <div className="mt-4 border-t border-gray-100 pt-4 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {[['company',T('公司','Company')],['role',T('职位','Role')],['location',T('地点','Location')],['salaryRange',T('薪资范围','Salary Range')],['noc',T('NOC 编码','NOC')],['weeklyHours',T('周工时','Weekly hrs')],['empType',T('雇佣类型','Emp type')],['applyMethod',T('投递方式','Apply via')],['startDate',T('入职日期','Start')],['endDate',T('离职日期','End')]].map(([k,lbl])=>(
+              {[['company',T('公司','Company')],['role',T('职位','Role')],['location',T('地点','Location')],['salaryRange',T('薪资范围','Salary Range')],['noc',T('NOC 编码','NOC')],['weeklyHours',T('周工时','Weekly hrs')],['empType',T('雇佣类型','Emp type')],['applyMethod',T('投递方式','Apply via')],['startDate',T('入职日期','Start')],['endDate',T('离职日期','End')],['priority',T('梯队','Tier')]].map(([k,lbl])=>(
                 <div key={k}>
                   <label className="text-xs text-gray-600 mb-1 block">{lbl}</label>
                   <input value={form[k]||''} onChange={e=>set(k,e.target.value)}
