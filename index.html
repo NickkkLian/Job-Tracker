@@ -14,7 +14,7 @@
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     #loading { display:flex; align-items:center; justify-content:center; min-height:100vh; color:#6b7280; font-size:14px; }
   
-/* ===== 移动端与无障碍基线（2026-07-31 统一注入；规则源：web-interface-guidelines）===== */
+/* ===== Mobile and accessibility baseline (applied 2026-07-31; source: web-interface-guidelines) ===== */
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{
     animation-duration:.01ms!important;animation-iteration-count:1!important;
@@ -31,16 +31,17 @@ button,a,summary,label,[role="button"],[onclick]{
 <body class="bg-gray-50">
   <div id="loading">Loading app…</div>
   <div id="root" style="display:none"></div>
-  <script>try{if(localStorage.getItem('pha-lang')!=='en'){document.getElementById('loading').textContent='正在加载…';document.documentElement.lang='zh';}}catch(e){}</script>
+  <script>try{if(localStorage.getItem('pha-lang')==='zh'){document.getElementById('loading').textContent='正在加载…';document.documentElement.lang='zh';}}catch(e){}</script>
 
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
 
 // ════════════════════════════════════════════════════════════════
-// [hub-portal] 双语引擎 — 全站共享 localStorage 键 pha-lang（默认 zh）
-// 原生英文 app：T(zh,en) 中文为备选；存储枚举值(status/region id)与 AI prompt 模板不译
+// Bilingual engine — the localStorage key `pha-lang` is shared by every app on this origin.
+// English by default, 中文 via the toggle. T(zh, en) picks the string; stored enum values
+// (status / region ids) and the AI prompt templates are never translated.
 // ════════════════════════════════════════════════════════════════
-let lang = (() => { try { return localStorage.getItem('pha-lang') === 'en' ? 'en' : 'zh'; } catch (e) { return 'zh'; } })();
+let lang = (() => { try { return localStorage.getItem('pha-lang') === 'zh' ? 'zh' : 'en'; } catch (e) { return 'en'; } })();
 const T = (zh, en) => lang === 'en' ? en : zh;
 let _langSubs = [];
 function toggleLang() {
@@ -49,9 +50,11 @@ function toggleLang() {
   document.documentElement.lang = lang === 'en' ? 'en' : 'zh';
   _langSubs.slice().forEach(fn => { try { fn(); } catch (e) {} });
 }
-// 顶层订阅一次即可：App 重渲染会级联整棵树（组件未 memo 化），所有 T() 重新求值
-/* 模态框 Esc 关闭（无障碍：遮罩层点击关闭对键盘用户不可用，
-   正确做法是 Esc，而不是给全屏遮罩加 tabindex 造一个巨大的假停靠点）*/
+// One top-level subscription is enough: re-rendering App cascades through the whole tree
+// (components aren't memoised), so every T() is re-evaluated.
+/* Close modals on Esc (accessibility: click-to-close on the backdrop is unusable from the
+   keyboard; the right answer is Esc, not a tabindex on a full-screen overlay that creates
+   one giant fake focus stop). */
 function useEscapeClose(onClose) {
   useEffect(() => {
     if (!onClose) return;
@@ -76,7 +79,24 @@ function useLangToggle() {
 
 const LOCAL_PRE  = 'jobapp:';
 
-// [hub-portal] 令牌/仓库为空时从同 origin 的共享配置 pha-config 补全（owner/repo + token），新设备零配置；已填的不覆盖
+// ?demo=1 — sample data, nothing saved: lets a visitor try the UI without a GitHub repo.
+// ?tab=tracker|insights|… — open a tab directly.
+const DEMO = /[?&]demo=1\b/.test(location.search);
+const URL_TAB = new URLSearchParams(location.search).get('tab') || '';
+function sampleJobs() {
+  const ago = n => new Date(Date.now() - n * 86400000).toISOString();
+  const day = n => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  return [
+    { id:'demo1', dateAdded:ago(2),  status:'interested',         priority:'T1', company:'Northwind Analytics', role:'Data Analyst',                 location:'Vancouver, BC',          salaryRange:'$65k – $75k', applicationDeadline:day(9), noc:'21223', empType:'', applyMethod:'Greenhouse', weeklyHours:'', startDate:'', endDate:'', notes:'Referred by a former classmate.', jdText:'Own reporting for the growth team: SQL, Python (pandas), Looker dashboards and experiment read-outs. To apply, tell us about one analysis that changed a decision.' },
+    { id:'demo2', dateAdded:ago(6),  status:'applied',            priority:'T2', company:'Fathom Robotics',     role:'Junior Software Engineer',     location:'Toronto, ON (hybrid)',   salaryRange:'$80k – $95k', applicationDeadline:'',     noc:'21232', empType:'', applyMethod:'Workday',    weeklyHours:'', startDate:'', endDate:'', notes:'', jdText:'Build internal tooling in TypeScript and Python for a fleet-operations team. Tests, code review, on-call rotation after six months.' },
+    { id:'demo3', dateAdded:ago(14), status:'interviewing',       priority:'T1', company:'Cascade Health',      role:'Business Intelligence Analyst', location:'Burnaby, BC',           salaryRange:'$70k – $82k', applicationDeadline:'',     noc:'21223', empType:'', applyMethod:'Direct',     weeklyHours:'', startDate:'', endDate:'', notes:'Second round on Thursday — case study on readmission rates.', jdText:'Maintain the clinical operations data mart (dbt, BigQuery) and ship weekly KPI packs to regional directors.' },
+    { id:'demo4', dateAdded:ago(150),status:'working',            priority:'',   company:'Harbourline Logistics', role:'Operations Analyst',         location:'Richmond, BC',           salaryRange:'$58k',        applicationDeadline:'',     noc:'21231', empType:'T4 employee', applyMethod:'Referral', weeklyHours:'30', startDate:ago(120).slice(0,10), endDate:'', notes:'', jdText:'Route optimisation, dock scheduling, weekly throughput reporting.' },
+    { id:'demo5', dateAdded:ago(21), status:'rejected',           priority:'T3', company:'Glacier Capital',     role:'Investment Analyst',           location:'Vancouver, BC',          salaryRange:'',            applicationDeadline:'',     noc:'11101', empType:'', applyMethod:'Easy Apply', weeklyHours:'', startDate:'', endDate:'', notes:'Auto-rejection after 3 days.', jdText:'Support the public-equities team with models, screens and memo drafts.' },
+    { id:'demo6', dateAdded:ago(30), status:'interview_rejected', priority:'T2', company:'Pinecrest Software',  role:'Product Analyst',              location:'Remote (Canada)',        salaryRange:'$72k',        applicationDeadline:'',     noc:'21223', empType:'', applyMethod:'Lever',      weeklyHours:'', startDate:'', endDate:'', notes:'Got to the final round; they went with an internal candidate.', jdText:'Define product metrics, instrument events, run funnel analyses and write decision memos.' },
+  ];
+}
+
+// If token/repo are empty, fill them from the shared `pha-config` on this origin (owner/repo + token): zero setup on a new device; never overwrites values already set
 try {
   const _pha = JSON.parse(localStorage.getItem('pha-config') || 'null');
   if (_pha && _pha.token) {
@@ -113,7 +133,7 @@ const KEY_TO_PATH = {
   diagnosis:       PATHS.diagnosis,
 };
 
-// 任意地区都按 data/<id>_jobs.json 派生路径，新增地区无需改这里
+// Any region maps to data/<id>_jobs.json; adding a region needs no change here
 function keyToPath(key){
   if (KEY_TO_PATH[key]) return KEY_TO_PATH[key];
   const m = String(key).match(/^([a-z0-9_-]+):jobs$/i);
@@ -264,9 +284,9 @@ async function ghDeleteFile(path) {
 
 // Storage helpers
 async function loadText(key)  { try { return await ghRead(keyToPath(key)) || ''; } catch { return ''; } }
-async function saveText(key, v){ try { await ghWrite(keyToPath(key), v); } catch(e){ console.error(e); dispatchSaveErr(e); } }
+async function saveText(key, v){ if (DEMO && !ghConfigured()) return; try { await ghWrite(keyToPath(key), v); } catch(e){ console.error(e); dispatchSaveErr(e); } }
 async function loadJson(key)  { try { const t = await ghRead(keyToPath(key)); return t ? JSON.parse(t) : []; } catch { return []; } }
-async function saveJson(key, v){ try { await ghWrite(keyToPath(key), JSON.stringify(v)); } catch(e){ console.error(e); dispatchSaveErr(e); } }
+async function saveJson(key, v){ if (DEMO && !ghConfigured()) return; try { await ghWrite(keyToPath(key), JSON.stringify(v)); } catch(e){ console.error(e); dispatchSaveErr(e); } }
 
 function dispatchSaveErr(e) { window.dispatchEvent(new CustomEvent('jobapp:saveerror', {detail: e})); }
 
@@ -300,7 +320,7 @@ const REGIONS = [
   { id:'remote',      name:'Remote / Global', zh:'远程 / 全球', flag:'🌍', accent:'bg-violet-50 border-violet-300 text-violet-900', dot:'bg-violet-500', contactNote:'include email and the best phone number; note open to remote / relocation.' },
 ];
 const REGION_BY = Object.fromEntries(REGIONS.map(r => [r.id, r]));
-// 地区名显示用（id 是存储/AI 搜索用的稳定键，不动）
+// Display name for a region (the id is the stable key used for storage and AI search; never changes)
 const rName = r => r ? T(r.zh || r.name, r.name) : '';
 function regionContact(region){ const r = REGION_BY[region]; return (r && r.contactNote) || 'include all phone numbers, email, and location.'; }
 
@@ -313,10 +333,10 @@ const STATUSES = [
   { id:'rejected',         label:'Rejected',            zh:'已被拒',       cls:'bg-red-100 text-red-800 border-red-200'      },
   { id:'interview_rejected', label:'Interviewed, Rejected', zh:'面试后被拒', cls:'bg-orange-100 text-orange-800 border-orange-200' },
 ];
-// 显示用：存储值是 id（interested/applied…），label/zh 只是显示层
-// ── CEC 工时账：超过 30h/周不计；只统计 status='working' 且填了入职日期与周工时的
+// Display only: the stored value is the id (interested/applied…); label/zh are presentation
+// ── CEC hours ledger: hours above 30/week don't count; only status='working' jobs with a start date and weekly hours are counted
 const CEC_TARGET = 1560;
-// 投递梯队：priority 字段存 T1..T4，空＝未分级
+// Application tiers: the `priority` field stores T1..T4; empty = unranked
 const TIERS = [
   { id:'T1', zh:'第一梯队 · 立刻投', en:'Tier 1 — apply now',   cls:'bg-red-100 text-red-800 border-red-200' },
   { id:'T2', zh:'第二梯队 · 优先',   en:'Tier 2 — high',        cls:'bg-orange-100 text-orange-800 border-orange-200' },
@@ -327,8 +347,8 @@ const tierMeta = id => TIERS.find(t => t.id === id) || null;
 const teerOf = noc => (noc && /^\d{5}$/.test(noc.trim())) ? noc.trim()[1] : '';
 const teerOk  = noc => ['1','2','3'].includes(teerOf(noc));
 function cecHours(jobs){
-  // ⚠ IRCC 的 30h/周上限是**跨所有工作合计**，不是每份各自封顶。
-  // 做法：按周切片，每周把当周所有在职岗位的工时加起来后再封顶 30h。
+  // ⚠ IRCC's 30 h/week cap applies to **all jobs combined**, not to each job separately.
+  // Approach: slice by week, sum every active job's hours for that week, then cap at 30.
   const now = new Date(); const MS = 7*24*3600*1000;
   const live = (jobs||[]).filter(j => j.status==='working' && j.startDate && j.weeklyHours &&
       !isNaN(new Date(j.startDate)) && teerOk(j.noc||'12200'));
@@ -1122,8 +1142,8 @@ function AiPromptSection({ resumeDb, job, formatting, glossary, tailoredResume, 
       <div className="border-t border-gray-100 pt-3">
         <p className="text-xs text-gray-500 mb-2">{T("把简历翻译成中文 — 你将选择使用哪一份简历。","Translate a resume to Chinese — you'll choose which resume to use.")}</p>
         <div className="flex flex-wrap gap-2">
-          <Btn variant="secondary" onClick={() => setTranslateLang('simplified')}>🇨🇳 → 简体中文</Btn>
-          <Btn variant="secondary" onClick={() => setTranslateLang('traditional')}>🇭🇰 → 繁體中文</Btn>
+          <Btn variant="secondary" onClick={() => setTranslateLang('simplified')}>{T('🇨🇳 → 简体中文','🇨🇳 → Simplified Chinese')}</Btn>
+          <Btn variant="secondary" onClick={() => setTranslateLang('traditional')}>{T('🇭🇰 → 繁體中文','🇭🇰 → Traditional Chinese')}</Btn>
         </div>
       </div>
       {modal && <PromptModal title={modal.title} prompt={modal.prompt} onClose={() => setModal(null)} />}
@@ -1297,7 +1317,7 @@ function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
 // ════════════════════════════════════════════════════════════════
 
 // ════════════════════════════════════════════════════════════════
-// TEMPLATES — 个人资料库骨架 + 各岗位简历技能模板（可一键插入、再自由编辑）
+// TEMPLATES — profile skeleton + per-role skills blocks (one click to insert, then edit freely)
 // ════════════════════════════════════════════════════════════════
 const PROFILE_STARTER = [
   { name:'Contact & Links', content:'Full name:\nLocation (city, country):\nPhone(s):\nEmail:\nLinkedIn:\nPortfolio / GitHub / personal site:\nWork authorization (per region, e.g. citizen / PR / visa / open to sponsorship):' },
@@ -1627,7 +1647,7 @@ CRITICAL RULES:
 3. Spacing: use generous spacing — spaceBefore/spaceAfter on section headers at least 10pt, between entries at least 8pt. If page has blank space at the bottom, increase spacing further to fill naturally.
 4. Page 1 uses fontName='CJK' for all text. Page 2 uses fontName='Helvetica'.
 5. No AI Workflows as a separate skill section — include relevant items in Technical.
-6. Prefer Professor Reference System project over RAG over SEC Filings.
+6. Order projects by relevance to the target role, strongest first.
 7. Both pages must fill a full A4 page. Use 3 bullets for experience, 2 per project, include all courses.
 8. Separate pages with PageBreak(). Verify page count = 2 with PdfReader.`.trim();
 
@@ -3129,8 +3149,8 @@ function InsightsTab({ jobs, regionName }) {
 
 
 // ════════════════════════════════════════════════════════════════
-// DIAGNOSIS TAB —— 求职诊断（Innermatch 六步漏斗自用版，2026-08-18）
-// 顺序：阶段 → 优势 → 目标画像 → 岗位对齐 → 简历叙事 → 关键决策
+// DIAGNOSIS TAB — career diagnosis (a personal take on the six-step funnel, 2026-08-18)
+// Order: stage → strengths → target profile → reality check → resume narrative → decisions
 // ════════════════════════════════════════════════════════════════
 
 const DIAG_DEFAULT = () => ({
@@ -3310,7 +3330,7 @@ function DiagnosisTab({ diagnosis, setDiagnosis }) {
 
 function RegionApp({ region, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary, diagnosis, setDiagnosis }) {
   const regionMeta = REGIONS.find(r=>r.id===region);
-  const [tab, setTab] = useState('addjob');
+  const [tab, setTab] = useState(TABS.some(t => t.id === URL_TAB) ? URL_TAB : 'addjob');
   const [jobs, setJobs] = useState([]);
   const [openJobId, setOpenJobId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -3318,7 +3338,7 @@ function RegionApp({ region, resumeDb, sections, updateSections, formatting, set
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const j = await loadJson(`${region}:jobs`);
+      const j = (DEMO && !ghConfigured()) ? sampleJobs() : await loadJson(`${region}:jobs`);
       if (!cancelled) { setJobs(j); setLoading(false); }
     })();
     return () => { cancelled=true; };
@@ -3384,7 +3404,7 @@ function App() {
 
   useEffect(() => {
     const ok = ghConfigured(); setGhOk(ok);
-    if (!ok) { setLoaded(true); setSettingsOpen(true); return; }
+    if (!ok) { setLoaded(true); if (!DEMO) setSettingsOpen(true); return; }
     (async () => {
       const [rawSecs, oldDb, fmt, gls, lib, diag] = await Promise.all([
         loadJson('resumeSections'),
@@ -3451,9 +3471,9 @@ function App() {
             <h1 className="text-xl font-bold text-gray-900">💼 {T('求职指挥中心','Job Application Command Center')}</h1>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button onClick={toggleLang} title="中 / EN"
+            <button onClick={toggleLang} title="中文 / EN"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">
-              🌐 {T('EN','中')}
+              🌐 {T('EN','中文')}
             </button>
             <button onClick={()=>setSettingsOpen(true)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border ${
@@ -3465,7 +3485,15 @@ function App() {
         </div>
 
         {/* Banners */}
-        {!ghOk && (
+        {!ghOk && DEMO && (
+          <div className="mb-4">
+            <Alert type="info">
+              {T('演示模式 — 这些是示例数据，不会保存任何东西。','Demo mode — sample data; nothing is saved.')}{' '}
+              <button onClick={()=>setSettingsOpen(true)} className="underline font-medium">{T('连接你自己的仓库。','Connect your own repo.')}</button>
+            </Alert>
+          </div>
+        )}
+        {!ghOk && !DEMO && (
           <div className="mb-4">
             <Alert type="warning">
               {T('GitHub 未配置 — 数据不会被保存。',"GitHub not configured — data won't be saved.")}{' '}
