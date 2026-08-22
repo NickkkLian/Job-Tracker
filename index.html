@@ -37,7 +37,7 @@ button,a,summary,label,[role="button"],[onclick]{
 const { useState, useEffect, useRef, useMemo } = React;
 
 // ════════════════════════════════════════════════════════════════
-// Bilingual engine — the localStorage key `pha-lang` is shared by every app on this origin.
+// Bilingual engine — the preference is kept in localStorage under `pha-lang`.
 // English by default, 中文 via the toggle. T(zh, en) picks the string; stored enum values
 // (status / region ids) and the AI prompt templates are never translated.
 // ════════════════════════════════════════════════════════════════
@@ -96,7 +96,7 @@ function sampleJobs() {
   ];
 }
 
-// If token/repo are empty, fill them from the shared `pha-config` on this origin (owner/repo + token): zero setup on a new device; never overwrites values already set
+// If token/repo are empty, pre-fill them from a `pha-config` entry in localStorage when one exists; never overwrites values already set
 try {
   const _pha = JSON.parse(localStorage.getItem('pha-config') || 'null');
   if (_pha && _pha.token) {
@@ -306,14 +306,14 @@ function lsDel(k)  { localStorage.removeItem(LOCAL_PRE + k); }
 // ════════════════════════════════════════════════════════════════
 
 const REGIONS = [
-  { id:'canada',      name:'Canada',          zh:'加拿大',      flag:'🇨🇦', accent:'bg-red-50 border-red-300 text-red-900',       dot:'bg-red-500',     contactNote:'include Canadian phone (+1) and email only — do NOT include the +86 mainland China number.', phoneTip:'Exclude +86 phone number from contact line' },
-  { id:'usa',         name:'United States',   zh:'美国',        flag:'🇺🇸', accent:'bg-blue-50 border-blue-300 text-blue-900',    dot:'bg-blue-500',    contactNote:'include a US phone (+1), email and city/state; do not include the +86 number.' },
-  { id:'uk',          name:'United Kingdom',  zh:'英国',        flag:'🇬🇧', accent:'bg-indigo-50 border-indigo-300 text-indigo-900', dot:'bg-indigo-500', contactNote:'include a UK phone (+44), email and city; do not include the +86 number.' },
-  { id:'australia',   name:'Australia',       zh:'澳大利亚',    flag:'🇦🇺', accent:'bg-emerald-50 border-emerald-300 text-emerald-900', dot:'bg-emerald-500', contactNote:'include an Australian phone (+61), email and city; do not include the +86 number.' },
+  { id:'canada',      name:'Canada',          zh:'加拿大',      flag:'🇨🇦', accent:'bg-red-50 border-red-300 text-red-900',       dot:'bg-red-500',     contactNote:'include a Canadian phone (+1) and email only — leave out phone numbers from other countries.', phoneTip:'Exclude non-local phone numbers from the contact line' },
+  { id:'usa',         name:'United States',   zh:'美国',        flag:'🇺🇸', accent:'bg-blue-50 border-blue-300 text-blue-900',    dot:'bg-blue-500',    contactNote:'include a US phone (+1), email and city/state; leave out non-local numbers.' },
+  { id:'uk',          name:'United Kingdom',  zh:'英国',        flag:'🇬🇧', accent:'bg-indigo-50 border-indigo-300 text-indigo-900', dot:'bg-indigo-500', contactNote:'include a UK phone (+44), email and city; leave out non-local numbers.' },
+  { id:'australia',   name:'Australia',       zh:'澳大利亚',    flag:'🇦🇺', accent:'bg-emerald-50 border-emerald-300 text-emerald-900', dot:'bg-emerald-500', contactNote:'include an Australian phone (+61), email and city; leave out non-local numbers.' },
   { id:'singapore',   name:'Singapore',       zh:'新加坡',      flag:'🇸🇬', accent:'bg-rose-50 border-rose-300 text-rose-900',    dot:'bg-rose-500',    contactNote:'include a Singapore phone (+65) and email.' },
   { id:'hongkong',    name:'Hong Kong',       zh:'香港',        flag:'🇭🇰', accent:'bg-pink-50 border-pink-300 text-pink-900',    dot:'bg-pink-500' },
   { id:'china',       name:'Mainland China',  zh:'中国大陆',    flag:'🇨🇳', accent:'bg-amber-50 border-amber-300 text-amber-900', dot:'bg-amber-500' },
-  { id:'germany',     name:'Germany',         zh:'德国',        flag:'🇩🇪', accent:'bg-slate-50 border-slate-300 text-slate-900', dot:'bg-slate-500',   contactNote:'include a German phone (+49), email and city; do not include the +86 number.' },
+  { id:'germany',     name:'Germany',         zh:'德国',        flag:'🇩🇪', accent:'bg-slate-50 border-slate-300 text-slate-900', dot:'bg-slate-500',   contactNote:'include a German phone (+49), email and city; leave out non-local numbers.' },
   { id:'netherlands', name:'Netherlands',     zh:'荷兰',        flag:'🇳🇱', accent:'bg-orange-50 border-orange-300 text-orange-900', dot:'bg-orange-500', contactNote:'include a Dutch phone (+31), email and city.' },
   { id:'japan',       name:'Japan',           zh:'日本',        flag:'🇯🇵', accent:'bg-red-50 border-red-300 text-red-900',       dot:'bg-red-400',     contactNote:'include a Japan phone (+81) and email.' },
   { id:'uae',         name:'UAE',             zh:'阿联酋',      flag:'🇦🇪', accent:'bg-teal-50 border-teal-300 text-teal-900',    dot:'bg-teal-500',    contactNote:'include a UAE phone (+971) and email.' },
@@ -1642,7 +1642,7 @@ if not paths: raise Exception('No CJK font found on system')
 pdfmetrics.registerFont(TTFont('CJK', paths[0]))
 
 CRITICAL RULES:
-1. Contact line: +1 778-XXX-XXXX ｜ +86 13XXXXXXXXX ｜ email — NO home address
+1. Contact line: local phone ｜ secondary phone (if any) ｜ email — NO home address
 2. Line breaks in bullet text: set wordWrap='CJK' on all paragraph styles for page 1. This prevents reportlab from inserting line breaks at every English word or number that appears inside Chinese sentences. Without this, "DCF" or "20+" causes an unwanted newline.
 3. Spacing: use generous spacing — spaceBefore/spaceAfter on section headers at least 10pt, between entries at least 8pt. If page has blank space at the bottom, increase spacing further to fill naturally.
 4. Page 1 uses fontName='CJK' for all text. Page 2 uses fontName='Helvetica'.
@@ -2682,11 +2682,11 @@ ${trimmedText}` }], true);
         `Find real job postings for this person. You have 5 web searches. ONLY return jobs located in ${loc} — skip any US, UK, or other country results.
 
 Person: ${trimmedProfile}
-Location: MUST be in ${loc} only. ${loc === 'Canada' ? 'PRIORITY: Greater Vancouver Area (Vancouver, Burnaby, Richmond, Surrey, New Westminster) first. If not enough Vancouver jobs, include Toronto. Other Canadian cities only if very strong fit.' : loc === 'Hong Kong' ? 'Cities: Hong Kong, Central, Kowloon' : 'Cities: Shanghai, Beijing, Shenzhen, Guangzhou, Nanjing'}.
+Location: MUST be in ${loc} only. ${loc === 'Canada' ? 'PRIORITY: the city named in the profile first, then Toronto and Vancouver. Other Canadian cities only if very strong fit.' : loc === 'Hong Kong' ? 'Cities: Hong Kong, Central, Kowloon' : 'Cities: Shanghai, Beijing, Shenzhen, Guangzhou, Nanjing'}.
 
 STRATEGY:
 
-Phase 1 (search 1): Search "${loc === 'Canada' ? 'Vancouver' : loc} companies hiring analyst finance 2025" to find which ${loc}-based companies are actively posting.
+Phase 1 (search 1): Search "${loc} companies hiring 2025" plus the role type from the profile, to find which ${loc}-based companies are actively posting.
 
 Phase 2 (searches 2-5): For each company found, search "[company name] careers [role] ${loc}" to find their career page. Company career pages (Workday, Greenhouse, Lever) have real job details.
 
