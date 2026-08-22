@@ -5,8 +5,8 @@ region (Canada, US, UK, Hong Kong, Mainland China, …) keeps its own pipeline a
 documents; profile, resume library and glossary are shared. The app is one HTML file — React 18
 from a CDN, compiled in the browser — and stores everything in a **private GitHub repo you own**.
 
-**Live:** https://hub.nickkk.com/Job-Tracker/ — English by default, 中文 toggle in the header.
-**Try it with sample data:** append `?demo=1&tab=tracker` (or `&tab=insights`) — nothing is saved.
+**Live demo:** https://nickkklian.github.io/Job-Tracker/?demo=1&tab=tracker (or `&tab=insights`) —
+sample data, nothing is saved. English by default, 中文 toggle in the header.
 
 ![Tracker](docs/screenshot-tracker.png)
 
@@ -49,8 +49,8 @@ to the repo.
 | Files | PDFs are stored as raw base64 under `data/files/` and cached in localStorage for instant preview; on a new device they're pulled from the repo on first open |
 | JD parsing | Regex heuristics over the first 80 cleaned lines (noise such as contact lines, EEO boilerplate and URLs is stripped first); the raw JD is always stored unmodified |
 | Prompts | Long, explicit reportlab instructions (column widths, table styles, one-page enforcement, a banned-word list for junior résumés) so Claude.ai's Analysis tool produces a consistent PDF every time |
-| Secrets | GitHub token and Anthropic key live only in this browser's localStorage; the shared `pha-config` on the origin can pre-fill them on a new device |
-| Language | English by default, 中文 via the toggle (`pha-lang`, shared with the other apps on the origin); stored ids and prompt templates are never translated |
+| Secrets | GitHub token and Anthropic key live only in this browser's localStorage |
+| Language | English by default, 中文 via the toggle; stored ids and prompt templates are never translated |
 
 ## Running it
 
