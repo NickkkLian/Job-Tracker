@@ -3443,6 +3443,7 @@ function App() {
 
   const [sharedErr, setSharedErr] = useState(null);
   const [sharedTry, setSharedTry] = useState(0);
+  const [connGen, setConnGen] = useState(0);   // bumped by every reconnect: the region part mounts again and reads its file
   useEffect(() => {
     const ok = ghConfigured(); setGhOk(ok);
     if (!ok) {   // no dialog on arrival: the connect card on every view opens Settings
@@ -3513,9 +3514,11 @@ function App() {
   // Reconnecting in Settings reads the shared files again exactly as the first load does (loadJsonStrict / loadTextStrict,
   // diagnosis included): a failed read shows the error card on the shared views, where every save of shared data lives,
   // instead of empty data that the next save would write over the repo (2026-09-23). A missing file (404) is still empty.
+  // The region's applications are read again too (RegionApp is keyed by connGen): connected to another repository, the
+  // page used to keep the first one's applications, and the next change wrote them over the new repository's file.
   const handleGhChange = async ok => {
     setGhOk(ok);
-    if (ok) setSharedTry(t => t + 1);
+    if (ok) { setSharedTry(t => t + 1); setConnGen(g => g + 1); }
   };
   latest.current = { ghOk, handleGhChange };
 
@@ -3605,7 +3608,7 @@ function App() {
             )}
             {loaded && (
               <RegionApp
-                key={region}
+                key={`${region}:${connGen}`}
                 region={region}
                 tab={tab}
                 go={go}

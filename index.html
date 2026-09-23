@@ -2798,6 +2798,7 @@ function App() {
   }, []);
   const [sharedErr, setSharedErr] = useState(null);
   const [sharedTry, setSharedTry] = useState(0);
+  const [connGen, setConnGen] = useState(0);
   useEffect(() => {
     const ok = ghConfigured();
     setGhOk(ok);
@@ -2881,7 +2882,10 @@ function App() {
   };
   const handleGhChange = async (ok) => {
     setGhOk(ok);
-    if (ok) setSharedTry((t) => t + 1);
+    if (ok) {
+      setSharedTry((t) => t + 1);
+      setConnGen((g) => g + 1);
+    }
   };
   latest.current = { ghOk, handleGhChange };
   const settingsOpts = (focus) => {
@@ -2940,7 +2944,7 @@ function App() {
   } }, /* @__PURE__ */ React.createElement(BrandMark, null), /* @__PURE__ */ React.createElement("b", null, "ApplyLedger"), /* @__PURE__ */ React.createElement("span", null, T("求职投递，每个地区一条管线——数据存在你自己的私有仓库", "Job applications, one pipeline per region — kept in a private repo you own."))), /* @__PURE__ */ React.createElement("span", { className: `pill${pill.warn ? " warn" : ""}`, title: pill.short + pill.long }, pill.short, /* @__PURE__ */ React.createElement("span", { className: "long" }, pill.long)), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost lang-btn", onClick: toggleLang, title: T("切换语言", "Switch language"), lang: lang === "en" ? "zh" : "en" }, T("EN", "中文")), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon", id: "theme", ref: themeRef, "aria-label": T("深色模式", "Dark mode"), "aria-pressed": "false", title: T("深色模式", "Dark mode") }, HALF_CIRCLE), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon", id: "nl-settings-button", ref: gearRef, "aria-haspopup": "dialog", "aria-label": T("设置", "Settings"), title: T("设置", "Settings") }, GEAR), /* @__PURE__ */ React.createElement("a", { className: "btn btn-ghost gh", href: "https://github.com/NickkkLian/Job-Tracker", rel: "noopener" }, "GitHub")), /* @__PURE__ */ React.createElement("div", { className: "shell" }, /* @__PURE__ */ React.createElement("nav", { className: "nav", "aria-label": T("页面", "Sections") }, /* @__PURE__ */ React.createElement("div", { className: "nav-in" }, /* @__PURE__ */ React.createElement("div", { className: "nav-region" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "region", className: "eyebrow" }, T("地区", "Region")), /* @__PURE__ */ React.createElement("select", { id: "region", value: region, onChange: (e) => setRegion(e.target.value) }, REGIONS.map((r) => /* @__PURE__ */ React.createElement("option", { key: r.id, value: r.id }, rName(r))))), /* @__PURE__ */ React.createElement("div", { className: "nav-links" }, TABS.filter((t) => t.scope === "region").map(navLink), /* @__PURE__ */ React.createElement("p", { className: "group eyebrow" }, T("所有地区共用", "Shared by all regions")), TABS.filter((t) => t.scope === "shared").map(navLink)))), /* @__PURE__ */ React.createElement("main", { id: "main", className: "main" }, /* @__PURE__ */ React.createElement("div", { className: "main-in" }, !ghOk && !DEMO && /* @__PURE__ */ React.createElement("section", { className: "card connect", "aria-labelledby": "connect-h" }, /* @__PURE__ */ React.createElement("h2", { id: "connect-h" }, T("连接你的私有数据仓库", "Connect your private data repo")), /* @__PURE__ */ React.createElement("p", null, T("ApplyLedger 把你的投递存在你自己的 GitHub 私有仓库里。连接之前，在这里添加的东西都不会保存。", "ApplyLedger keeps your applications in a private GitHub repo you own. Until you connect one, nothing you add here is saved.")), /* @__PURE__ */ React.createElement("div", { className: "acts" }, /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: (e) => openSettings(e.currentTarget, "#set-repo") }, T("连接…", "Connect…")), /* @__PURE__ */ React.createElement("a", { href: "?demo=1&tab=tracker" }, T("先看演示", "Try the demo")))), loaded && /* @__PURE__ */ React.createElement(
     RegionApp,
     {
-      key: region,
+      key: `${region}:${connGen}`,
       region,
       tab,
       go,
