@@ -2488,10 +2488,12 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
     [T('薪资','Salary'), form.salaryRange || dash],
     [T('截止','Deadline'), form.applicationDeadline ? fmtDate(form.applicationDeadline) : dash],
     [T('投递方式','Apply method'), form.applyMethod || dash],
-    ['NOC', form.noc ? form.noc + (teerOf(form.noc) ? ` (TEER ${teerOf(form.noc)})` : '') : dash],
-    [T('雇佣类型','Employment type'), form.empType || dash],
-    [T('每周工时','Weekly hours'), form.weeklyHours || dash],
-    [T('入职 · 离职','Start · End'), `${form.startDate ? fmtDate(form.startDate) : dash} · ${form.endDate ? fmtDate(form.endDate) : dash}`],
+    ...(inCanada() ? [
+      ['NOC', form.noc ? form.noc + (teerOf(form.noc) ? ` (TEER ${teerOf(form.noc)})` : '') : dash],
+      [T('雇佣类型','Employment type'), form.empType || dash],
+      [T('每周工时','Weekly hours'), form.weeklyHours || dash],
+      [T('入职 · 离职','Start · End'), `${form.startDate ? fmtDate(form.startDate) : dash} · ${form.endDate ? fmtDate(form.endDate) : dash}`],
+    ] : []),
   ];
 
   return (
@@ -3048,6 +3050,7 @@ function InsightsTab({ jobs, regionName, onWorking, onAdd }) {
 
   return (
     <>
+      {!inCanada() ? <PageHead eyebrow={regionName} title={T('数据','Insights')} /> : <>
       <section className="plate" aria-labelledby="ins-h">
         <div className="plate-in">
           <div className="plate-head">
@@ -3083,16 +3086,17 @@ function InsightsTab({ jobs, regionName, onWorking, onAdd }) {
               {noType.length > 0 && <li>{T(`${noType.length} 个在职岗位没填雇佣类型——承包人的工时不计入`, `${noType.length} working ${plural(noType.length,'job has','jobs have')} no employment type — contractor hours don’t count`)}</li>}
             </ul>
           )}
-          <p className="caption">{T('计入的是状态为「在职·计工时」、填了入职日期和每周工时的岗位，从入职日算到离职日（没有离职日就算到今天）；NOC 不在 TEER 1–3 的岗位不计入。',
-            'Counts jobs marked Working that have a start date and weekly hours, from the start date to the end date (or today); a job whose NOC is outside TEER 1–3 is left out.')}</p>
         </div>
       </section>
+      <p className="caption ins-caption">{T('计入的是状态为「在职·计工时」、填了入职日期和每周工时的岗位，从入职日算到离职日（没有离职日就算到今天）；NOC 不在 TEER 1–3 的岗位不计入。',
+        'Counts jobs marked Working that have a start date and weekly hours, from the start date to the end date (or today); a job whose NOC is outside TEER 1–3 is left out.')}</p>
+      </>}
 
       {!jobs.length ? (
         <div className="empty">
-          <h2>{T('还没有投递','No applications yet')}</h2>
+          <h2>{inCanada() ? T('还没有投递','No applications yet') : T(`${regionName}还没有投递`, `No applications in ${regionName} yet`)}</h2>
           <p>{T('加几条职位之后，这里会画出它们走到了哪一步。','Once you add some jobs, this page draws where each of them stands.')}</p>
-          <Btn onClick={onAdd}>{T('添加职位','Add job')}</Btn>
+          <Btn variant={inCanada() ? 'secondary' : 'primary'} onClick={onAdd}>{T('添加职位','Add job')}</Btn>
         </div>
       ) : (
         <>
@@ -3616,8 +3620,8 @@ function App() {
           </dl>
           <dl>
             <dt>{T('这里没有验证的','Not verified here')}</dt>
-            <dd>{T('职位描述读取器是为英文招聘启事调的启发式规则：它帮你填字段，由你来核对。工时账按「数据」页上写的规则计算，不是 IRCC 的计算。',
-              'The job-description reader is a heuristic tuned for English postings: it fills fields in, you check them. The hours ledger follows the rules written on the Insights page; it is not an IRCC calculation.')}</dd>
+            <dd>{T('职位描述读取器是为英文招聘启事调的启发式规则：它帮你填字段，由你来核对。工时账（只在加拿大）按加拿大「数据」页上写的规则计算，不是 IRCC 的计算。',
+              'The job-description reader is a heuristic tuned for English postings: it fills fields in, you check them. The hours ledger (Canada only) follows the rules written on Canada’s Insights page; it is not an IRCC calculation.')}</dd>
           </dl>
           <dl>
             <dt>{T('源码','Source')}</dt>
