@@ -107,6 +107,18 @@ function sampleJobs(region = "canada") {
     { id: "demo9", dateAdded: ago(12), status: "interested", priority: "T3", company: "Tidewrack Energy Co-op", role: "Analytics Intern", location: "Victoria, BC", salaryRange: "$24/h", applicationDeadline: day(-3), noc: "", empType: "", applyMethod: "Direct", weeklyHours: "", startDate: "", endDate: "", notes: "", jdText: "Summer internship: metering data, Python notebooks, one presentation to the board." }
   ];
 }
+function sampleProfile() {
+  const ago = (n) => new Date(Date.now() - n * 864e5).toISOString();
+  const sections = [
+    { id: "demo-p1", name: "Contact & Links", source: "template", addedAt: ago(40), content: "Full name: Sam Example\nLocation: Vancouver, BC, Canada\nEmail: sam@example.com\nPortfolio: example.com/sam\nWork authorization: open work permit (Canada)" },
+    { id: "demo-p2", name: "Experience", source: "manual", addedAt: ago(40), content: "Harbourline Logistics — Operations Analyst (Richmond, BC) | Apr 2026 – Present\n• Rebuilt the weekly throughput report in SQL and Looker; the operations review went from two hours to thirty minutes\n• Modelled dock scheduling in Python; peak-hour truck waits fell by a fifth\n\nSaltmarsh Policy Lab — Research Assistant, part-time (Vancouver, BC) | Jul 2026 – Sep 2026\n• Cleaned and documented a 12,000-row housing survey for a policy brief" },
+    { id: "demo-p3", name: "Skills", source: "template", addedAt: ago(40), content: "Analysis: SQL, Python (pandas), Excel\nBI: Looker, Tableau\nMethods: A/B testing, regression, forecasting\nLanguages: English, Mandarin" }
+  ];
+  const library = [
+    { id: "demo-r1", name: "Sam Example — general resume", uploadedAt: ago(20), content: "# Sam Example\nVancouver, BC · sam@example.com · example.com/sam\n\n## Experience\n**Harbourline Logistics** — Operations Analyst, Apr 2026 – Present\n- Rebuilt the weekly throughput report in SQL and Looker (two hours → thirty minutes)\n- Modelled dock scheduling in Python; peak-hour truck waits fell by a fifth\n\n## Skills\n- SQL, Python (pandas), Excel, Looker, Tableau" }
+  ];
+  return { sections, library };
+}
 try {
   const _pha = JSON.parse(localStorage.getItem("pha-config") || "null");
   if (_pha && _pha.token) {
@@ -1190,7 +1202,7 @@ function MdView({ text }) {
   let listBuf = [];
   const flushList = () => {
     if (!listBuf.length) return;
-    out.push(/* @__PURE__ */ React.createElement("ul", { key: out.length, className: "list-disc pl-5 my-1 space-y-0.5" }, listBuf.map((li, i) => /* @__PURE__ */ React.createElement("li", { key: i, className: "text-sm text-gray-700" }, renderInline(li)))));
+    out.push(/* @__PURE__ */ React.createElement("ul", { key: out.length }, listBuf.map((li, i) => /* @__PURE__ */ React.createElement("li", { key: i }, renderInline(li)))));
     listBuf = [];
   };
   const renderInline = (s) => s.split(/(\*\*[^*]+\*\*)/).map(
@@ -1200,25 +1212,25 @@ function MdView({ text }) {
     const l = raw.replace(/\r$/, "");
     if (/^#\s/.test(l)) {
       flushList();
-      out.push(/* @__PURE__ */ React.createElement("h1", { key: i, className: "text-xl font-bold mt-3 mb-1" }, l.slice(2)));
+      out.push(/* @__PURE__ */ React.createElement("h1", { key: i }, l.slice(2)));
     } else if (/^##\s/.test(l)) {
       flushList();
-      out.push(/* @__PURE__ */ React.createElement("h2", { key: i, className: "text-base font-semibold mt-3 mb-1 text-gray-800" }, l.slice(3)));
+      out.push(/* @__PURE__ */ React.createElement("h2", { key: i }, l.slice(3)));
     } else if (/^###\s/.test(l)) {
       flushList();
-      out.push(/* @__PURE__ */ React.createElement("h3", { key: i, className: "text-sm font-semibold mt-2 mb-0.5 text-gray-700" }, l.slice(4)));
+      out.push(/* @__PURE__ */ React.createElement("h3", { key: i }, l.slice(4)));
     } else if (/^\s*[-*]\s/.test(l)) {
       listBuf.push(l.replace(/^\s*[-*]\s/, ""));
     } else if (l.trim() === "") {
       flushList();
-      out.push(/* @__PURE__ */ React.createElement("div", { key: i, className: "h-1.5" }));
+      out.push(/* @__PURE__ */ React.createElement("div", { key: i, className: "md-gap" }));
     } else {
       flushList();
-      out.push(/* @__PURE__ */ React.createElement("p", { key: i, className: "text-sm text-gray-700 my-0.5" }, renderInline(l)));
+      out.push(/* @__PURE__ */ React.createElement("p", { key: i }, renderInline(l)));
     }
   });
   flushList();
-  return /* @__PURE__ */ React.createElement("div", null, out);
+  return /* @__PURE__ */ React.createElement("div", { className: "md" }, out);
 }
 function SettingsSections({ ghOk, onGhChange }) {
   const [tok, setTok] = useState(lsGet("githubToken"));
@@ -1296,16 +1308,16 @@ const PROFILE_STARTER = [
   { name: "Certifications & Awards", content: "Certification — Issuer | YYYY\nAward / Scholarship — Body | YYYY" }
 ];
 const SKILL_TEMPLATES = [
-  { role: "Software / Web Developer", icon: "💻", content: "Languages: Python, JavaScript/TypeScript, Java, Go, SQL\nFrontend: React, Vue, HTML/CSS, Tailwind\nBackend: Node.js, Django/Flask, Spring, REST & GraphQL APIs\nDevOps & cloud: Git, Docker, Kubernetes, CI/CD, AWS/GCP/Azure\nConcepts: data structures & algorithms, system design, testing/TDD, Agile/Scrum" },
-  { role: "Data Analyst / Scientist", icon: "📊", content: "Analysis: SQL, Python (pandas, NumPy), R, Excel (advanced)\nViz/BI: Tableau, Power BI, Looker, matplotlib\nStats/ML: A/B testing, regression, classification, clustering, scikit-learn\nData eng: ETL, dbt, Airflow, BigQuery/Snowflake, data modeling\nSoft: storytelling with data, stakeholder communication" },
-  { role: "Product Manager", icon: "🧭", content: "Discovery: user research, interviews, JTBD, market/competitor analysis\nExecution: roadmapping, PRDs, backlog grooming, Agile/Scrum, Jira\nData: KPIs/OKRs, funnel & cohort analysis, SQL, A/B testing, amplitude/mixpanel\nDesign: wireframing (Figma), prototyping, UX collaboration\nSoft: prioritization, cross-functional leadership, stakeholder management" },
-  { role: "Digital Marketing", icon: "📣", content: "Channels: SEO/SEM, Google Ads, Meta/TikTok ads, email, content marketing\nAnalytics: GA4, Google Tag Manager, attribution, conversion optimization\nTools: HubSpot, Mailchimp, Hootsuite, Semrush/Ahrefs, Canva\nSkills: copywriting, A/B testing, campaign management, budget management" },
-  { role: "Finance / Accounting", icon: "💰", content: "Core: financial modeling, valuation (DCF/comps), forecasting & budgeting, variance analysis\nReporting: GAAP/IFRS, financial statements, month-end close, AP/AR\nTools: Excel (advanced), QuickBooks, SAP, Oracle, Bloomberg\nSkills: FP&A, audit support, reconciliation, attention to detail" },
-  { role: "UX / UI Designer", icon: "🎨", content: "Design: Figma, Sketch, Adobe XD, design systems, prototyping\nResearch: user interviews, usability testing, personas, journey mapping\nSkills: wireframing, interaction design, accessibility (WCAG), responsive design\nNice to have: HTML/CSS, motion, basic frontend handoff" },
-  { role: "Sales / Business Dev", icon: "🤝", content: "Cycle: prospecting, lead gen, discovery, demos, negotiation, closing\nCRM/tools: Salesforce, HubSpot, Outreach, LinkedIn Sales Navigator\nMetrics: pipeline, quota attainment, win rate, ARR/MRR\nSkills: relationship building, consultative selling, account management" },
-  { role: "Operations / Project Mgmt", icon: "⚙️", content: "PM: project planning, Gantt/roadmaps, risk management, stakeholder updates\nMethod: Agile/Scrum, Kanban, Lean/Six Sigma, process improvement\nTools: Jira, Asana, Trello, MS Project, Excel\nSkills: vendor management, budgeting, cross-functional coordination" },
-  { role: "HR / Recruiting", icon: "👥", content: "Recruiting: sourcing, screening, interviewing, ATS (Greenhouse/Lever)\nHR ops: onboarding, performance management, HRIS (Workday/BambooHR)\nSkills: employer branding, compensation basics, employment law awareness, DEI" },
-  { role: "Customer Success / Support", icon: "🎧", content: "Tools: Zendesk, Intercom, Salesforce Service Cloud\nMetrics: CSAT, NPS, churn, retention, time-to-resolution\nSkills: onboarding, account health, upsell/renewal, troubleshooting, empathy" }
+  { role: "Software / Web Developer", content: "Languages: Python, JavaScript/TypeScript, Java, Go, SQL\nFrontend: React, Vue, HTML/CSS, Tailwind\nBackend: Node.js, Django/Flask, Spring, REST & GraphQL APIs\nDevOps & cloud: Git, Docker, Kubernetes, CI/CD, AWS/GCP/Azure\nConcepts: data structures & algorithms, system design, testing/TDD, Agile/Scrum" },
+  { role: "Data Analyst / Scientist", content: "Analysis: SQL, Python (pandas, NumPy), R, Excel (advanced)\nViz/BI: Tableau, Power BI, Looker, matplotlib\nStats/ML: A/B testing, regression, classification, clustering, scikit-learn\nData eng: ETL, dbt, Airflow, BigQuery/Snowflake, data modeling\nSoft: storytelling with data, stakeholder communication" },
+  { role: "Product Manager", content: "Discovery: user research, interviews, JTBD, market/competitor analysis\nExecution: roadmapping, PRDs, backlog grooming, Agile/Scrum, Jira\nData: KPIs/OKRs, funnel & cohort analysis, SQL, A/B testing, amplitude/mixpanel\nDesign: wireframing (Figma), prototyping, UX collaboration\nSoft: prioritization, cross-functional leadership, stakeholder management" },
+  { role: "Digital Marketing", content: "Channels: SEO/SEM, Google Ads, Meta/TikTok ads, email, content marketing\nAnalytics: GA4, Google Tag Manager, attribution, conversion optimization\nTools: HubSpot, Mailchimp, Hootsuite, Semrush/Ahrefs, Canva\nSkills: copywriting, A/B testing, campaign management, budget management" },
+  { role: "Finance / Accounting", content: "Core: financial modeling, valuation (DCF/comps), forecasting & budgeting, variance analysis\nReporting: GAAP/IFRS, financial statements, month-end close, AP/AR\nTools: Excel (advanced), QuickBooks, SAP, Oracle, Bloomberg\nSkills: FP&A, audit support, reconciliation, attention to detail" },
+  { role: "UX / UI Designer", content: "Design: Figma, Sketch, Adobe XD, design systems, prototyping\nResearch: user interviews, usability testing, personas, journey mapping\nSkills: wireframing, interaction design, accessibility (WCAG), responsive design\nNice to have: HTML/CSS, motion, basic frontend handoff" },
+  { role: "Sales / Business Dev", content: "Cycle: prospecting, lead gen, discovery, demos, negotiation, closing\nCRM/tools: Salesforce, HubSpot, Outreach, LinkedIn Sales Navigator\nMetrics: pipeline, quota attainment, win rate, ARR/MRR\nSkills: relationship building, consultative selling, account management" },
+  { role: "Operations / Project Mgmt", content: "PM: project planning, Gantt/roadmaps, risk management, stakeholder updates\nMethod: Agile/Scrum, Kanban, Lean/Six Sigma, process improvement\nTools: Jira, Asana, Trello, MS Project, Excel\nSkills: vendor management, budgeting, cross-functional coordination" },
+  { role: "HR / Recruiting", content: "Recruiting: sourcing, screening, interviewing, ATS (Greenhouse/Lever)\nHR ops: onboarding, performance management, HRIS (Workday/BambooHR)\nSkills: employer branding, compensation basics, employment law awareness, DEI" },
+  { role: "Customer Success / Support", content: "Tools: Zendesk, Intercom, Salesforce Service Cloud\nMetrics: CSAT, NPS, churn, retention, time-to-resolution\nSkills: onboarding, account health, upsell/renewal, troubleshooting, empathy" }
 ];
 function ProfileTab({ sections, updateSections, formatting, setFormatting, glossary, setGlossary, region, resumeDb }) {
   const [showTpl, setShowTpl] = useState(false);
@@ -1314,113 +1326,97 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
   const [editName, setEditName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [fmtDraft, setFmtDraft] = useState(formatting || "");
-  const [fmtSaved, setFmtSaved] = useState(false);
   const [glsDraft, setGlsDraft] = useState(glossary || "");
-  const [glsSaved, setGlsSaved] = useState(false);
   useEffect(() => {
     setFmtDraft(formatting || "");
   }, [formatting]);
   useEffect(() => {
     setGlsDraft(glossary || "");
   }, [glossary]);
+  const local = (next) => {
+    updateSections(next, false);
+    setDirty(true);
+  };
   const handleUpload = (text, filename) => {
     const name = filename.replace(/\.[^.]+$/, "") || "Untitled";
-    const section = { id: newId(), name, content: text, source: "upload", filename, addedAt: (/* @__PURE__ */ new Date()).toISOString() };
-    updateSections([...sections, section], false);
+    local([...sections, { id: newId(), name, content: text, source: "upload", filename, addedAt: (/* @__PURE__ */ new Date()).toISOString() }]);
   };
   const handleAddManual = () => {
-    const section = { id: newId(), name: "New section", content: "", source: "manual", addedAt: (/* @__PURE__ */ new Date()).toISOString() };
-    const updated = [...sections, section];
-    updateSections(updated, false);
+    const section = { id: newId(), name: T("新的一节", "New section"), content: "", source: "manual", addedAt: (/* @__PURE__ */ new Date()).toISOString() };
+    local([...sections, section]);
     setExpandedId(section.id);
     setEditingId(section.id);
-    setEditName("New section");
+    setEditName(section.name);
   };
-  const insertSection = (name, content) => {
-    updateSections([...sections, { id: newId(), name, content, source: "template", addedAt: (/* @__PURE__ */ new Date()).toISOString() }], false);
-  };
+  const insertSection = (name, content) => local([...sections, { id: newId(), name, content, source: "template", addedAt: (/* @__PURE__ */ new Date()).toISOString() }]);
   const insertStarter = () => {
     const now = (/* @__PURE__ */ new Date()).toISOString();
-    const adds = PROFILE_STARTER.map((t) => ({ id: newId(), name: t.name, content: t.content, source: "template", addedAt: now }));
-    updateSections([...sections, ...adds], false);
+    local([...sections, ...PROFILE_STARTER.map((t) => ({ id: newId(), name: t.name, content: t.content, source: "template", addedAt: now }))]);
     setShowTpl(false);
   };
   const handleDelete = (id) => {
-    if (!window.confirm(T("从你的资料中移除此部分？", "Remove this section from your profile?"))) return;
-    updateSections(sections.filter((s) => s.id !== id), false);
+    if (!window.confirm(T("从你的资料里移除这一节？", "Remove this section from your profile?"))) return;
+    local(sections.filter((s) => s.id !== id));
   };
-  const handleContentChange = (id, val) => {
-    updateSections(sections.map((s) => s.id === id ? { ...s, content: val } : s), false);
-  };
+  const handleContentChange = (id, val) => local(sections.map((s) => s.id === id ? { ...s, content: val } : s));
   const startRename = (s) => {
     setEditingId(s.id);
     setEditName(s.name);
   };
   const commitRename = (id) => {
-    if (editName.trim()) updateSections(sections.map((s) => s.id === id ? { ...s, name: editName.trim() } : s), false);
+    if (editName.trim()) local(sections.map((s) => s.id === id ? { ...s, name: editName.trim() } : s));
     setEditingId(null);
   };
   const handleSaveAll = async () => {
     setSaving(true);
     await updateSections(sections, true);
     setSaving(false);
+    setDirty(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   };
   const totalChars = sections.reduce((n, s) => n + (s.content || "").length, 0);
-  return /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, /* @__PURE__ */ React.createElement(Card, { className: "p-4" }, /* @__PURE__ */ React.createElement(
-    SectionHdr,
+  const SOURCE = { upload: T("上传的", "Uploaded"), manual: T("在这里写的", "Written here"), template: T("模板", "Template"), library: T("来自简历库", "From library") };
+  const lines = (s) => s.trim() ? s.trim().split("\n").filter(Boolean).length : 0;
+  const glsN = lines(glsDraft), fmtN = lines(fmtDraft);
+  const glsSavedNow = glsDraft === (glossary || ""), fmtSavedNow = fmtDraft === (formatting || "");
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+    PageHead,
     {
-      icon: "📝",
-      title: T("我的资料 — 给 AI 提示词的参考文件", "My profile — reference files for AI prompts"),
-      action: /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap gap-2 items-center" }, /* @__PURE__ */ React.createElement(FileUploadButton, { onFile: handleUpload, label: T("上传文件", "Upload file") }), /* @__PURE__ */ React.createElement(Btn, { onClick: () => setShowTpl((v) => !v) }, T("📋 模板", "📋 Templates")), /* @__PURE__ */ React.createElement(Btn, { onClick: handleAddManual }, T("➕ 添加部分", "➕ Add section")), /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: handleSaveAll, disabled: saving }, saving ? T("⏳ 保存中…", "⏳ Saving…") : saved ? T("✅ 已保存", "✅ Saved") : T("💾 全部保存", "💾 Save all")))
+      eyebrow: T("所有地区共用", "Shared by all regions"),
+      title: T("我的资料", "My profile"),
+      sub: T("每一节都会合在一起，随 AI 提示词一起发出去。", "Every section is combined and sent with the AI prompts."),
+      action: /* @__PURE__ */ React.createElement(React.Fragment, null, dirty && /* @__PURE__ */ React.createElement("span", { className: "reason" }, T("有没保存的修改", "Unsaved changes")), /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: handleSaveAll, disabled: saving }, saving ? T("保存中…", "Saving…") : saved ? T("已保存", "Saved") : T("全部保存", "Save all")))
     }
-  ), /* @__PURE__ */ React.createElement("div", { className: "p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 mb-3" }, /* @__PURE__ */ React.createElement("strong", null, T("使用 AI 提示词时，下面所有部分会被合并发送给 Claude。", "All sections below are combined and sent to Claude when you use AI prompts.")), " ", T("逐个上传文件 — 工作经历、简历模板、技能，任何你想让 Claude 参考的内容。支持 .txt、.md、.docx、.pdf。", "Upload each file separately — work history, resume templates, skills, anything you want Claude to reference. Accepts .txt, .md, .docx, .pdf."), " ", /* @__PURE__ */ React.createElement("strong", null, T("所有地区共享。", "Shared across all regions.")), totalChars > 0 && /* @__PURE__ */ React.createElement("span", { className: "ml-1 text-blue-700" }, T("共 ", "Total: "), totalChars.toLocaleString(), T(" 个字符，分布在 ", " characters across "), sections.length, T(" 个部分。", sections.length !== 1 ? " sections." : " section."))), showTpl && /* @__PURE__ */ React.createElement("div", { className: "mb-3 p-3 border border-purple-200 bg-purple-50 rounded-md" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between mb-2" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm font-semibold text-purple-900" }, T("📋 模板 — 一键插入，之后自由编辑", "📋 Templates — one click to insert, then edit freely")), /* @__PURE__ */ React.createElement("button", { onClick: () => setShowTpl(false), className: "text-xs text-purple-700 hover:underline" }, T("✕ 关闭", "✕ close"))), /* @__PURE__ */ React.createElement("div", { className: "mb-3 flex flex-wrap items-center gap-2" }, /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: insertStarter }, T("🧱 生成个人资料库骨架", "🧱 Generate personal-database skeleton")), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-purple-800" }, T("添加 联系方式 · 概述 · 经历 · 教育 · 技能 · 项目 · 证书 等可编辑部分供填写。", "Adds Contact · Summary · Experience · Education · Skills · Projects · Certifications as editable sections to fill in."))), /* @__PURE__ */ React.createElement("div", { className: "text-xs font-medium text-purple-900 mb-1.5" }, T("按岗位添加一组精选技能：", "Add a curated skills block by role:")), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2" }, SKILL_TEMPLATES.map((t) => /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      key: t.role,
-      onClick: () => insertSection("Skills — " + t.role, t.content),
-      className: "text-left text-xs px-2.5 py-2 rounded-md border border-purple-200 bg-white hover:bg-purple-100 transition-colors"
-    },
-    /* @__PURE__ */ React.createElement("span", { className: "font-medium text-gray-800" }, t.icon, " ", t.role),
-    /* @__PURE__ */ React.createElement("span", { className: "block text-purple-600 mt-0.5" }, T("+ 作为部分插入", "+ insert as section"))
-  ))), /* @__PURE__ */ React.createElement("div", { className: "mt-2 text-[11px] text-purple-700" }, T("作为新部分插入 — 可自由重命名 / 编辑 / 删除，然后点击 💾 全部保存 同步。", "Inserted as new sections — rename / edit / delete them freely, then click 💾 Save all to sync."))), sections.length === 0 ? /* @__PURE__ */ React.createElement("div", { className: "p-6 text-center text-sm text-gray-500 border border-dashed border-gray-300 rounded-md" }, T("还没有任何部分。点击 ", "No sections yet. Click "), /* @__PURE__ */ React.createElement("strong", null, T("上传文件", "Upload file")), T(" 添加第一个，或点击 ", " to add your first one, or "), /* @__PURE__ */ React.createElement("strong", null, T("添加部分", "Add section")), T(" 手动编写。", " to write manually.")) : /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, sections.map((s) => /* @__PURE__ */ React.createElement("div", { key: s.id, className: "border border-gray-200 rounded-md overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors" }, /* @__PURE__ */ React.createElement("button", { className: "text-gray-400 text-xs w-4 shrink-0", onClick: () => setExpandedId(expandedId === s.id ? null : s.id) }, expandedId === s.id ? "▼" : "▶"), /* @__PURE__ */ React.createElement("span", { className: "text-xs" }, s.source === "upload" ? "📄" : "✍️"), editingId === s.id ? /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      value: editName,
-      onChange: (e) => setEditName(e.target.value),
-      onBlur: () => commitRename(s.id),
-      onKeyDown: (e) => {
-        if (e.key === "Enter") commitRename(s.id);
-        if (e.key === "Escape") setEditingId(null);
-      },
-      className: "flex-1 text-sm font-medium px-1 border border-blue-400 rounded focus:outline-none",
-      autoFocus: true
-    }
-  ) : /* @__PURE__ */ React.createElement("button", { className: "flex-1 text-left text-sm font-medium text-gray-900 truncate", onClick: () => startRename(s) }, s.name), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400 shrink-0" }, (s.content || "").length.toLocaleString(), " ", T("字符", "chars")), /* @__PURE__ */ React.createElement("button", { onClick: () => startRename(s), className: "text-xs text-gray-400 hover:text-gray-700 shrink-0", title: T("重命名", "Rename") }, "✏️"), /* @__PURE__ */ React.createElement("button", { onClick: () => handleDelete(s.id), className: "text-xs text-gray-400 hover:text-red-600 shrink-0", title: T("移除", "Remove") }, "🗑")), expandedId === s.id && /* @__PURE__ */ React.createElement("div", { className: "p-2 border-t border-gray-200" }, /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("div", { className: "stack" }, /* @__PURE__ */ React.createElement("section", { className: "card", "aria-labelledby": "sec-h" }, /* @__PURE__ */ React.createElement("div", { className: "card-head" }, /* @__PURE__ */ React.createElement("h2", { id: "sec-h" }, T("资料分节", "Profile sections")), /* @__PURE__ */ React.createElement("span", { className: "num faint" }, fmtNum(totalChars), " ", T("字符", "chars"))), /* @__PURE__ */ React.createElement("div", { className: "btn-row" }, /* @__PURE__ */ React.createElement(FileUploadButton, { onFile: handleUpload, label: T("上传文件…", "Upload file…") }), /* @__PURE__ */ React.createElement(Btn, { onClick: () => setShowTpl((v) => !v), "aria-expanded": showTpl }, T("模板", "Templates")), /* @__PURE__ */ React.createElement(Btn, { onClick: handleAddManual }, T("添加一节", "Add section"))), showTpl && /* @__PURE__ */ React.createElement("div", { className: "tpl-panel" }, /* @__PURE__ */ React.createElement("div", { className: "tpl-top" }, /* @__PURE__ */ React.createElement(Btn, { onClick: insertStarter }, T("插入资料骨架", "Insert the starter skeleton")), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T("加上 联系方式 · 概述 · 经历 · 教育 · 技能 · 项目 · 证书 这几节，你再往里填。", "Adds Contact · Summary · Experience · Education · Skills · Projects · Certifications as sections to fill in.")), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn-link tpl-close", onClick: () => setShowTpl(false) }, T("关闭", "Close"))), /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, T("按岗位加一组技能", "A skills block by role")), /* @__PURE__ */ React.createElement("div", { className: "tpl-grid" }, SKILL_TEMPLATES.map((t) => /* @__PURE__ */ React.createElement("button", { key: t.role, type: "button", className: "tpl-btn", onClick: () => insertSection("Skills — " + t.role, t.content) }, /* @__PURE__ */ React.createElement("b", null, t.role), /* @__PURE__ */ React.createElement("span", null, T("作为一节插入", "Insert as a section"))))), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T("插入后随便改名、编辑、删除，最后点「全部保存」。", "Rename, edit or remove what you insert, then choose Save all."))), sections.length === 0 ? /* @__PURE__ */ React.createElement("div", { className: "empty" }, /* @__PURE__ */ React.createElement("h2", null, T("还没有资料分节", "No profile sections yet")), /* @__PURE__ */ React.createElement("p", null, T("上传一个文件、插入资料骨架，或者自己写一节。", "Upload a file, insert the starter skeleton, or write one yourself.")), /* @__PURE__ */ React.createElement(Btn, { onClick: insertStarter }, T("插入资料骨架", "Insert the starter skeleton"))) : /* @__PURE__ */ React.createElement("ul", { className: "sections" }, sections.map((s) => {
+    const open = expandedId === s.id;
+    const renameName = T(`重命名「${s.name}」`, `Rename section`), removeName = T("移除这一节", "Remove section");
+    return /* @__PURE__ */ React.createElement("li", { key: s.id, className: "sec" }, /* @__PURE__ */ React.createElement("div", { className: "sec-row" }, editingId === s.id ? /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        className: "sec-rename",
+        "aria-label": T("这一节的名字", "Section name"),
+        value: editName,
+        onChange: (e) => setEditName(e.target.value),
+        onBlur: () => commitRename(s.id),
+        onKeyDown: (e) => {
+          if (e.key === "Enter") commitRename(s.id);
+          if (e.key === "Escape") setEditingId(null);
+        },
+        autoFocus: true
+      }
+    ) : /* @__PURE__ */ React.createElement("button", { type: "button", className: "sec-open", "aria-expanded": open, onClick: () => setExpandedId(open ? null : s.id) }, /* @__PURE__ */ React.createElement(Icon, { name: "chevron", size: 14, className: `chev${open ? " open" : ""}` }), /* @__PURE__ */ React.createElement("span", null, s.name)), /* @__PURE__ */ React.createElement("span", { className: "sec-meta" }, /* @__PURE__ */ React.createElement("span", { className: "cat" }, SOURCE[s.source] || SOURCE.manual), /* @__PURE__ */ React.createElement("span", { className: "num faint" }, fmtNum((s.content || "").length))), /* @__PURE__ */ React.createElement("span", { className: "sec-icons" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon", "aria-label": renameName, "data-tip": T("重命名", "Rename section"), onClick: () => startRename(s) }, /* @__PURE__ */ React.createElement(Icon, { name: "edit" })), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon btn-quiet", "aria-label": removeName, "data-tip": removeName, onClick: () => handleDelete(s.id) }, /* @__PURE__ */ React.createElement(Icon, { name: "trash" })))), open && /* @__PURE__ */ React.createElement("textarea", { className: "sec-text mono", "aria-label": s.name, value: s.content || "", onChange: (e) => handleContentChange(s.id, e.target.value), placeholder: T("这一节的内容…", "What this section says…") }));
+  }))), /* @__PURE__ */ React.createElement("section", { className: "card", "aria-labelledby": "gls-h" }, /* @__PURE__ */ React.createElement("div", { className: "card-head" }, /* @__PURE__ */ React.createElement("h2", { id: "gls-h" }, T("翻译词汇表", "Translation glossary"))), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T(
+    "给你的名字、公司、学校等专有名词定下中文译法，每行一条。每一条「翻译」提示词都会带上它，Claude 就会用你定的译法。",
+    "Your preferred Chinese for names, companies, schools and other proper nouns, one entry per line. Every translate prompt carries it, so Claude uses your translations."
+  )), /* @__PURE__ */ React.createElement(
     "textarea",
     {
-      value: s.content || "",
-      onChange: (e) => handleContentChange(s.id, e.target.value),
-      placeholder: T("此部分的内容…", "Content of this section…"),
-      className: "w-full h-48 p-2 text-sm font-mono border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-    }
-  ))))), sections.length > 0 && /* @__PURE__ */ React.createElement("p", { className: "mt-3 text-xs text-gray-400" }, T("点击部分名称可重命名。点击 ▶ 展开并编辑内容。完成后点击 💾 全部保存。", "Click a section name to rename it. Click ▶ to expand and edit the content. Click 💾 Save all when done."))), /* @__PURE__ */ React.createElement(Card, { className: "p-4" }, /* @__PURE__ */ React.createElement(
-    SectionHdr,
-    {
-      icon: "📖",
-      title: T("翻译词汇表", "Translation glossary"),
-      action: /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: async () => {
-        setGlossary(glsDraft);
-        await saveText("glossary", glsDraft);
-        setGlsSaved(true);
-        setTimeout(() => setGlsSaved(false), 1500);
-      } }, glsSaved ? T("✅ 已保存", "✅ Saved") : T("💾 保存", "💾 Save"))
-    }
-  ), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-600 mb-3" }, T("为你的姓名、公司名、学校名以及其他术语指定精确的中文翻译。它们会被注入每一条", "Specify exact Chinese translations for your name, company names, school names, and any other terms. These are injected into every"), " ", /* @__PURE__ */ React.createElement("strong", null, T("翻译", "Translate")), " ", T("提示词，让 Claude 始终使用你偏好的翻译 — 每行一条。", "prompt so Claude always uses your preferred translations — one entry per line.")), /* @__PURE__ */ React.createElement(
-    "textarea",
-    {
+      className: "mono lined",
+      "aria-labelledby": "gls-h",
+      rows: 7,
       value: glsDraft,
       onChange: (e) => setGlsDraft(e.target.value),
       placeholder: `One entry per line, format: English term → Chinese translation
@@ -1429,62 +1425,53 @@ Examples:
 Your Name → 你的中文名
 Your University → 大学名称
 Your Company → 公司名称
-Project Name → 项目名称
-Vancouver → 温哥华`,
-      className: "w-full h-40 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+Vancouver → 温哥华`
     }
-  ), /* @__PURE__ */ React.createElement("p", { className: "mt-1 text-xs text-gray-400" }, glsDraft.trim() ? T(`✅ ${glsDraft.trim().split("\n").filter(Boolean).length} 条词条 — 已注入所有翻译提示词。`, `✅ ${glsDraft.trim().split("\n").filter(Boolean).length} entr${glsDraft.trim().split("\n").filter(Boolean).length !== 1 ? "ies" : "y"} — injected into all translate prompts.`) : T("暂无词汇表 — Claude 将自行判断姓名翻译。", "No glossary entries yet — Claude will use its best judgment for names."))), /* @__PURE__ */ React.createElement(Card, { className: "p-4" }, /* @__PURE__ */ React.createElement(
-    SectionHdr,
-    {
-      icon: "🎨",
-      title: T("简历格式要求", "Resume formatting requirements"),
-      action: /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: async () => {
-        setFormatting(fmtDraft);
-        await saveText("formatting", fmtDraft);
-        setFmtSaved(true);
-        setTimeout(() => setFmtSaved(false), 1500);
-      } }, fmtSaved ? T("✅ 已保存", "✅ Saved") : T("💾 保存", "💾 Save"))
-    }
-  ), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-600 mb-3" }, T("准确描述你希望的简历排版方式。它会被包含进每一条", "Describe exactly how you want your resume laid out. This is included in every"), " ", /* @__PURE__ */ React.createElement("strong", null, T("定制简历", "Tailor Resume")), " ", T("提示词，让 Claude 始终遵循你偏好的格式 — 即使它无法读取你上传文件的视觉样式。", "prompt so Claude always follows your preferred format — even though it can't read the visual styling of your uploaded files.")), /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("div", { className: "save-row" }, /* @__PURE__ */ React.createElement("p", { className: "hint", role: "status" }, !glsN ? T("还没有词条——人名等译法由 Claude 自己判断。", "No entries yet — Claude uses its own judgement for names.") : glsSavedNow ? T(`${glsN} 条——每条翻译提示词都会带上`, `${glsN} ${glsN === 1 ? "entry" : "entries"} — added to every translate prompt`) : T(`${glsN} 条，还没保存`, `${glsN} ${glsN === 1 ? "entry" : "entries"}, not saved yet`)), /* @__PURE__ */ React.createElement(Btn, { onClick: async () => {
+    setGlossary(glsDraft);
+    await saveText("glossary", glsDraft);
+  } }, T("保存词汇表", "Save glossary")))), /* @__PURE__ */ React.createElement("section", { className: "card", "aria-labelledby": "fmt-h" }, /* @__PURE__ */ React.createElement("div", { className: "card-head" }, /* @__PURE__ */ React.createElement("h2", { id: "fmt-h" }, T("简历排版规则", "Resume formatting rules"))), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T(
+    "写清楚你要的简历排版。每一条「定制简历」提示词都会带上它——Claude 看不到你上传文件的样式，只能照这里写的来。",
+    "How you want your resume laid out. Every tailored-resume prompt carries it — Claude cannot see the styling of the files you upload, only what you write here."
+  )), /* @__PURE__ */ React.createElement(
     "textarea",
     {
+      className: "mono lined",
+      "aria-labelledby": "fmt-h",
+      rows: 8,
       value: fmtDraft,
       onChange: (e) => setFmtDraft(e.target.value),
-      placeholder: T(`在这里写什么的示例：
+      placeholder: T(
+        `比如：
 
 - 最多一页
-- 章节顺序：概述、经历、教育、技能
-- 每段角色下用项目符号，最多 4 条
+- 顺序：概述、经历、教育、技能
+- 每段经历最多 4 条
 - 日期靠右，公司和职位靠左
-- 不写求职目标陈述
-- 公司名和职位用加粗
-- 技能部分：逗号分隔，按类别分组
-- 香港格式：顶部加一行照片占位
-- 使用英式英语拼写`, `Examples of what to write here:
+- 不写求职目标
+- 公司名和职位加粗`,
+        `For example:
 
 - One page maximum
 - Sections in this order: Summary, Experience, Education, Skills
-- Bullet points under each role, max 4 bullets
-- Dates on the right side, company and title on the left
+- At most 4 bullets per role
+- Dates on the right, company and title on the left
 - No objective statement
-- Use bold for company names and job titles
-- Skills section: list as comma-separated, grouped by category
-- Hong Kong format: include a photo placeholder line at the top
-- Use British English spelling`),
-      className: "w-full h-48 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y font-mono"
+- Bold company names and job titles`
+      )
     }
-  ), /* @__PURE__ */ React.createElement("p", { className: "mt-1 text-xs text-gray-400" }, fmtDraft.trim() ? T(`✅ 已保存 ${fmtDraft.trim().split("\n").filter(Boolean).length} 条格式规则 — 已包含进定制简历提示词。`, `✅ ${fmtDraft.trim().split("\n").filter(Boolean).length} formatting rule${fmtDraft.trim().split("\n").filter(Boolean).length !== 1 ? "s" : ""} saved — included in Tailor Resume prompts.`) : T("尚未设置格式规则 — Claude 将使用其默认排版。", "No formatting rules set yet — Claude will use its default layout."))), /* @__PURE__ */ React.createElement(Card, { className: "p-4" }, /* @__PURE__ */ React.createElement(SectionHdr, { icon: "📄", title: T("生成通用简历", "Generate general resume") }), /* @__PURE__ */ React.createElement(GeneralResumeSection, { resumeDb, formatting, glossary, region })));
+  ), /* @__PURE__ */ React.createElement("div", { className: "save-row" }, /* @__PURE__ */ React.createElement("p", { className: "hint", role: "status" }, !fmtN ? T("还没有规则——Claude 用它默认的排版。", "No rules yet — Claude uses its default layout.") : fmtSavedNow ? T(`${fmtN} 条规则——每条定制简历提示词都会带上`, `${fmtN} ${fmtN === 1 ? "rule" : "rules"} — included in every tailored-resume prompt`) : T(`${fmtN} 条规则，还没保存`, `${fmtN} ${fmtN === 1 ? "rule" : "rules"}, not saved yet`)), /* @__PURE__ */ React.createElement(Btn, { onClick: async () => {
+    setFormatting(fmtDraft);
+    await saveText("formatting", fmtDraft);
+  } }, T("保存规则", "Save rules")))), /* @__PURE__ */ React.createElement(GeneralResumeSection, { resumeDb, formatting, glossary, region })));
 }
+const generalResumeKind = (region) => region === "hongkong" ? "hk" : region === "china" ? "zh" : "en";
 function GeneralResumeSection({ resumeDb, formatting, glossary, region }) {
   const [showModal, setShowModal] = useState(false);
-  const REGION_CFG = {
-    canada: { label: T("🇨🇦 英文简历", "🇨🇦 English Resume") },
-    hongkong: { label: T("🇭🇰 繁體中文 + 英文（2 页）", "🇭🇰 繁體中文 + English (2 pages)") },
-    china: { label: T("🇨🇳 简体中文简历", "🇨🇳 Simplified Chinese resume") }
-  };
-  const cfg = REGION_CFG[region] || { label: `${(REGION_BY[region] || {}).flag || "🌍"} ${T("英文简历", "English Resume")} — ${rName(REGION_BY[region]) || T("地区", "Region")}` };
+  const kind = generalResumeKind(region);
+  const label = kind === "hk" ? T("繁體中文 + 英文，两页 · 香港", "Traditional Chinese + English, 2 pages · Hong Kong") : kind === "zh" ? T("简体中文简历 · 中国大陆", "Simplified Chinese resume · Mainland China") : T(`英文简历 · ${rName(REGION_BY[region])}`, `English resume · ${rName(REGION_BY[region])}`);
   function buildPrompt() {
-    if (region === "canada") {
+    if (kind === "en") {
       return `Generate a one-page Letter PDF general resume (NOT tailored to any specific job) using Claude's Analysis Tool (reportlab). Extract the candidate's name and save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
 
 PROFILE:
@@ -1514,7 +1501,7 @@ ${(formatting || "").trim() ? `- Custom: ${formatting.trim()}` : ""}
 ONE PAGE — MANDATORY. Cut weakest first. FILL THE PAGE if space remains. Verify page count.
 
 TONE: Recent graduate. No buzzwords. Plain verbs. Modest specificity.`.trim();
-    } else if (region === "hongkong") {
+    } else if (kind === "hk") {
       return `Generate a TWO-PAGE A4 PDF using Claude's Analysis Tool (reportlab). Page 1: Traditional Chinese. Page 2: English. Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
 
 Use the content below. Page 1: make a Hong Kong Traditional Chinese professional resume — use your own professional HK-style layout and formatting, do NOT copy the structure or formatting from the profile text, only use the content.
@@ -1585,7 +1572,8 @@ CONTENT:
 - FILL THE PAGE if space remains. Verify page count with PdfReader.`.trim();
     }
   }
-  return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 mb-3" }, T("从你的资料生成一份通用简历 — 不针对任何特定职位。", "Generate a general-purpose resume from your profile — not tailored to any specific job."), region === "canada" ? T(" Claude 通过 Analysis 工具生成一页 PDF。", " Claude generates a one-page PDF via the Analysis Tool.") : region === "hongkong" ? T(" 两页 PDF：第 1 页繁體中文，第 2 页英文。", " Two-page PDF: Traditional Chinese page 1, English page 2.") : T(" 通过 Analysis 工具生成一页简体中文 PDF。", " One-page PDF in Simplified Chinese via the Analysis Tool.")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-3" }, /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: () => setShowModal(true), disabled: !resumeDb?.trim() }, "📄 ", cfg.label), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-400" }, T("复制粘贴到 Claude.ai", "Copy-paste to Claude.ai"))), !resumeDb?.trim() && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-amber-700 mt-2" }, T("请先添加你的资料部分。", "Add your profile sections first.")), showModal && /* @__PURE__ */ React.createElement(PromptModal, { title: cfg.label, prompt: buildPrompt(), onClose: () => setShowModal(false) }));
+  const has = !!resumeDb?.trim();
+  return /* @__PURE__ */ React.createElement("section", { className: "card", "aria-labelledby": "gen-h" }, /* @__PURE__ */ React.createElement("div", { className: "card-head" }, /* @__PURE__ */ React.createElement("h2", { id: "gen-h" }, T("通用简历", "General resume"))), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T("用你的资料做一份不针对任何职位的简历。", "A resume from your profile that is not tailored to any one job."), " ", kind === "en" ? T("Claude 用 Analysis 工具做成一页 PDF。", "Claude makes a one-page PDF with the Analysis tool.") : kind === "hk" ? T("两页 PDF：第 1 页繁體中文，第 2 页英文。", "A two-page PDF: Traditional Chinese on page 1, English on page 2.") : T("Claude 用 Analysis 工具做成一页简体中文 PDF。", "Claude makes a one-page PDF in Simplified Chinese with the Analysis tool.")), /* @__PURE__ */ React.createElement("div", { className: "btn-row" }, /* @__PURE__ */ React.createElement(Btn, { onClick: () => setShowModal(true), disabled: !has, "aria-describedby": !has ? "gen-need" : void 0 }, label)), !has && /* @__PURE__ */ React.createElement("p", { className: "hint", id: "gen-need" }, T("先加一节资料。", "Add a profile section first.")), showModal && /* @__PURE__ */ React.createElement(PromptModal, { title: label, prompt: buildPrompt(), onClose: () => setShowModal(false) }));
 }
 function LibraryTab({ library, setLibrary, updateSections }) {
   const [expandedId, setExpandedId] = useState(null);
@@ -1604,22 +1592,34 @@ function LibraryTab({ library, setLibrary, updateSections }) {
   const handleRename = async (id) => {
     const cur = library.find((r) => r.id === id);
     if (!cur) return;
-    const next = window.prompt(T("重命名：", "Rename:"), cur.name);
+    const next = window.prompt(T("新名字：", "Rename:"), cur.name);
     if (!next || next === cur.name) return;
     const updated = library.map((r) => r.id === id ? { ...r, name: next } : r);
     setLibrary(updated);
     await saveJson("library", updated);
   };
   const handleUseAsProfile = async (entry) => {
-    if (!window.confirm(T(`用「${entry.name}」替换你的整个资料？
+    if (!window.confirm(T(`用「${entry.name}」替换你的整份资料？
 
-这会用此简历中的一个部分替换所有现有部分。`, `Replace your entire profile with "${entry.name}"?
+现有的各节会被这份简历这一节取代。`, `Replace your whole profile with "${entry.name}"?
 
-This replaces all existing sections with one section from this resume.`))) return;
-    const section = { id: newId(), name: entry.name, content: entry.content, source: "library", addedAt: (/* @__PURE__ */ new Date()).toISOString() };
-    await updateSections([section], true);
+All your sections are replaced by one section holding this resume.`))) return;
+    await updateSections([{ id: newId(), name: entry.name, content: entry.content, source: "library", addedAt: (/* @__PURE__ */ new Date()).toISOString() }], true);
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, /* @__PURE__ */ React.createElement(Card, { className: "p-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-start justify-between gap-3 flex-wrap" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", { className: "text-sm font-semibold text-gray-900 mb-1" }, T("📚 简历库", "📚 Resume library")), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-600" }, T("存储多个简历版本。", "Store multiple resume versions. "), /* @__PURE__ */ React.createElement("strong", null, T("所有地区共享。", "Shared across all regions.")), " .txt, .md, .docx, .pdf")), /* @__PURE__ */ React.createElement(FileUploadButton, { onFile: handleUpload, label: T("上传简历", "Upload resume"), primary: true }))), library.length === 0 ? /* @__PURE__ */ React.createElement(Card, { className: "p-8 text-center text-sm text-gray-500" }, T("还没有简历。点击上方的「上传简历」。", "No resumes yet. Click Upload resume above.")) : /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, library.map((r) => /* @__PURE__ */ React.createElement(Card, { key: r.id, className: "p-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-start justify-between gap-2" }, /* @__PURE__ */ React.createElement("button", { className: "flex-1 text-left min-w-0", onClick: () => setExpandedId(expandedId === r.id ? null : r.id) }, /* @__PURE__ */ React.createElement("div", { className: "text-sm font-semibold text-gray-900 truncate" }, r.name), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500" }, fmtDate(r.uploadedAt), " · ", r.content.length.toLocaleString(), " ", T("字符", "chars"))), /* @__PURE__ */ React.createElement("div", { className: "flex gap-1 flex-wrap shrink-0" }, /* @__PURE__ */ React.createElement(Btn, { onClick: () => handleUseAsProfile(r) }, T("👤 用作资料", "👤 Use as profile")), /* @__PURE__ */ React.createElement(DownloadMenu, { content: r.content, baseFilename: r.name }), /* @__PURE__ */ React.createElement(Btn, { onClick: () => handleRename(r.id) }, "✏️"), /* @__PURE__ */ React.createElement(Btn, { variant: "danger", onClick: () => handleDelete(r.id) }, "🗑"))), expandedId === r.id && /* @__PURE__ */ React.createElement("div", { className: "mt-3 p-3 bg-gray-50 rounded-md max-h-96 overflow-y-auto" }, /* @__PURE__ */ React.createElement(MdView, { text: r.content }))))));
+  const upload = /* @__PURE__ */ React.createElement(FileUploadButton, { onFile: handleUpload, label: T("上传简历…", "Upload resume…"), primary: true });
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+    PageHead,
+    {
+      eyebrow: T("所有地区共用", "Shared by all regions"),
+      title: T("简历库", "Resumes"),
+      sub: T("存几个版本的简历，随时拿来用作资料或翻译。支持 .txt、.md、.docx、.pdf。", "Keep several versions of your resume, to use as your profile or to translate. .txt, .md, .docx or .pdf."),
+      action: library.length ? upload : null
+    }
+  ), library.length === 0 ? /* @__PURE__ */ React.createElement("div", { className: "empty" }, /* @__PURE__ */ React.createElement("h2", null, T("还没有简历", "No resumes yet")), /* @__PURE__ */ React.createElement("p", null, T("上传一个 .txt、.md、.docx 或 .pdf 文件。", "Upload a .txt, .md, .docx or .pdf file.")), upload) : /* @__PURE__ */ React.createElement("div", { className: "stack" }, library.map((r) => {
+    const open = expandedId === r.id;
+    const renameName = T("重命名", "Rename"), delName = T("删除这份简历", "Delete resume");
+    return /* @__PURE__ */ React.createElement("section", { key: r.id, className: "card resume", "aria-label": r.name }, /* @__PURE__ */ React.createElement("div", { className: "resume-top" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "resume-open", "aria-expanded": open, onClick: () => setExpandedId(open ? null : r.id) }, /* @__PURE__ */ React.createElement(Icon, { name: "chevron", size: 14, className: `chev${open ? " open" : ""}` }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, r.name), /* @__PURE__ */ React.createElement("span", { className: "num faint" }, fmtDate(r.uploadedAt), " · ", fmtNum(r.content.length), " ", T("字符", "chars"))))), /* @__PURE__ */ React.createElement("div", { className: "resume-acts" }, /* @__PURE__ */ React.createElement("span", { className: "btn-row" }, /* @__PURE__ */ React.createElement(Btn, { className: "btn-sm", onClick: () => handleUseAsProfile(r) }, T("用作资料", "Use as profile")), /* @__PURE__ */ React.createElement(DownloadMenu, { content: r.content, baseFilename: r.name })), /* @__PURE__ */ React.createElement("span", { className: "sec-icons" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon", "aria-label": renameName, "data-tip": renameName, onClick: () => handleRename(r.id) }, /* @__PURE__ */ React.createElement(Icon, { name: "edit" })), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon btn-quiet", "aria-label": delName, "data-tip": delName, onClick: () => handleDelete(r.id) }, /* @__PURE__ */ React.createElement(Icon, { name: "trash" })))), open && /* @__PURE__ */ React.createElement("div", { className: "sunken md-box" }, /* @__PURE__ */ React.createElement(MdView, { text: r.content })));
+  })));
 }
 function Fld({ id, label, hint, error, wide, children }) {
   return /* @__PURE__ */ React.createElement("div", { className: `fld${wide ? " wide" : ""}` }, /* @__PURE__ */ React.createElement("label", { htmlFor: id }, label), children, hint && /* @__PURE__ */ React.createElement("p", { className: "hint", id: `${id}-hint` }, hint), error && /* @__PURE__ */ React.createElement("p", { className: "field-err", id: `${id}-err`, role: "alert" }, error));
@@ -2604,9 +2604,9 @@ const RESUME_CHECKS = [
   { id: "r5", zh: "整页有一条叙事线，不是条目拼盘", en: "The page reads as one narrative, not a list of fragments" }
 ];
 function DiagSection({ num, title, hint, children }) {
-  return /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-baseline gap-2 mb-1" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs font-bold text-blue-600 bg-blue-50 rounded px-1.5 py-0.5" }, num), /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-gray-900" }, title)), hint && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 mb-3" }, hint), children);
+  return /* @__PURE__ */ React.createElement("section", { className: "card diag", "aria-labelledby": `diag-${num}` }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, T(`第 ${num} 步，共 6 步`, `Step ${num} of 6`)), /* @__PURE__ */ React.createElement("h2", { id: `diag-${num}` }, title), hint && /* @__PURE__ */ React.createElement("p", { className: "hint" }, hint), children);
 }
-function DiagList({ items, onAdd, onRemove, onToggle, placeholder, checkable }) {
+function DiagList({ items, onAdd, onRemove, onToggle, placeholder, checkable, label }) {
   const [draft, setDraft] = useState("");
   const add = () => {
     const t = draft.trim();
@@ -2614,33 +2614,10 @@ function DiagList({ items, onAdd, onRemove, onToggle, placeholder, checkable }) 
     onAdd(t);
     setDraft("");
   };
-  return /* @__PURE__ */ React.createElement("div", null, (items || []).map((it) => /* @__PURE__ */ React.createElement("div", { key: it.id, className: "flex items-start gap-2 py-1 group" }, checkable && /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      type: "checkbox",
-      checked: !!it.done,
-      onChange: () => onToggle(it.id),
-      className: "mt-1 h-4 w-4 text-blue-600 rounded"
-    }
-  ), /* @__PURE__ */ React.createElement("span", { className: "flex-1 text-sm " + (it.done ? "line-through text-gray-400" : "text-gray-800") }, it.text), /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      onClick: () => onRemove(it.id),
-      className: "opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 text-xs px-1"
-    },
-    "✕"
-  ))), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2 mt-2" }, /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      value: draft,
-      onChange: (e) => setDraft(e.target.value),
-      onKeyDown: (e) => {
-        if (e.key === "Enter") add();
-      },
-      placeholder,
-      className: "flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-    }
-  ), /* @__PURE__ */ React.createElement("button", { onClick: add, className: "px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-sm text-gray-700" }, T("添加", "Add"))));
+  const rmName = T("移除", "Remove");
+  return /* @__PURE__ */ React.createElement("ul", { className: "edit-list" }, (items || []).map((it) => /* @__PURE__ */ React.createElement("li", { key: it.id, className: it.done ? "done" : void 0 }, checkable ? /* @__PURE__ */ React.createElement("label", { className: "el-text" }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: !!it.done, onChange: () => onToggle(it.id) }), /* @__PURE__ */ React.createElement("span", null, it.text)) : /* @__PURE__ */ React.createElement("span", { className: "el-text" }, it.text), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon btn-quiet", "aria-label": `${rmName}: ${it.text}`, "data-tip": rmName, onClick: () => onRemove(it.id) }, /* @__PURE__ */ React.createElement(Icon, { name: "x" })))), /* @__PURE__ */ React.createElement("li", { className: "el-add" }, /* @__PURE__ */ React.createElement("input", { type: "text", "aria-label": label, value: draft, onChange: (e) => setDraft(e.target.value), onKeyDown: (e) => {
+    if (e.key === "Enter") add();
+  }, placeholder }), /* @__PURE__ */ React.createElement(Btn, { onClick: add, disabled: !draft.trim() }, T("添加", "Add"))));
 }
 function DiagnosisTab({ diagnosis, setDiagnosis }) {
   const d = diagnosis || DIAG_DEFAULT();
@@ -2663,109 +2640,59 @@ function DiagnosisTab({ diagnosis, setDiagnosis }) {
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1800);
   };
-  const stageBtn = (val, zh, en, desc) => /* @__PURE__ */ React.createElement(
-    "button",
+  const stageBtn = (val, zh, en, desc) => /* @__PURE__ */ React.createElement("button", { type: "button", className: "stat choice", "aria-pressed": d.stage === val, onClick: () => patch({ stage: d.stage === val ? "" : val }) }, /* @__PURE__ */ React.createElement("b", null, T(zh, en)), /* @__PURE__ */ React.createElement("span", { className: "lbl" }, desc));
+  const lastSaved = d.updatedAt ? new Date(d.updatedAt).toLocaleString(lang === "zh" ? "zh-CN" : "en-GB", { dateStyle: "medium", timeStyle: "short" }) : "";
+  return /* @__PURE__ */ React.createElement("div", { className: "diag-col" }, /* @__PURE__ */ React.createElement(
+    PageHead,
     {
-      onClick: () => patch({ stage: d.stage === val ? "" : val }),
-      className: "flex-1 rounded-lg border p-3 text-left transition " + (d.stage === val ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600" : "border-gray-300 bg-white hover:border-gray-400")
-    },
-    /* @__PURE__ */ React.createElement("div", { className: "font-medium text-sm text-gray-900" }, T(zh, en)),
-    /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500 mt-0.5" }, desc)
-  );
-  const inp = (props) => /* @__PURE__ */ React.createElement("input", { ...props, className: "w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" });
-  return /* @__PURE__ */ React.createElement("div", { className: "max-w-3xl mx-auto" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between mb-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-lg font-bold text-gray-900" }, T("求职诊断", "Career Diagnosis")), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, T("先想清楚，再投递——六步走完再回「添加职位」。", "Think first, then apply — finish the six steps before Add Job."), d.updatedAt && /* @__PURE__ */ React.createElement("span", { className: "ml-2" }, T("上次保存：", "Last saved: "), new Date(d.updatedAt).toLocaleString()))), /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      onClick: save,
-      disabled: saving,
-      className: "px-4 py-2 rounded-lg text-sm font-medium text-white " + (savedFlash ? "bg-green-600" : "bg-blue-600 hover:bg-blue-700") + (saving ? " opacity-60" : "")
-    },
-    saving ? T("保存中…", "Saving…") : savedFlash ? T("已保存 ✓", "Saved ✓") : T("保存", "Save")
-  )), /* @__PURE__ */ React.createElement(
+      eyebrow: T("所有地区共用", "Shared by all regions"),
+      title: T("求职诊断", "Diagnosis"),
+      sub: /* @__PURE__ */ React.createElement(React.Fragment, null, T("先想清楚，再投递——六步走完再回「添加职位」。", "Think first, then apply — finish the six steps before Add job."), lastSaved && /* @__PURE__ */ React.createElement(React.Fragment, null, " ", T("上次保存：", "Last saved "), lastSaved)),
+      action: /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: save, disabled: saving }, saving ? T("保存中…", "Saving…") : savedFlash ? T("已保存", "Saved") : T("保存", "Save"))
+    }
+  ), /* @__PURE__ */ React.createElement("div", { className: "stack" }, /* @__PURE__ */ React.createElement(
     DiagSection,
     {
-      num: "①",
+      num: 1,
       title: T("阶段定位", "Where you are"),
       hint: T("两种状态要的动作完全不同：定方向阶段狂投是弯路，攻坚阶段反复自省是拖延。", "The two stages need different actions: mass-applying while lost is a detour; endless self-reflection while executing is procrastination.")
     },
-    /* @__PURE__ */ React.createElement("div", { className: "flex gap-3" }, stageBtn("explore", "探索方向", "Exploring direction", T("还不确定要做什么/去哪个行业", "Not yet sure what role or industry")), stageBtn("execute", "攻坚投递", "Executing search", T("目标明确，卡在拿面试/过面试", "Target clear; stuck on getting or passing interviews"))),
-    /* @__PURE__ */ React.createElement(
-      "textarea",
-      {
-        value: d.stageNote,
-        onChange: (e) => patch({ stageNote: e.target.value }),
-        placeholder: T("现在最卡的一件事是什么？", "What is the single biggest blocker right now?"),
-        className: "w-full mt-3 border border-gray-300 rounded px-2 py-1.5 text-sm h-16 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-      }
-    )
+    /* @__PURE__ */ React.createElement("div", { className: "choices" }, stageBtn("explore", "探索方向", "Exploring direction", T("还不确定要做什么、去哪个行业", "Not yet sure what role or industry")), stageBtn("execute", "攻坚投递", "Executing search", T("目标明确，卡在拿面试或过面试", "Target clear; stuck on getting or passing interviews"))),
+    /* @__PURE__ */ React.createElement(Fld, { id: "diag-stage-note", label: T("现在最卡的一件事", "The biggest blocker right now") }, /* @__PURE__ */ React.createElement("textarea", { id: "diag-stage-note", rows: 2, value: d.stageNote, onChange: (e) => patch({ stageNote: e.target.value }), placeholder: T("现在最卡的一件事是什么？", "What is the single biggest blocker right now?") }))
   ), /* @__PURE__ */ React.createElement(
     DiagSection,
     {
-      num: "②",
+      num: 2,
       title: T("优势清单", "Strengths"),
       hint: T("写「我反复被证明擅长的事」，不是「我会的技能名词」。每条最好带一个真实事例。", "List what you are repeatedly proven good at — not skill nouns. Each item ideally carries one real example.")
     },
-    /* @__PURE__ */ React.createElement(DiagList, { items: d.strengths, ...listOps("strengths"), placeholder: T("例：把混乱信息整理成能执行的清单（例子：××项目）", "e.g. Turning messy info into executable checklists (example: ...)") })
-  ), /* @__PURE__ */ React.createElement(
+    /* @__PURE__ */ React.createElement(DiagList, { items: d.strengths, ...listOps("strengths"), label: T("新的一条优势", "A new strength"), placeholder: T("例：把混乱信息整理成能执行的清单（例子：××项目）", "e.g. Turning messy info into executable checklists (example: …)") })
+  ), /* @__PURE__ */ React.createElement(DiagSection, { num: 3, title: T("目标画像", "Target profile"), hint: T("从第 2 步推出来，不是从招聘网站上抄下来。", "Derived from step 2 — not copied from job boards.") }, /* @__PURE__ */ React.createElement("div", { className: "form-grid two" }, /* @__PURE__ */ React.createElement(Fld, { id: "diag-industry", label: T("目标行业", "Industry") }, /* @__PURE__ */ React.createElement("input", { id: "diag-industry", type: "text", value: d.target.industry, onChange: (e) => patchTarget({ industry: e.target.value }), placeholder: T("哪个行业需要第 2 步里的东西", "Which industry needs step 2") })), /* @__PURE__ */ React.createElement(Fld, { id: "diag-role", label: T("目标岗位", "Role") }, /* @__PURE__ */ React.createElement("input", { id: "diag-role", type: "text", value: d.target.role, onChange: (e) => patchTarget({ role: e.target.value }), placeholder: T("岗位名（可以不止一个）", "Role title(s)") })), /* @__PURE__ */ React.createElement(Fld, { id: "diag-constraints", label: T("硬约束", "Hard constraints"), wide: true }, /* @__PURE__ */ React.createElement("input", { id: "diag-constraints", type: "text", value: d.target.constraints, onChange: (e) => patchTarget({ constraints: e.target.value }), placeholder: T("地点、签证、最低薪资、时间窗……", "Location / visa / salary floor / timing…") })))), /* @__PURE__ */ React.createElement(
     DiagSection,
     {
-      num: "③",
-      title: T("目标画像", "Target profile"),
-      hint: T("从②推出来，不是从招聘网站上抄下来。", "Derived from step 2 — not copied from job boards.")
-    },
-    /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-3 mb-2" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "text-xs text-gray-600" }, T("目标行业", "Industry")), inp({ value: d.target.industry, onChange: (e) => patchTarget({ industry: e.target.value }), placeholder: T("哪个行业需要②里的东西", "Which industry needs step 2") })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "text-xs text-gray-600" }, T("目标岗位", "Role")), inp({ value: d.target.role, onChange: (e) => patchTarget({ role: e.target.value }), placeholder: T("岗位名（可以不止一个）", "Role title(s)") }))),
-    /* @__PURE__ */ React.createElement("label", { className: "text-xs text-gray-600" }, T("硬约束", "Hard constraints")),
-    inp({ value: d.target.constraints, onChange: (e) => patchTarget({ constraints: e.target.value }), placeholder: T("地点/签证/最低薪资/时间窗……", "Location / visa / salary floor / timing...") })
-  ), /* @__PURE__ */ React.createElement(
-    DiagSection,
-    {
-      num: "④",
+      num: 4,
       title: T("岗位对齐", "Reality check"),
-      hint: T("拿 3–5 个真实 JD 对照③：他们反复要求、而我没证据的能力，逐条记在这里补。", "Check 3–5 real JDs against step 3. What they repeatedly ask for and you cannot yet evidence — list here to fix.")
+      hint: T("拿 3–5 个真实 JD 对照第 3 步：他们反复要求、而我没证据的能力，逐条记在这里补。", "Check 3–5 real JDs against step 3. What they repeatedly ask for and you cannot yet evidence — list here to fix.")
     },
-    /* @__PURE__ */ React.createElement(
-      DiagList,
-      {
-        items: d.alignment,
-        ...listOps("alignment", true),
-        checkable: true,
-        placeholder: T("例：JD 都要 SQL，我只有课程练习 → 做一个真数据集项目", "e.g. JDs want SQL; I only have coursework → build one real-data project")
-      }
-    )
+    /* @__PURE__ */ React.createElement(DiagList, { items: d.alignment, ...listOps("alignment", true), checkable: true, label: T("新的一条差距", "A new gap"), placeholder: T("例：JD 都要 SQL，我只有课程练习 → 做一个真数据集项目", "e.g. JDs want SQL; I only have coursework → build one real-data project") })
   ), /* @__PURE__ */ React.createElement(
     DiagSection,
     {
-      num: "⑤",
+      num: 5,
       title: T("简历叙事自查", "Resume story check"),
       hint: T("多数 AI 简历工具只是往 CV 里塞关键词；这五条检查的是叙事。改完简历回来逐条勾。", "Most AI resume tools stuff keywords. These five check the narrative. Re-check after each resume revision.")
     },
-    RESUME_CHECKS.map((c) => /* @__PURE__ */ React.createElement("label", { key: c.id, className: "flex items-start gap-2 py-1 cursor-pointer" }, /* @__PURE__ */ React.createElement(
-      "input",
-      {
-        type: "checkbox",
-        checked: !!d.resume.checks[c.id],
-        onChange: () => patchResume({ checks: { ...d.resume.checks, [c.id]: !d.resume.checks[c.id] } }),
-        className: "mt-1 h-4 w-4 text-blue-600 rounded"
-      }
-    ), /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-800" }, T(c.zh, c.en)))),
-    /* @__PURE__ */ React.createElement(
-      "textarea",
-      {
-        value: d.resume.note,
-        onChange: (e) => patchResume({ note: e.target.value }),
-        placeholder: T("没过的那几条，差在哪？", "For unchecked items — what exactly is missing?"),
-        className: "w-full mt-2 border border-gray-300 rounded px-2 py-1.5 text-sm h-16 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-      }
-    )
+    /* @__PURE__ */ React.createElement("ul", { className: "checks-list" }, RESUME_CHECKS.map((c) => /* @__PURE__ */ React.createElement("li", { key: c.id }, /* @__PURE__ */ React.createElement("label", null, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: !!d.resume.checks[c.id], onChange: () => patchResume({ checks: { ...d.resume.checks, [c.id]: !d.resume.checks[c.id] } }) }), /* @__PURE__ */ React.createElement("span", null, T(c.zh, c.en)))))),
+    /* @__PURE__ */ React.createElement(Fld, { id: "diag-resume-note", label: T("没过的那几条差在哪", "What the unchecked ones are missing") }, /* @__PURE__ */ React.createElement("textarea", { id: "diag-resume-note", rows: 2, value: d.resume.note, onChange: (e) => patchResume({ note: e.target.value }), placeholder: T("没过的那几条，差在哪？", "For unchecked items — what exactly is missing?") }))
   ), /* @__PURE__ */ React.createElement(
     DiagSection,
     {
-      num: "⑥",
+      num: 6,
       title: T("关键决策", "High-stakes decisions"),
       hint: T("记下会改变方向的大决定（接不接 offer、转不转赛道、搬不搬家），写清「什么条件下选哪边」。", "Log direction-changing decisions (offers, pivots, relocation) with the condition that decides each.")
     },
-    /* @__PURE__ */ React.createElement(DiagList, { items: d.decisions, ...listOps("decisions"), placeholder: T("例：若 X 月前拿不到 Y，则转 Z", "e.g. If no Y by month X, switch to Z") })
-  ));
+    /* @__PURE__ */ React.createElement(DiagList, { items: d.decisions, ...listOps("decisions"), label: T("新的一条决策", "A new decision"), placeholder: T("例：若 X 月前拿不到 Y，则转 Z", "e.g. If no Y by month X, switch to Z") })
+  )));
 }
 function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, onCount, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary, diagnosis, setDiagnosis }) {
   const regionMeta = REGIONS.find((r) => r.id === region);
@@ -2798,7 +2725,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
   return /* @__PURE__ */ React.createElement(React.Fragment, null, tab === "addjob" && /* @__PURE__ */ React.createElement(AddJobTab, { resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved: (id) => go("tracker", { openJobId: id }), onOpenProfile: () => go("profile") }), tab === "tracker" && !openJob && /* @__PURE__ */ React.createElement(TrackerTab, { region, jobs, setJobs, resumeDb, formatting, initialStatus: trackerStatus, onAdd: () => go("addjob"), onOpen: (id) => setOpenJobId(id), focusJobId: focusJob, onFocused: () => setFocusJob(null) }), tab === "tracker" && openJob && /* @__PURE__ */ React.createElement(JobDetail, { region, job: openJob, resumeDb, formatting, glossary, library, jobs, setJobs, onBack: () => {
     setFocusJob(openJob.id);
     setOpenJobId(null);
-  }, onOpenProfile: () => go("profile") }), tab === "profile" && legacy(/* @__PURE__ */ React.createElement(ProfileTab, { sections, updateSections, formatting, setFormatting, glossary, setGlossary, region, resumeDb })), tab === "diagnosis" && legacy(/* @__PURE__ */ React.createElement(DiagnosisTab, { diagnosis, setDiagnosis })), tab === "library" && legacy(/* @__PURE__ */ React.createElement(LibraryTab, { library, setLibrary, updateSections })), tab === "insights" && /* @__PURE__ */ React.createElement(InsightsTab, { jobs, regionName: regionLabel, onWorking: () => go("tracker", { status: jobs.some((j) => j.status === "working") ? "working" : null }), onAdd: () => go("addjob") }), tab === "watchdog" && legacy(/* @__PURE__ */ React.createElement(WatchdogTab, { region, jobs, setJobs, resumeDb })));
+  }, onOpenProfile: () => go("profile") }), tab === "profile" && /* @__PURE__ */ React.createElement(ProfileTab, { sections, updateSections, formatting, setFormatting, glossary, setGlossary, region, resumeDb }), tab === "diagnosis" && /* @__PURE__ */ React.createElement(DiagnosisTab, { diagnosis, setDiagnosis }), tab === "library" && /* @__PURE__ */ React.createElement(LibraryTab, { library, setLibrary, updateSections }), tab === "insights" && /* @__PURE__ */ React.createElement(InsightsTab, { jobs, regionName: regionLabel, onWorking: () => go("tracker", { status: jobs.some((j) => j.status === "working") ? "working" : null }), onAdd: () => go("addjob") }), tab === "watchdog" && legacy(/* @__PURE__ */ React.createElement(WatchdogTab, { region, jobs, setJobs, resumeDb })));
 }
 const HALF_CIRCLE = /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "18", height: "18", fill: "none", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "8", stroke: "currentColor", strokeWidth: "2" }), /* @__PURE__ */ React.createElement("path", { d: "M12 4a8 8 0 0 1 0 16z", fill: "currentColor" }));
 const GEAR = /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "18", height: "18", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinejoin: "round", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("path", { d: "M10.34 5.10L10.58 2.51L13.42 2.51L13.66 5.10A7.1 7.1 0 0 1 15.71 5.95L17.71 4.28L19.72 6.29L18.05 8.29A7.1 7.1 0 0 1 18.90 10.34L21.49 10.58L21.49 13.42L18.90 13.66A7.1 7.1 0 0 1 18.05 15.71L19.72 17.71L17.71 19.72L15.71 18.05A7.1 7.1 0 0 1 13.66 18.90L13.42 21.49L10.58 21.49L10.34 18.90A7.1 7.1 0 0 1 8.29 18.05L6.29 19.72L4.28 17.71L5.95 15.71A7.1 7.1 0 0 1 5.10 13.66L2.51 13.42L2.51 10.58L5.10 10.34A7.1 7.1 0 0 1 5.95 8.29L4.28 6.29L6.29 4.28L8.29 5.95A7.1 7.1 0 0 1 10.34 5.10Z" }), /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "3" }));
@@ -2829,6 +2756,12 @@ function App() {
     const ok = ghConfigured();
     setGhOk(ok);
     if (!ok) {
+      if (DEMO) {
+        const demo = sampleProfile();
+        setSections(demo.sections);
+        setResumeDb(combineSections(demo.sections));
+        setLibrary(demo.library);
+      }
       setLoaded(true);
       return;
     }

@@ -79,6 +79,21 @@ function sampleJobs(region = 'canada') {
   ];
 }
 
+// Demo profile: a made-up person (every name, address and number here is invented), so the demo's prompt buttons have
+// a profile to be built from — without it every one of them was disabled, and a visitor never saw what a prompt looks like.
+function sampleProfile() {
+  const ago = n => new Date(Date.now() - n * 86400000).toISOString();
+  const sections = [
+    { id:'demo-p1', name:'Contact & Links', source:'template', addedAt:ago(40), content:'Full name: Sam Example\nLocation: Vancouver, BC, Canada\nEmail: sam@example.com\nPortfolio: example.com/sam\nWork authorization: open work permit (Canada)' },
+    { id:'demo-p2', name:'Experience', source:'manual', addedAt:ago(40), content:'Harbourline Logistics — Operations Analyst (Richmond, BC) | Apr 2026 – Present\n• Rebuilt the weekly throughput report in SQL and Looker; the operations review went from two hours to thirty minutes\n• Modelled dock scheduling in Python; peak-hour truck waits fell by a fifth\n\nSaltmarsh Policy Lab — Research Assistant, part-time (Vancouver, BC) | Jul 2026 – Sep 2026\n• Cleaned and documented a 12,000-row housing survey for a policy brief' },
+    { id:'demo-p3', name:'Skills', source:'template', addedAt:ago(40), content:'Analysis: SQL, Python (pandas), Excel\nBI: Looker, Tableau\nMethods: A/B testing, regression, forecasting\nLanguages: English, Mandarin' },
+  ];
+  const library = [
+    { id:'demo-r1', name:'Sam Example — general resume', uploadedAt:ago(20), content:'# Sam Example\nVancouver, BC · sam@example.com · example.com/sam\n\n## Experience\n**Harbourline Logistics** — Operations Analyst, Apr 2026 – Present\n- Rebuilt the weekly throughput report in SQL and Looker (two hours → thirty minutes)\n- Modelled dock scheduling in Python; peak-hour truck waits fell by a fifth\n\n## Skills\n- SQL, Python (pandas), Excel, Looker, Tableau' },
+  ];
+  return { sections, library };
+}
+
 // If token/repo are empty, pre-fill them from a `pha-config` entry in localStorage when one exists; never overwrites values already set
 try {
   const _pha = JSON.parse(localStorage.getItem('pha-config') || 'null');
@@ -1225,7 +1240,7 @@ function MdView({ text }) {
   const out = []; let listBuf = [];
   const flushList = () => {
     if (!listBuf.length) return;
-    out.push(<ul key={out.length} className="list-disc pl-5 my-1 space-y-0.5">{listBuf.map((li,i)=><li key={i} className="text-sm text-gray-700">{renderInline(li)}</li>)}</ul>);
+    out.push(<ul key={out.length}>{listBuf.map((li,i)=><li key={i}>{renderInline(li)}</li>)}</ul>);
     listBuf = [];
   };
   const renderInline = s => s.split(/(\*\*[^*]+\*\*)/).map((p,i) =>
@@ -1233,15 +1248,15 @@ function MdView({ text }) {
   );
   lines.forEach((raw,i) => {
     const l = raw.replace(/\r$/,'');
-    if (/^#\s/.test(l))      { flushList(); out.push(<h1 key={i} className="text-xl font-bold mt-3 mb-1">{l.slice(2)}</h1>); }
-    else if (/^##\s/.test(l)){ flushList(); out.push(<h2 key={i} className="text-base font-semibold mt-3 mb-1 text-gray-800">{l.slice(3)}</h2>); }
-    else if (/^###\s/.test(l)){ flushList(); out.push(<h3 key={i} className="text-sm font-semibold mt-2 mb-0.5 text-gray-700">{l.slice(4)}</h3>); }
+    if (/^#\s/.test(l))      { flushList(); out.push(<h1 key={i}>{l.slice(2)}</h1>); }
+    else if (/^##\s/.test(l)){ flushList(); out.push(<h2 key={i}>{l.slice(3)}</h2>); }
+    else if (/^###\s/.test(l)){ flushList(); out.push(<h3 key={i}>{l.slice(4)}</h3>); }
     else if (/^\s*[-*]\s/.test(l)){ listBuf.push(l.replace(/^\s*[-*]\s/,'')); }
-    else if (l.trim()==='')  { flushList(); out.push(<div key={i} className="h-1.5"/>); }
-    else                     { flushList(); out.push(<p key={i} className="text-sm text-gray-700 my-0.5">{renderInline(l)}</p>); }
+    else if (l.trim()==='')  { flushList(); out.push(<div key={i} className="md-gap"/>); }
+    else                     { flushList(); out.push(<p key={i}>{renderInline(l)}</p>); }
   });
   flushList();
-  return <div>{out}</div>;
+  return <div className="md">{out}</div>;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1357,16 +1372,16 @@ const PROFILE_STARTER = [
   { name:'Certifications & Awards', content:'Certification — Issuer | YYYY\nAward / Scholarship — Body | YYYY' },
 ];
 const SKILL_TEMPLATES = [
-  { role:'Software / Web Developer', icon:'💻', content:'Languages: Python, JavaScript/TypeScript, Java, Go, SQL\nFrontend: React, Vue, HTML/CSS, Tailwind\nBackend: Node.js, Django/Flask, Spring, REST & GraphQL APIs\nDevOps & cloud: Git, Docker, Kubernetes, CI/CD, AWS/GCP/Azure\nConcepts: data structures & algorithms, system design, testing/TDD, Agile/Scrum' },
-  { role:'Data Analyst / Scientist', icon:'📊', content:'Analysis: SQL, Python (pandas, NumPy), R, Excel (advanced)\nViz/BI: Tableau, Power BI, Looker, matplotlib\nStats/ML: A/B testing, regression, classification, clustering, scikit-learn\nData eng: ETL, dbt, Airflow, BigQuery/Snowflake, data modeling\nSoft: storytelling with data, stakeholder communication' },
-  { role:'Product Manager', icon:'🧭', content:'Discovery: user research, interviews, JTBD, market/competitor analysis\nExecution: roadmapping, PRDs, backlog grooming, Agile/Scrum, Jira\nData: KPIs/OKRs, funnel & cohort analysis, SQL, A/B testing, amplitude/mixpanel\nDesign: wireframing (Figma), prototyping, UX collaboration\nSoft: prioritization, cross-functional leadership, stakeholder management' },
-  { role:'Digital Marketing', icon:'📣', content:'Channels: SEO/SEM, Google Ads, Meta/TikTok ads, email, content marketing\nAnalytics: GA4, Google Tag Manager, attribution, conversion optimization\nTools: HubSpot, Mailchimp, Hootsuite, Semrush/Ahrefs, Canva\nSkills: copywriting, A/B testing, campaign management, budget management' },
-  { role:'Finance / Accounting', icon:'💰', content:'Core: financial modeling, valuation (DCF/comps), forecasting & budgeting, variance analysis\nReporting: GAAP/IFRS, financial statements, month-end close, AP/AR\nTools: Excel (advanced), QuickBooks, SAP, Oracle, Bloomberg\nSkills: FP&A, audit support, reconciliation, attention to detail' },
-  { role:'UX / UI Designer', icon:'🎨', content:'Design: Figma, Sketch, Adobe XD, design systems, prototyping\nResearch: user interviews, usability testing, personas, journey mapping\nSkills: wireframing, interaction design, accessibility (WCAG), responsive design\nNice to have: HTML/CSS, motion, basic frontend handoff' },
-  { role:'Sales / Business Dev', icon:'🤝', content:'Cycle: prospecting, lead gen, discovery, demos, negotiation, closing\nCRM/tools: Salesforce, HubSpot, Outreach, LinkedIn Sales Navigator\nMetrics: pipeline, quota attainment, win rate, ARR/MRR\nSkills: relationship building, consultative selling, account management' },
-  { role:'Operations / Project Mgmt', icon:'⚙️', content:'PM: project planning, Gantt/roadmaps, risk management, stakeholder updates\nMethod: Agile/Scrum, Kanban, Lean/Six Sigma, process improvement\nTools: Jira, Asana, Trello, MS Project, Excel\nSkills: vendor management, budgeting, cross-functional coordination' },
-  { role:'HR / Recruiting', icon:'👥', content:'Recruiting: sourcing, screening, interviewing, ATS (Greenhouse/Lever)\nHR ops: onboarding, performance management, HRIS (Workday/BambooHR)\nSkills: employer branding, compensation basics, employment law awareness, DEI' },
-  { role:'Customer Success / Support', icon:'🎧', content:'Tools: Zendesk, Intercom, Salesforce Service Cloud\nMetrics: CSAT, NPS, churn, retention, time-to-resolution\nSkills: onboarding, account health, upsell/renewal, troubleshooting, empathy' },
+  { role:'Software / Web Developer', content:'Languages: Python, JavaScript/TypeScript, Java, Go, SQL\nFrontend: React, Vue, HTML/CSS, Tailwind\nBackend: Node.js, Django/Flask, Spring, REST & GraphQL APIs\nDevOps & cloud: Git, Docker, Kubernetes, CI/CD, AWS/GCP/Azure\nConcepts: data structures & algorithms, system design, testing/TDD, Agile/Scrum' },
+  { role:'Data Analyst / Scientist', content:'Analysis: SQL, Python (pandas, NumPy), R, Excel (advanced)\nViz/BI: Tableau, Power BI, Looker, matplotlib\nStats/ML: A/B testing, regression, classification, clustering, scikit-learn\nData eng: ETL, dbt, Airflow, BigQuery/Snowflake, data modeling\nSoft: storytelling with data, stakeholder communication' },
+  { role:'Product Manager', content:'Discovery: user research, interviews, JTBD, market/competitor analysis\nExecution: roadmapping, PRDs, backlog grooming, Agile/Scrum, Jira\nData: KPIs/OKRs, funnel & cohort analysis, SQL, A/B testing, amplitude/mixpanel\nDesign: wireframing (Figma), prototyping, UX collaboration\nSoft: prioritization, cross-functional leadership, stakeholder management' },
+  { role:'Digital Marketing', content:'Channels: SEO/SEM, Google Ads, Meta/TikTok ads, email, content marketing\nAnalytics: GA4, Google Tag Manager, attribution, conversion optimization\nTools: HubSpot, Mailchimp, Hootsuite, Semrush/Ahrefs, Canva\nSkills: copywriting, A/B testing, campaign management, budget management' },
+  { role:'Finance / Accounting', content:'Core: financial modeling, valuation (DCF/comps), forecasting & budgeting, variance analysis\nReporting: GAAP/IFRS, financial statements, month-end close, AP/AR\nTools: Excel (advanced), QuickBooks, SAP, Oracle, Bloomberg\nSkills: FP&A, audit support, reconciliation, attention to detail' },
+  { role:'UX / UI Designer', content:'Design: Figma, Sketch, Adobe XD, design systems, prototyping\nResearch: user interviews, usability testing, personas, journey mapping\nSkills: wireframing, interaction design, accessibility (WCAG), responsive design\nNice to have: HTML/CSS, motion, basic frontend handoff' },
+  { role:'Sales / Business Dev', content:'Cycle: prospecting, lead gen, discovery, demos, negotiation, closing\nCRM/tools: Salesforce, HubSpot, Outreach, LinkedIn Sales Navigator\nMetrics: pipeline, quota attainment, win rate, ARR/MRR\nSkills: relationship building, consultative selling, account management' },
+  { role:'Operations / Project Mgmt', content:'PM: project planning, Gantt/roadmaps, risk management, stakeholder updates\nMethod: Agile/Scrum, Kanban, Lean/Six Sigma, process improvement\nTools: Jira, Asana, Trello, MS Project, Excel\nSkills: vendor management, budgeting, cross-functional coordination' },
+  { role:'HR / Recruiting', content:'Recruiting: sourcing, screening, interviewing, ATS (Greenhouse/Lever)\nHR ops: onboarding, performance management, HRIS (Workday/BambooHR)\nSkills: employer branding, compensation basics, employment law awareness, DEI' },
+  { role:'Customer Success / Support', content:'Tools: Zendesk, Intercom, Salesforce Service Cloud\nMetrics: CSAT, NPS, churn, retention, time-to-resolution\nSkills: onboarding, account health, upsell/renewal, troubleshooting, empathy' },
 ];
 
 function ProfileTab({ sections, updateSections, formatting, setFormatting, glossary, setGlossary, region, resumeDb }) {
@@ -1376,231 +1391,154 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
   const [editName, setEditName]     = useState('');
   const [saving, setSaving]         = useState(false);
   const [saved, setSaved]           = useState(false);
+  const [dirty, setDirty]           = useState(false);   // section edits live on this page until Save all writes them
   const [fmtDraft, setFmtDraft]     = useState(formatting || '');
-  const [fmtSaved, setFmtSaved]     = useState(false);
   const [glsDraft, setGlsDraft]     = useState(glossary || '');
-  const [glsSaved, setGlsSaved]     = useState(false);
 
-  // Keep drafts in sync if values change from outside (e.g. on first load)
+  // keep the drafts in step when the saved values change from outside (first load)
   useEffect(() => { setFmtDraft(formatting || ''); }, [formatting]);
   useEffect(() => { setGlsDraft(glossary  || ''); }, [glossary]);
 
+  const local = next => { updateSections(next, false); setDirty(true); };   // false = not written to GitHub yet
   const handleUpload = (text, filename) => {
     const name = filename.replace(/\.[^.]+$/, '') || 'Untitled';
-    const section = { id: newId(), name, content: text, source: 'upload', filename, addedAt: new Date().toISOString() };
-    updateSections([...sections, section], false); // false = don't save to GitHub yet
+    local([...sections, { id: newId(), name, content: text, source: 'upload', filename, addedAt: new Date().toISOString() }]);
   };
-
   const handleAddManual = () => {
-    const section = { id: newId(), name: 'New section', content: '', source: 'manual', addedAt: new Date().toISOString() };
-    const updated = [...sections, section];
-    updateSections(updated, false);
-    setExpandedId(section.id);
-    setEditingId(section.id);
-    setEditName('New section');
+    const section = { id: newId(), name: T('新的一节','New section'), content: '', source: 'manual', addedAt: new Date().toISOString() };
+    local([...sections, section]);
+    setExpandedId(section.id); setEditingId(section.id); setEditName(section.name);
   };
-
-  const insertSection = (name, content) => {
-    updateSections([...sections, { id:newId(), name, content, source:'template', addedAt:new Date().toISOString() }], false);
-  };
+  const insertSection = (name, content) => local([...sections, { id:newId(), name, content, source:'template', addedAt:new Date().toISOString() }]);
   const insertStarter = () => {
     const now = new Date().toISOString();
-    const adds = PROFILE_STARTER.map(t => ({ id:newId(), name:t.name, content:t.content, source:'template', addedAt:now }));
-    updateSections([...sections, ...adds], false);
+    local([...sections, ...PROFILE_STARTER.map(t => ({ id:newId(), name:t.name, content:t.content, source:'template', addedAt:now }))]);
     setShowTpl(false);
   };
-
   const handleDelete = id => {
-    if (!window.confirm(T('从你的资料中移除此部分？','Remove this section from your profile?'))) return;
-    updateSections(sections.filter(s => s.id !== id), false);
+    if (!window.confirm(T('从你的资料里移除这一节？','Remove this section from your profile?'))) return;
+    local(sections.filter(s => s.id !== id));
   };
-
-  const handleContentChange = (id, val) => {
-    updateSections(sections.map(s => s.id === id ? {...s, content: val} : s), false);
-  };
-
-  const startRename = (s) => { setEditingId(s.id); setEditName(s.name); };
-  const commitRename = (id) => {
-    if (editName.trim()) updateSections(sections.map(s => s.id === id ? {...s, name: editName.trim()} : s), false);
+  const handleContentChange = (id, val) => local(sections.map(s => s.id === id ? {...s, content: val} : s));
+  const startRename = s => { setEditingId(s.id); setEditName(s.name); };
+  const commitRename = id => {
+    if (editName.trim()) local(sections.map(s => s.id === id ? {...s, name: editName.trim()} : s));
     setEditingId(null);
   };
-
   const handleSaveAll = async () => {
     setSaving(true);
-    await updateSections(sections, true); // true = save to GitHub
-    setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 1500);
+    await updateSections(sections, true);   // true = written to GitHub
+    setSaving(false); setDirty(false); setSaved(true); setTimeout(() => setSaved(false), 1500);
   };
 
   const totalChars = sections.reduce((n, s) => n + (s.content || '').length, 0);
+  const SOURCE = { upload:T('上传的','Uploaded'), manual:T('在这里写的','Written here'), template:T('模板','Template'), library:T('来自简历库','From library') };
+  const lines = s => s.trim() ? s.trim().split('\n').filter(Boolean).length : 0;
+  const glsN = lines(glsDraft), fmtN = lines(fmtDraft);
+  const glsSavedNow = glsDraft === (glossary || ''), fmtSavedNow = fmtDraft === (formatting || '');
 
   return (
-    <div className="space-y-3">
-      <Card className="p-4">
-        <SectionHdr icon="📝" title={T('我的资料 — 给 AI 提示词的参考文件','My profile — reference files for AI prompts')}
-          action={
-            <div className="flex flex-wrap gap-2 items-center">
-              <FileUploadButton onFile={handleUpload} label={T('上传文件','Upload file')} />
-              <Btn onClick={()=>setShowTpl(v=>!v)}>{T('📋 模板','📋 Templates')}</Btn>
-              <Btn onClick={handleAddManual}>{T('➕ 添加部分','➕ Add section')}</Btn>
-              <Btn variant="primary" onClick={handleSaveAll} disabled={saving}>
-                {saving ? T('⏳ 保存中…','⏳ Saving…') : saved ? T('✅ 已保存','✅ Saved') : T('💾 全部保存','💾 Save all')}
-              </Btn>
-            </div>
-          }
-        />
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 mb-3">
-          <strong>{T('使用 AI 提示词时，下面所有部分会被合并发送给 Claude。','All sections below are combined and sent to Claude when you use AI prompts.')}</strong>{' '}
-          {T('逐个上传文件 — 工作经历、简历模板、技能，任何你想让 Claude 参考的内容。支持 .txt、.md、.docx、.pdf。','Upload each file separately — work history, resume templates, skills, anything you want Claude to reference. Accepts .txt, .md, .docx, .pdf.')} <strong>{T('所有地区共享。','Shared across all regions.')}</strong>
-          {totalChars > 0 && <span className="ml-1 text-blue-700">{T('共 ','Total: ')}{totalChars.toLocaleString()}{T(' 个字符，分布在 ',' characters across ')}{sections.length}{T(' 个部分。', sections.length !== 1 ? ' sections.' : ' section.')}</span>}
-        </div>
-
-        {showTpl && (
-          <div className="mb-3 p-3 border border-purple-200 bg-purple-50 rounded-md">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold text-purple-900">{T('📋 模板 — 一键插入，之后自由编辑','📋 Templates — one click to insert, then edit freely')}</span>
-              <button onClick={()=>setShowTpl(false)} className="text-xs text-purple-700 hover:underline">{T('✕ 关闭','✕ close')}</button>
-            </div>
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <Btn variant="primary" onClick={insertStarter}>{T('🧱 生成个人资料库骨架','🧱 Generate personal-database skeleton')}</Btn>
-              <span className="text-xs text-purple-800">{T('添加 联系方式 · 概述 · 经历 · 教育 · 技能 · 项目 · 证书 等可编辑部分供填写。','Adds Contact · Summary · Experience · Education · Skills · Projects · Certifications as editable sections to fill in.')}</span>
-            </div>
-            <div className="text-xs font-medium text-purple-900 mb-1.5">{T('按岗位添加一组精选技能：','Add a curated skills block by role:')}</div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {SKILL_TEMPLATES.map(t => (
-                <button key={t.role} onClick={()=>insertSection('Skills — '+t.role, t.content)}
-                  className="text-left text-xs px-2.5 py-2 rounded-md border border-purple-200 bg-white hover:bg-purple-100 transition-colors">
-                  <span className="font-medium text-gray-800">{t.icon} {t.role}</span>
-                  <span className="block text-purple-600 mt-0.5">{T('+ 作为部分插入','+ insert as section')}</span>
-                </button>
-              ))}
-            </div>
-            <div className="mt-2 text-[11px] text-purple-700">{T('作为新部分插入 — 可自由重命名 / 编辑 / 删除，然后点击 💾 全部保存 同步。','Inserted as new sections — rename / edit / delete them freely, then click 💾 Save all to sync.')}</div>
+    <>
+      <PageHead eyebrow={T('所有地区共用','Shared by all regions')} title={T('我的资料','My profile')}
+        sub={T('每一节都会合在一起，随 AI 提示词一起发出去。','Every section is combined and sent with the AI prompts.')}
+        action={<>
+          {dirty && <span className="reason">{T('有没保存的修改','Unsaved changes')}</span>}
+          <Btn variant="primary" onClick={handleSaveAll} disabled={saving}>{saving ? T('保存中…','Saving…') : saved ? T('已保存','Saved') : T('全部保存','Save all')}</Btn>
+        </>} />
+      <div className="stack">
+        <section className="card" aria-labelledby="sec-h">
+          <div className="card-head"><h2 id="sec-h">{T('资料分节','Profile sections')}</h2><span className="num faint">{fmtNum(totalChars)} {T('字符','chars')}</span></div>
+          <div className="btn-row">
+            <FileUploadButton onFile={handleUpload} label={T('上传文件…','Upload file…')} />
+            <Btn onClick={() => setShowTpl(v => !v)} aria-expanded={showTpl}>{T('模板','Templates')}</Btn>
+            <Btn onClick={handleAddManual}>{T('添加一节','Add section')}</Btn>
           </div>
-        )}
-
-        {sections.length === 0 ? (
-          <div className="p-6 text-center text-sm text-gray-500 border border-dashed border-gray-300 rounded-md">
-            {T('还没有任何部分。点击 ','No sections yet. Click ')}<strong>{T('上传文件','Upload file')}</strong>{T(' 添加第一个，或点击 ',' to add your first one, or ')}<strong>{T('添加部分','Add section')}</strong>{T(' 手动编写。',' to write manually.')}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {sections.map((s) => (
-              <div key={s.id} className="border border-gray-200 rounded-md overflow-hidden">
-                {/* Section header row */}
-                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <button className="text-gray-400 text-xs w-4 shrink-0" onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}>
-                    {expandedId === s.id ? '▼' : '▶'}
-                  </button>
-                  <span className="text-xs">{s.source === 'upload' ? '📄' : '✍️'}</span>
-
-                  {/* Inline rename */}
-                  {editingId === s.id ? (
-                    <input
-                      value={editName}
-                      onChange={e => setEditName(e.target.value)}
-                      onBlur={() => commitRename(s.id)}
-                      onKeyDown={e => { if (e.key === 'Enter') commitRename(s.id); if (e.key === 'Escape') setEditingId(null); }}
-                      className="flex-1 text-sm font-medium px-1 border border-blue-400 rounded focus:outline-none"
-                      autoFocus
-                    />
-                  ) : (
-                    <button className="flex-1 text-left text-sm font-medium text-gray-900 truncate" onClick={() => startRename(s)}>
-                      {s.name}
-                    </button>
-                  )}
-
-                  <span className="text-xs text-gray-400 shrink-0">{(s.content || '').length.toLocaleString()} {T('字符','chars')}</span>
-                  <button onClick={() => startRename(s)} className="text-xs text-gray-400 hover:text-gray-700 shrink-0" title={T('重命名','Rename')}>✏️</button>
-                  <button onClick={() => handleDelete(s.id)} className="text-xs text-gray-400 hover:text-red-600 shrink-0" title={T('移除','Remove')}>🗑</button>
-                </div>
-
-                {/* Expanded editor */}
-                {expandedId === s.id && (
-                  <div className="p-2 border-t border-gray-200">
-                    <textarea
-                      value={s.content || ''}
-                      onChange={e => handleContentChange(s.id, e.target.value)}
-                      placeholder={T('此部分的内容…','Content of this section…')}
-                      className="w-full h-48 p-2 text-sm font-mono border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-                    />
-                  </div>
-                )}
+          {showTpl && (
+            <div className="tpl-panel">
+              <div className="tpl-top">
+                <Btn onClick={insertStarter}>{T('插入资料骨架','Insert the starter skeleton')}</Btn>
+                <p className="hint">{T('加上 联系方式 · 概述 · 经历 · 教育 · 技能 · 项目 · 证书 这几节，你再往里填。','Adds Contact · Summary · Experience · Education · Skills · Projects · Certifications as sections to fill in.')}</p>
+                <button type="button" className="btn-link tpl-close" onClick={() => setShowTpl(false)}>{T('关闭','Close')}</button>
               </div>
-            ))}
+              <p className="eyebrow">{T('按岗位加一组技能','A skills block by role')}</p>
+              <div className="tpl-grid">
+                {SKILL_TEMPLATES.map(t => (
+                  <button key={t.role} type="button" className="tpl-btn" onClick={() => insertSection('Skills — ' + t.role, t.content)}>
+                    <b>{t.role}</b><span>{T('作为一节插入','Insert as a section')}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="hint">{T('插入后随便改名、编辑、删除，最后点「全部保存」。','Rename, edit or remove what you insert, then choose Save all.')}</p>
+            </div>
+          )}
+          {sections.length === 0 ? (
+            <div className="empty">
+              <h2>{T('还没有资料分节','No profile sections yet')}</h2>
+              <p>{T('上传一个文件、插入资料骨架，或者自己写一节。','Upload a file, insert the starter skeleton, or write one yourself.')}</p>
+              <Btn onClick={insertStarter}>{T('插入资料骨架','Insert the starter skeleton')}</Btn>
+            </div>
+          ) : (
+            <ul className="sections">
+              {sections.map(s => {
+                const open = expandedId === s.id;
+                const renameName = T(`重命名「${s.name}」`, `Rename section`), removeName = T('移除这一节','Remove section');
+                return (
+                  <li key={s.id} className="sec">
+                    <div className="sec-row">
+                      {editingId === s.id ? (
+                        <input className="sec-rename" aria-label={T('这一节的名字','Section name')} value={editName} onChange={e => setEditName(e.target.value)}
+                          onBlur={() => commitRename(s.id)} onKeyDown={e => { if (e.key === 'Enter') commitRename(s.id); if (e.key === 'Escape') setEditingId(null); }} autoFocus />
+                      ) : (
+                        <button type="button" className="sec-open" aria-expanded={open} onClick={() => setExpandedId(open ? null : s.id)}>
+                          <Icon name="chevron" size={14} className={`chev${open ? ' open' : ''}`} /><span>{s.name}</span>
+                        </button>
+                      )}
+                      <span className="sec-meta"><span className="cat">{SOURCE[s.source] || SOURCE.manual}</span><span className="num faint">{fmtNum((s.content || '').length)}</span></span>
+                      <span className="sec-icons">
+                        <button type="button" className="btn btn-ghost btn-icon" aria-label={renameName} data-tip={T('重命名','Rename section')} onClick={() => startRename(s)}><Icon name="edit" /></button>
+                        <button type="button" className="btn btn-ghost btn-icon btn-quiet" aria-label={removeName} data-tip={removeName} onClick={() => handleDelete(s.id)}><Icon name="trash" /></button>
+                      </span>
+                    </div>
+                    {open && <textarea className="sec-text mono" aria-label={s.name} value={s.content || ''} onChange={e => handleContentChange(s.id, e.target.value)} placeholder={T('这一节的内容…','What this section says…')} />}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        <section className="card" aria-labelledby="gls-h">
+          <div className="card-head"><h2 id="gls-h">{T('翻译词汇表','Translation glossary')}</h2></div>
+          <p className="hint">{T('给你的名字、公司、学校等专有名词定下中文译法，每行一条。每一条「翻译」提示词都会带上它，Claude 就会用你定的译法。',
+            'Your preferred Chinese for names, companies, schools and other proper nouns, one entry per line. Every translate prompt carries it, so Claude uses your translations.')}</p>
+          <textarea className="mono lined" aria-labelledby="gls-h" rows={7} value={glsDraft} onChange={e => setGlsDraft(e.target.value)}
+            placeholder={`One entry per line, format: English term → Chinese translation\n\nExamples:\nYour Name → 你的中文名\nYour University → 大学名称\nYour Company → 公司名称\nVancouver → 温哥华`} />
+          <div className="save-row">
+            <p className="hint" role="status">{!glsN ? T('还没有词条——人名等译法由 Claude 自己判断。','No entries yet — Claude uses its own judgement for names.')
+              : glsSavedNow ? T(`${glsN} 条——每条翻译提示词都会带上`, `${glsN} ${glsN === 1 ? 'entry' : 'entries'} — added to every translate prompt`)
+              : T(`${glsN} 条，还没保存`, `${glsN} ${glsN === 1 ? 'entry' : 'entries'}, not saved yet`)}</p>
+            <Btn onClick={async () => { setGlossary(glsDraft); await saveText('glossary', glsDraft); }}>{T('保存词汇表','Save glossary')}</Btn>
           </div>
-        )}
+        </section>
 
-        {sections.length > 0 && (
-          <p className="mt-3 text-xs text-gray-400">
-            {T('点击部分名称可重命名。点击 ▶ 展开并编辑内容。完成后点击 💾 全部保存。','Click a section name to rename it. Click ▶ to expand and edit the content. Click 💾 Save all when done.')}
-          </p>
-        )}
-      </Card>
+        <section className="card" aria-labelledby="fmt-h">
+          <div className="card-head"><h2 id="fmt-h">{T('简历排版规则','Resume formatting rules')}</h2></div>
+          <p className="hint">{T('写清楚你要的简历排版。每一条「定制简历」提示词都会带上它——Claude 看不到你上传文件的样式，只能照这里写的来。',
+            'How you want your resume laid out. Every tailored-resume prompt carries it — Claude cannot see the styling of the files you upload, only what you write here.')}</p>
+          <textarea className="mono lined" aria-labelledby="fmt-h" rows={8} value={fmtDraft} onChange={e => setFmtDraft(e.target.value)}
+            placeholder={T(`比如：\n\n- 最多一页\n- 顺序：概述、经历、教育、技能\n- 每段经历最多 4 条\n- 日期靠右，公司和职位靠左\n- 不写求职目标\n- 公司名和职位加粗`,
+              `For example:\n\n- One page maximum\n- Sections in this order: Summary, Experience, Education, Skills\n- At most 4 bullets per role\n- Dates on the right, company and title on the left\n- No objective statement\n- Bold company names and job titles`)} />
+          <div className="save-row">
+            <p className="hint" role="status">{!fmtN ? T('还没有规则——Claude 用它默认的排版。','No rules yet — Claude uses its default layout.')
+              : fmtSavedNow ? T(`${fmtN} 条规则——每条定制简历提示词都会带上`, `${fmtN} ${fmtN === 1 ? 'rule' : 'rules'} — included in every tailored-resume prompt`)
+              : T(`${fmtN} 条规则，还没保存`, `${fmtN} ${fmtN === 1 ? 'rule' : 'rules'}, not saved yet`)}</p>
+            <Btn onClick={async () => { setFormatting(fmtDraft); await saveText('formatting', fmtDraft); }}>{T('保存规则','Save rules')}</Btn>
+          </div>
+        </section>
 
-      {/* Translation glossary card */}
-      <Card className="p-4">
-        <SectionHdr icon="📖" title={T('翻译词汇表','Translation glossary')}
-          action={
-            <Btn variant="primary" onClick={async () => {
-              setGlossary(glsDraft);
-              await saveText('glossary', glsDraft);
-              setGlsSaved(true); setTimeout(() => setGlsSaved(false), 1500);
-            }}>
-              {glsSaved ? T('✅ 已保存','✅ Saved') : T('💾 保存','💾 Save')}
-            </Btn>
-          }
-        />
-        <p className="text-xs text-gray-600 mb-3">
-          {T('为你的姓名、公司名、学校名以及其他术语指定精确的中文翻译。它们会被注入每一条','Specify exact Chinese translations for your name, company names, school names, and any other terms. These are injected into every')} <strong>{T('翻译','Translate')}</strong> {T('提示词，让 Claude 始终使用你偏好的翻译 — 每行一条。','prompt so Claude always uses your preferred translations — one entry per line.')}
-        </p>
-        <textarea
-          value={glsDraft}
-          onChange={e => setGlsDraft(e.target.value)}
-          placeholder={`One entry per line, format: English term → Chinese translation\n\nExamples:\nYour Name → 你的中文名\nYour University → 大学名称\nYour Company → 公司名称\nProject Name → 项目名称\nVancouver → 温哥华`}
-          className="w-full h-40 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-        />
-        <p className="mt-1 text-xs text-gray-400">
-          {glsDraft.trim()
-            ? T(`✅ ${glsDraft.trim().split('\n').filter(Boolean).length} 条词条 — 已注入所有翻译提示词。`, `✅ ${glsDraft.trim().split('\n').filter(Boolean).length} entr${glsDraft.trim().split('\n').filter(Boolean).length !== 1 ? 'ies' : 'y'} — injected into all translate prompts.`)
-            : T('暂无词汇表 — Claude 将自行判断姓名翻译。','No glossary entries yet — Claude will use its best judgment for names.')}
-        </p>
-      </Card>
-
-      {/* Formatting instructions card */}
-      <Card className="p-4">
-        <SectionHdr icon="🎨" title={T('简历格式要求','Resume formatting requirements')}
-          action={
-            <Btn variant="primary" onClick={async () => {
-              setFormatting(fmtDraft);
-              await saveText('formatting', fmtDraft);
-              setFmtSaved(true); setTimeout(() => setFmtSaved(false), 1500);
-            }}>
-              {fmtSaved ? T('✅ 已保存','✅ Saved') : T('💾 保存','💾 Save')}
-            </Btn>
-          }
-        />
-        <p className="text-xs text-gray-600 mb-3">
-          {T('准确描述你希望的简历排版方式。它会被包含进每一条','Describe exactly how you want your resume laid out. This is included in every')} <strong>{T('定制简历','Tailor Resume')}</strong> {T("提示词，让 Claude 始终遵循你偏好的格式 — 即使它无法读取你上传文件的视觉样式。","prompt so Claude always follows your preferred format — even though it can't read the visual styling of your uploaded files.")}
-        </p>
-        <textarea
-          value={fmtDraft}
-          onChange={e => setFmtDraft(e.target.value)}
-          placeholder={T(`在这里写什么的示例：\n\n- 最多一页\n- 章节顺序：概述、经历、教育、技能\n- 每段角色下用项目符号，最多 4 条\n- 日期靠右，公司和职位靠左\n- 不写求职目标陈述\n- 公司名和职位用加粗\n- 技能部分：逗号分隔，按类别分组\n- 香港格式：顶部加一行照片占位\n- 使用英式英语拼写`,`Examples of what to write here:\n\n- One page maximum\n- Sections in this order: Summary, Experience, Education, Skills\n- Bullet points under each role, max 4 bullets\n- Dates on the right side, company and title on the left\n- No objective statement\n- Use bold for company names and job titles\n- Skills section: list as comma-separated, grouped by category\n- Hong Kong format: include a photo placeholder line at the top\n- Use British English spelling`)}
-          className="w-full h-48 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y font-mono"
-        />
-        <p className="mt-1 text-xs text-gray-400">
-          {fmtDraft.trim()
-            ? T(`✅ 已保存 ${fmtDraft.trim().split('\n').filter(Boolean).length} 条格式规则 — 已包含进定制简历提示词。`, `✅ ${fmtDraft.trim().split('\n').filter(Boolean).length} formatting rule${fmtDraft.trim().split('\n').filter(Boolean).length !== 1 ? 's' : ''} saved — included in Tailor Resume prompts.`)
-            : T('尚未设置格式规则 — Claude 将使用其默认排版。','No formatting rules set yet — Claude will use its default layout.')}
-        </p>
-      </Card>
-
-      {/* Generate General Resume */}
-      <Card className="p-4">
-        <SectionHdr icon="📄" title={T('生成通用简历','Generate general resume')} />
         <GeneralResumeSection resumeDb={resumeDb} formatting={formatting} glossary={glossary} region={region} />
-      </Card>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -1608,17 +1546,20 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
 // GENERAL RESUME GENERATOR
 // ════════════════════════════════════════════════════════════════
 
+// Which prompt a region gets. 2026-09-23: every region other than Canada, Hong Kong and Mainland China was labelled
+// "English resume" but got the Simplified Chinese prompt (the prompt chooser predates the twelve regions). They now get
+// the English prompt their label names. The prompt texts themselves are unchanged.
+const generalResumeKind = region => region === 'hongkong' ? 'hk' : region === 'china' ? 'zh' : 'en';
+
 function GeneralResumeSection({ resumeDb, formatting, glossary, region }) {
   const [showModal, setShowModal] = useState(false);
-  const REGION_CFG = {
-    canada:   { label:T('🇨🇦 英文简历','🇨🇦 English Resume') },
-    hongkong: { label:T('🇭🇰 繁體中文 + 英文（2 页）','🇭🇰 繁體中文 + English (2 pages)') },
-    china:    { label:T('🇨🇳 简体中文简历','🇨🇳 Simplified Chinese resume') },
-  };
-  const cfg = REGION_CFG[region] || { label: `${(REGION_BY[region]||{}).flag||'🌍'} ${T('英文简历','English Resume')} — ${rName(REGION_BY[region])||T('地区','Region')}` };
+  const kind = generalResumeKind(region);
+  const label = kind === 'hk' ? T('繁體中文 + 英文，两页 · 香港','Traditional Chinese + English, 2 pages · Hong Kong')
+    : kind === 'zh' ? T('简体中文简历 · 中国大陆','Simplified Chinese resume · Mainland China')
+    : T(`英文简历 · ${rName(REGION_BY[region])}`, `English resume · ${rName(REGION_BY[region])}`);
 
   function buildPrompt() {
-    if (region === 'canada') {
+    if (kind === 'en') {
       return `Generate a one-page Letter PDF general resume (NOT tailored to any specific job) using Claude's Analysis Tool (reportlab). Extract the candidate's name and save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
 
 PROFILE:
@@ -1649,7 +1590,7 @@ ONE PAGE — MANDATORY. Cut weakest first. FILL THE PAGE if space remains. Verif
 
 TONE: Recent graduate. No buzzwords. Plain verbs. Modest specificity.`.trim();
 
-    } else if (region === 'hongkong') {
+    } else if (kind === 'hk') {
       return `Generate a TWO-PAGE A4 PDF using Claude's Analysis Tool (reportlab). Page 1: Traditional Chinese. Page 2: English. Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
 
 Use the content below. Page 1: make a Hong Kong Traditional Chinese professional resume — use your own professional HK-style layout and formatting, do NOT copy the structure or formatting from the profile text, only use the content.
@@ -1722,23 +1663,23 @@ CONTENT:
         }
   }
 
+
+  const has = !!resumeDb?.trim();
   return (
-    <div>
-      <p className="text-xs text-gray-500 mb-3">
-        {T('从你的资料生成一份通用简历 — 不针对任何特定职位。','Generate a general-purpose resume from your profile — not tailored to any specific job.')}
-        {region === 'canada' ? T(' Claude 通过 Analysis 工具生成一页 PDF。',' Claude generates a one-page PDF via the Analysis Tool.')
-         : region === 'hongkong' ? T(' 两页 PDF：第 1 页繁體中文，第 2 页英文。',' Two-page PDF: Traditional Chinese page 1, English page 2.')
-         : T(' 通过 Analysis 工具生成一页简体中文 PDF。',' One-page PDF in Simplified Chinese via the Analysis Tool.')}
+    <section className="card" aria-labelledby="gen-h">
+      <div className="card-head"><h2 id="gen-h">{T('通用简历','General resume')}</h2></div>
+      <p className="hint">
+        {T('用你的资料做一份不针对任何职位的简历。','A resume from your profile that is not tailored to any one job.')}{' '}
+        {kind === 'en' ? T('Claude 用 Analysis 工具做成一页 PDF。','Claude makes a one-page PDF with the Analysis tool.')
+         : kind === 'hk' ? T('两页 PDF：第 1 页繁體中文，第 2 页英文。','A two-page PDF: Traditional Chinese on page 1, English on page 2.')
+         : T('Claude 用 Analysis 工具做成一页简体中文 PDF。','Claude makes a one-page PDF in Simplified Chinese with the Analysis tool.')}
       </p>
-      <div className="flex items-center gap-3">
-        <Btn variant="primary" onClick={()=>setShowModal(true)} disabled={!resumeDb?.trim()}>
-          📄 {cfg.label}
-        </Btn>
-        <span className="text-xs text-gray-400">{T('复制粘贴到 Claude.ai','Copy-paste to Claude.ai')}</span>
+      <div className="btn-row">
+        <Btn onClick={() => setShowModal(true)} disabled={!has} aria-describedby={!has ? 'gen-need' : undefined}>{label}</Btn>
       </div>
-      {!resumeDb?.trim() && <p className="text-xs text-amber-700 mt-2">{T('请先添加你的资料部分。','Add your profile sections first.')}</p>}
-      {showModal && <PromptModal title={cfg.label} prompt={buildPrompt()} onClose={()=>setShowModal(false)} />}
-    </div>
+      {!has && <p className="hint" id="gen-need">{T('先加一节资料。','Add a profile section first.')}</p>}
+      {showModal && <PromptModal title={label} prompt={buildPrompt()} onClose={() => setShowModal(false)} />}
+    </section>
   );
 }
 
@@ -1755,61 +1696,62 @@ function LibraryTab({ library, setLibrary, updateSections }) {
     const updated = [entry, ...library];
     setLibrary(updated); await saveJson('library', updated);
   };
-
   const handleDelete = async id => {
     if (!window.confirm(T('删除这份简历？','Delete this resume?'))) return;
     const updated = library.filter(r=>r.id!==id); setLibrary(updated); await saveJson('library', updated);
   };
-
   const handleRename = async id => {
     const cur = library.find(r=>r.id===id); if (!cur) return;
-    const next = window.prompt(T('重命名：','Rename:'), cur.name); if (!next||next===cur.name) return;
+    const next = window.prompt(T('新名字：','Rename:'), cur.name); if (!next||next===cur.name) return;
     const updated = library.map(r=>r.id===id?{...r,name:next}:r); setLibrary(updated); await saveJson('library', updated);
   };
-
   const handleUseAsProfile = async entry => {
-    if (!window.confirm(T(`用「${entry.name}」替换你的整个资料？\n\n这会用此简历中的一个部分替换所有现有部分。`,`Replace your entire profile with "${entry.name}"?\n\nThis replaces all existing sections with one section from this resume.`))) return;
-    const section = { id: newId(), name: entry.name, content: entry.content, source: 'library', addedAt: new Date().toISOString() };
-    await updateSections([section], true);
+    if (!window.confirm(T(`用「${entry.name}」替换你的整份资料？\n\n现有的各节会被这份简历这一节取代。`,`Replace your whole profile with "${entry.name}"?\n\nAll your sections are replaced by one section holding this resume.`))) return;
+    await updateSections([{ id: newId(), name: entry.name, content: entry.content, source: 'library', addedAt: new Date().toISOString() }], true);
   };
+  const upload = <FileUploadButton onFile={handleUpload} label={T('上传简历…','Upload resume…')} primary />;
 
   return (
-    <div className="space-y-3">
-      <Card className="p-4">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-1">{T('📚 简历库','📚 Resume library')}</h3>
-            <p className="text-xs text-gray-600">{T('存储多个简历版本。','Store multiple resume versions. ')}<strong>{T('所有地区共享。','Shared across all regions.')}</strong> .txt, .md, .docx, .pdf</p>
-          </div>
-          <FileUploadButton onFile={handleUpload} label={T('上传简历','Upload resume')} primary />
-        </div>
-      </Card>
+    <>
+      <PageHead eyebrow={T('所有地区共用','Shared by all regions')} title={T('简历库','Resumes')}
+        sub={T('存几个版本的简历，随时拿来用作资料或翻译。支持 .txt、.md、.docx、.pdf。','Keep several versions of your resume, to use as your profile or to translate. .txt, .md, .docx or .pdf.')}
+        action={library.length ? upload : null} />
       {library.length === 0 ? (
-        <Card className="p-8 text-center text-sm text-gray-500">{T('还没有简历。点击上方的「上传简历」。','No resumes yet. Click Upload resume above.')}</Card>
+        <div className="empty">
+          <h2>{T('还没有简历','No resumes yet')}</h2>
+          <p>{T('上传一个 .txt、.md、.docx 或 .pdf 文件。','Upload a .txt, .md, .docx or .pdf file.')}</p>
+          {upload}
+        </div>
       ) : (
-        <div className="space-y-2">
-          {library.map(r => (
-            <Card key={r.id} className="p-3">
-              <div className="flex items-start justify-between gap-2">
-                <button className="flex-1 text-left min-w-0" onClick={()=>setExpandedId(expandedId===r.id?null:r.id)}>
-                  <div className="text-sm font-semibold text-gray-900 truncate">{r.name}</div>
-                  <div className="text-xs text-gray-500">{fmtDate(r.uploadedAt)} · {r.content.length.toLocaleString()} {T('字符','chars')}</div>
-                </button>
-                <div className="flex gap-1 flex-wrap shrink-0">
-                  <Btn onClick={()=>handleUseAsProfile(r)}>{T('👤 用作资料','👤 Use as profile')}</Btn>
-                  <DownloadMenu content={r.content} baseFilename={r.name} />
-                  <Btn onClick={()=>handleRename(r.id)}>✏️</Btn>
-                  <Btn variant="danger" onClick={()=>handleDelete(r.id)}>🗑</Btn>
+        <div className="stack">
+          {library.map(r => {
+            const open = expandedId === r.id;
+            const renameName = T('重命名','Rename'), delName = T('删除这份简历','Delete resume');
+            return (
+              <section key={r.id} className="card resume" aria-label={r.name}>
+                <div className="resume-top">
+                  <button type="button" className="resume-open" aria-expanded={open} onClick={() => setExpandedId(open ? null : r.id)}>
+                    <Icon name="chevron" size={14} className={`chev${open ? ' open' : ''}`} />
+                    <span><b>{r.name}</b><span className="num faint">{fmtDate(r.uploadedAt)} · {fmtNum(r.content.length)} {T('字符','chars')}</span></span>
+                  </button>
                 </div>
-              </div>
-              {expandedId===r.id && (
-                <div className="mt-3 p-3 bg-gray-50 rounded-md max-h-96 overflow-y-auto"><MdView text={r.content} /></div>
-              )}
-            </Card>
-          ))}
+                <div className="resume-acts">
+                  <span className="btn-row">
+                    <Btn className="btn-sm" onClick={() => handleUseAsProfile(r)}>{T('用作资料','Use as profile')}</Btn>
+                    <DownloadMenu content={r.content} baseFilename={r.name} />
+                  </span>
+                  <span className="sec-icons">
+                    <button type="button" className="btn btn-ghost btn-icon" aria-label={renameName} data-tip={renameName} onClick={() => handleRename(r.id)}><Icon name="edit" /></button>
+                    <button type="button" className="btn btn-ghost btn-icon btn-quiet" aria-label={delName} data-tip={delName} onClick={() => handleDelete(r.id)}><Icon name="trash" /></button>
+                  </span>
+                </div>
+                {open && <div className="sunken md-box"><MdView text={r.content} /></div>}
+              </section>
+            );
+          })}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -3255,43 +3197,39 @@ const RESUME_CHECKS = [
   { id: 'r5', zh: '整页有一条叙事线，不是条目拼盘', en: 'The page reads as one narrative, not a list of fragments' },
 ];
 
+// A step card: "Step 2 of 6" (the circled numbers were rice-grain small in the old screenshots), the step's name, the hint
 function DiagSection({ num, title, hint, children }) {
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
-      <div className="flex items-baseline gap-2 mb-1">
-        <span className="text-xs font-bold text-blue-600 bg-blue-50 rounded px-1.5 py-0.5">{num}</span>
-        <h3 className="font-semibold text-gray-900">{title}</h3>
-      </div>
-      {hint && <p className="text-xs text-gray-500 mb-3">{hint}</p>}
+    <section className="card diag" aria-labelledby={`diag-${num}`}>
+      <p className="eyebrow">{T(`第 ${num} 步，共 6 步`, `Step ${num} of 6`)}</p>
+      <h2 id={`diag-${num}`}>{title}</h2>
+      {hint && <p className="hint">{hint}</p>}
       {children}
-    </div>
+    </section>
   );
 }
 
-function DiagList({ items, onAdd, onRemove, onToggle, placeholder, checkable }) {
+// An editable list: each row (optional checkbox) text and a remove button that is always visible (it used to appear
+// only on mouse hover, so keyboard and phone users could not see it); the last row adds (Enter adds too)
+function DiagList({ items, onAdd, onRemove, onToggle, placeholder, checkable, label }) {
   const [draft, setDraft] = useState('');
   const add = () => { const t = draft.trim(); if (!t) return; onAdd(t); setDraft(''); };
+  const rmName = T('移除','Remove');
   return (
-    <div>
+    <ul className="edit-list">
       {(items || []).map(it => (
-        <div key={it.id} className="flex items-start gap-2 py-1 group">
-          {checkable && (
-            <input type="checkbox" checked={!!it.done} onChange={() => onToggle(it.id)}
-              className="mt-1 h-4 w-4 text-blue-600 rounded" />
-          )}
-          <span className={'flex-1 text-sm ' + (it.done ? 'line-through text-gray-400' : 'text-gray-800')}>{it.text}</span>
-          <button onClick={() => onRemove(it.id)}
-            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 text-xs px-1">✕</button>
-        </div>
+        <li key={it.id} className={it.done ? 'done' : undefined}>
+          {checkable ? (
+            <label className="el-text"><input type="checkbox" checked={!!it.done} onChange={() => onToggle(it.id)} /><span>{it.text}</span></label>
+          ) : <span className="el-text">{it.text}</span>}
+          <button type="button" className="btn btn-ghost btn-icon btn-quiet" aria-label={`${rmName}: ${it.text}`} data-tip={rmName} onClick={() => onRemove(it.id)}><Icon name="x" /></button>
+        </li>
       ))}
-      <div className="flex gap-2 mt-2">
-        <input value={draft} onChange={e => setDraft(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') add(); }}
-          placeholder={placeholder}
-          className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-        <button onClick={add} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-sm text-gray-700">{T('添加','Add')}</button>
-      </div>
-    </div>
+      <li className="el-add">
+        <input type="text" aria-label={label} value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add(); }} placeholder={placeholder} />
+        <Btn onClick={add} disabled={!draft.trim()}>{T('添加','Add')}</Btn>
+      </li>
+    </ul>
   );
 }
 
@@ -3303,13 +3241,11 @@ function DiagnosisTab({ diagnosis, setDiagnosis }) {
   const patch = (p) => setDiagnosis({ ...d, ...p });
   const patchTarget = (p) => patch({ target: { ...d.target, ...p } });
   const patchResume = (p) => patch({ resume: { ...d.resume, ...p } });
-
   const listOps = (key, checkable) => ({
     onAdd:    t  => patch({ [key]: [...(d[key]||[]), { id: newId(), text: t, ...(checkable ? { done:false } : {}) }] }),
     onRemove: id => patch({ [key]: (d[key]||[]).filter(x => x.id !== id) }),
     onToggle: id => patch({ [key]: (d[key]||[]).map(x => x.id === id ? { ...x, done: !x.done } : x) }),
   });
-
   const save = async () => {
     setSaving(true);
     const next = { ...d, updatedAt: new Date().toISOString() };
@@ -3317,93 +3253,61 @@ function DiagnosisTab({ diagnosis, setDiagnosis }) {
     await saveJson('diagnosis', next);
     setSaving(false); setSavedFlash(true); setTimeout(() => setSavedFlash(false), 1800);
   };
-
+  // the two stages are toggle buttons: pressing the chosen one again clears the choice, as before
   const stageBtn = (val, zh, en, desc) => (
-    <button onClick={() => patch({ stage: d.stage === val ? '' : val })}
-      className={'flex-1 rounded-lg border p-3 text-left transition ' +
-        (d.stage === val ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600' : 'border-gray-300 bg-white hover:border-gray-400')}>
-      <div className="font-medium text-sm text-gray-900">{T(zh, en)}</div>
-      <div className="text-xs text-gray-500 mt-0.5">{desc}</div>
+    <button type="button" className="stat choice" aria-pressed={d.stage === val} onClick={() => patch({ stage: d.stage === val ? '' : val })}>
+      <b>{T(zh, en)}</b><span className="lbl">{desc}</span>
     </button>
   );
-
-  const inp = (props) => (
-    <input {...props} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-  );
+  const lastSaved = d.updatedAt ? new Date(d.updatedAt).toLocaleString(lang === 'zh' ? 'zh-CN' : 'en-GB', { dateStyle:'medium', timeStyle:'short' }) : '';
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">{T('求职诊断','Career Diagnosis')}</h2>
-          <p className="text-xs text-gray-500">
-            {T('先想清楚，再投递——六步走完再回「添加职位」。','Think first, then apply — finish the six steps before Add Job.')}
-            {d.updatedAt && <span className="ml-2">{T('上次保存：','Last saved: ')}{new Date(d.updatedAt).toLocaleString()}</span>}
-          </p>
-        </div>
-        <button onClick={save} disabled={saving}
-          className={'px-4 py-2 rounded-lg text-sm font-medium text-white ' + (savedFlash ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700') + (saving ? ' opacity-60' : '')}>
-          {saving ? T('保存中…','Saving…') : savedFlash ? T('已保存 ✓','Saved ✓') : T('保存','Save')}
-        </button>
+    <div className="diag-col">
+      <PageHead eyebrow={T('所有地区共用','Shared by all regions')} title={T('求职诊断','Diagnosis')}
+        sub={<>{T('先想清楚，再投递——六步走完再回「添加职位」。','Think first, then apply — finish the six steps before Add job.')}{lastSaved && <> {T('上次保存：','Last saved ')}{lastSaved}</>}</>}
+        action={<Btn variant="primary" onClick={save} disabled={saving}>{saving ? T('保存中…','Saving…') : savedFlash ? T('已保存','Saved') : T('保存','Save')}</Btn>} />
+      <div className="stack">
+        <DiagSection num={1} title={T('阶段定位','Where you are')}
+          hint={T('两种状态要的动作完全不同：定方向阶段狂投是弯路，攻坚阶段反复自省是拖延。','The two stages need different actions: mass-applying while lost is a detour; endless self-reflection while executing is procrastination.')}>
+          <div className="choices">
+            {stageBtn('explore', '探索方向', 'Exploring direction', T('还不确定要做什么、去哪个行业','Not yet sure what role or industry'))}
+            {stageBtn('execute', '攻坚投递', 'Executing search', T('目标明确，卡在拿面试或过面试','Target clear; stuck on getting or passing interviews'))}
+          </div>
+          <Fld id="diag-stage-note" label={T('现在最卡的一件事','The biggest blocker right now')}>
+            <textarea id="diag-stage-note" rows={2} value={d.stageNote} onChange={e => patch({ stageNote: e.target.value })} placeholder={T('现在最卡的一件事是什么？','What is the single biggest blocker right now?')} />
+          </Fld>
+        </DiagSection>
+        <DiagSection num={2} title={T('优势清单','Strengths')}
+          hint={T('写「我反复被证明擅长的事」，不是「我会的技能名词」。每条最好带一个真实事例。','List what you are repeatedly proven good at — not skill nouns. Each item ideally carries one real example.')}>
+          <DiagList items={d.strengths} {...listOps('strengths')} label={T('新的一条优势','A new strength')} placeholder={T('例：把混乱信息整理成能执行的清单（例子：××项目）','e.g. Turning messy info into executable checklists (example: …)')} />
+        </DiagSection>
+        <DiagSection num={3} title={T('目标画像','Target profile')} hint={T('从第 2 步推出来，不是从招聘网站上抄下来。','Derived from step 2 — not copied from job boards.')}>
+          <div className="form-grid two">
+            <Fld id="diag-industry" label={T('目标行业','Industry')}><input id="diag-industry" type="text" value={d.target.industry} onChange={e => patchTarget({ industry: e.target.value })} placeholder={T('哪个行业需要第 2 步里的东西','Which industry needs step 2')} /></Fld>
+            <Fld id="diag-role" label={T('目标岗位','Role')}><input id="diag-role" type="text" value={d.target.role} onChange={e => patchTarget({ role: e.target.value })} placeholder={T('岗位名（可以不止一个）','Role title(s)')} /></Fld>
+            <Fld id="diag-constraints" label={T('硬约束','Hard constraints')} wide><input id="diag-constraints" type="text" value={d.target.constraints} onChange={e => patchTarget({ constraints: e.target.value })} placeholder={T('地点、签证、最低薪资、时间窗……','Location / visa / salary floor / timing…')} /></Fld>
+          </div>
+        </DiagSection>
+        <DiagSection num={4} title={T('岗位对齐','Reality check')}
+          hint={T('拿 3–5 个真实 JD 对照第 3 步：他们反复要求、而我没证据的能力，逐条记在这里补。','Check 3–5 real JDs against step 3. What they repeatedly ask for and you cannot yet evidence — list here to fix.')}>
+          <DiagList items={d.alignment} {...listOps('alignment', true)} checkable label={T('新的一条差距','A new gap')} placeholder={T('例：JD 都要 SQL，我只有课程练习 → 做一个真数据集项目','e.g. JDs want SQL; I only have coursework → build one real-data project')} />
+        </DiagSection>
+        <DiagSection num={5} title={T('简历叙事自查','Resume story check')}
+          hint={T('多数 AI 简历工具只是往 CV 里塞关键词；这五条检查的是叙事。改完简历回来逐条勾。','Most AI resume tools stuff keywords. These five check the narrative. Re-check after each resume revision.')}>
+          <ul className="checks-list">
+            {RESUME_CHECKS.map(c => (
+              <li key={c.id}><label><input type="checkbox" checked={!!d.resume.checks[c.id]} onChange={() => patchResume({ checks: { ...d.resume.checks, [c.id]: !d.resume.checks[c.id] } })} /><span>{T(c.zh, c.en)}</span></label></li>
+            ))}
+          </ul>
+          <Fld id="diag-resume-note" label={T('没过的那几条差在哪','What the unchecked ones are missing')}>
+            <textarea id="diag-resume-note" rows={2} value={d.resume.note} onChange={e => patchResume({ note: e.target.value })} placeholder={T('没过的那几条，差在哪？','For unchecked items — what exactly is missing?')} />
+          </Fld>
+        </DiagSection>
+        <DiagSection num={6} title={T('关键决策','High-stakes decisions')}
+          hint={T('记下会改变方向的大决定（接不接 offer、转不转赛道、搬不搬家），写清「什么条件下选哪边」。','Log direction-changing decisions (offers, pivots, relocation) with the condition that decides each.')}>
+          <DiagList items={d.decisions} {...listOps('decisions')} label={T('新的一条决策','A new decision')} placeholder={T('例：若 X 月前拿不到 Y，则转 Z','e.g. If no Y by month X, switch to Z')} />
+        </DiagSection>
       </div>
-
-      <DiagSection num="①" title={T('阶段定位','Where you are')}
-        hint={T('两种状态要的动作完全不同：定方向阶段狂投是弯路，攻坚阶段反复自省是拖延。','The two stages need different actions: mass-applying while lost is a detour; endless self-reflection while executing is procrastination.')}>
-        <div className="flex gap-3">
-          {stageBtn('explore', '探索方向', 'Exploring direction', T('还不确定要做什么/去哪个行业','Not yet sure what role or industry'))}
-          {stageBtn('execute', '攻坚投递', 'Executing search', T('目标明确，卡在拿面试/过面试','Target clear; stuck on getting or passing interviews'))}
-        </div>
-        <textarea value={d.stageNote} onChange={e => patch({ stageNote: e.target.value })}
-          placeholder={T('现在最卡的一件事是什么？','What is the single biggest blocker right now?')}
-          className="w-full mt-3 border border-gray-300 rounded px-2 py-1.5 text-sm h-16 focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-      </DiagSection>
-
-      <DiagSection num="②" title={T('优势清单','Strengths')}
-        hint={T('写「我反复被证明擅长的事」，不是「我会的技能名词」。每条最好带一个真实事例。','List what you are repeatedly proven good at — not skill nouns. Each item ideally carries one real example.')}>
-        <DiagList items={d.strengths} {...listOps('strengths')} placeholder={T('例：把混乱信息整理成能执行的清单（例子：××项目）','e.g. Turning messy info into executable checklists (example: ...)')} />
-      </DiagSection>
-
-      <DiagSection num="③" title={T('目标画像','Target profile')}
-        hint={T('从②推出来，不是从招聘网站上抄下来。','Derived from step 2 — not copied from job boards.')}>
-        <div className="grid grid-cols-2 gap-3 mb-2">
-          <div>
-            <label className="text-xs text-gray-600">{T('目标行业','Industry')}</label>
-            {inp({ value: d.target.industry, onChange: e => patchTarget({ industry: e.target.value }), placeholder: T('哪个行业需要②里的东西','Which industry needs step 2') })}
-          </div>
-          <div>
-            <label className="text-xs text-gray-600">{T('目标岗位','Role')}</label>
-            {inp({ value: d.target.role, onChange: e => patchTarget({ role: e.target.value }), placeholder: T('岗位名（可以不止一个）','Role title(s)') })}
-          </div>
-        </div>
-        <label className="text-xs text-gray-600">{T('硬约束','Hard constraints')}</label>
-        {inp({ value: d.target.constraints, onChange: e => patchTarget({ constraints: e.target.value }), placeholder: T('地点/签证/最低薪资/时间窗……','Location / visa / salary floor / timing...') })}
-      </DiagSection>
-
-      <DiagSection num="④" title={T('岗位对齐','Reality check')}
-        hint={T('拿 3–5 个真实 JD 对照③：他们反复要求、而我没证据的能力，逐条记在这里补。','Check 3–5 real JDs against step 3. What they repeatedly ask for and you cannot yet evidence — list here to fix.')}>
-        <DiagList items={d.alignment} {...listOps('alignment', true)} checkable
-          placeholder={T('例：JD 都要 SQL，我只有课程练习 → 做一个真数据集项目','e.g. JDs want SQL; I only have coursework → build one real-data project')} />
-      </DiagSection>
-
-      <DiagSection num="⑤" title={T('简历叙事自查','Resume story check')}
-        hint={T('多数 AI 简历工具只是往 CV 里塞关键词；这五条检查的是叙事。改完简历回来逐条勾。','Most AI resume tools stuff keywords. These five check the narrative. Re-check after each resume revision.')}>
-        {RESUME_CHECKS.map(c => (
-          <label key={c.id} className="flex items-start gap-2 py-1 cursor-pointer">
-            <input type="checkbox" checked={!!d.resume.checks[c.id]}
-              onChange={() => patchResume({ checks: { ...d.resume.checks, [c.id]: !d.resume.checks[c.id] } })}
-              className="mt-1 h-4 w-4 text-blue-600 rounded" />
-            <span className="text-sm text-gray-800">{T(c.zh, c.en)}</span>
-          </label>
-        ))}
-        <textarea value={d.resume.note} onChange={e => patchResume({ note: e.target.value })}
-          placeholder={T('没过的那几条，差在哪？','For unchecked items — what exactly is missing?')}
-          className="w-full mt-2 border border-gray-300 rounded px-2 py-1.5 text-sm h-16 focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
-      </DiagSection>
-
-      <DiagSection num="⑥" title={T('关键决策','High-stakes decisions')}
-        hint={T('记下会改变方向的大决定（接不接 offer、转不转赛道、搬不搬家），写清「什么条件下选哪边」。','Log direction-changing decisions (offers, pivots, relocation) with the condition that decides each.')}>
-        <DiagList items={d.decisions} {...listOps('decisions')} placeholder={T('例：若 X 月前拿不到 Y，则转 Z','e.g. If no Y by month X, switch to Z')} />
-      </DiagSection>
     </div>
   );
 }
@@ -3451,9 +3355,9 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
       {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>go('tracker', { openJobId:id })} onOpenProfile={()=>go('profile')} />}
       {tab==='tracker' && !openJob && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} formatting={formatting} initialStatus={trackerStatus} onAdd={()=>go('addjob')} onOpen={id=>setOpenJobId(id)} focusJobId={focusJob} onFocused={()=>setFocusJob(null)} />}
       {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>{ setFocusJob(openJob.id); setOpenJobId(null); }} onOpenProfile={()=>go('profile')} />}
-      {tab==='profile' && legacy(<ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} glossary={glossary} setGlossary={setGlossary} region={region} resumeDb={resumeDb} />)}
-      {tab==='diagnosis' && legacy(<DiagnosisTab diagnosis={diagnosis} setDiagnosis={setDiagnosis} />)}
-      {tab==='library' && legacy(<LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />)}
+      {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} glossary={glossary} setGlossary={setGlossary} region={region} resumeDb={resumeDb} />}
+      {tab==='diagnosis' && <DiagnosisTab diagnosis={diagnosis} setDiagnosis={setDiagnosis} />}
+      {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}
       {tab==='insights'&& <InsightsTab jobs={jobs} regionName={regionLabel} onWorking={()=>go('tracker', { status: jobs.some(j => j.status === 'working') ? 'working' : null })} onAdd={()=>go('addjob')} />}
       {tab==='watchdog'&& legacy(<WatchdogTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} />)}
     </>
@@ -3494,7 +3398,10 @@ function App() {
 
   useEffect(() => {
     const ok = ghConfigured(); setGhOk(ok);
-    if (!ok) { setLoaded(true); return; }   // no dialog on arrival: the connect card on every view opens Settings
+    if (!ok) {   // no dialog on arrival: the connect card on every view opens Settings
+      if (DEMO) { const demo = sampleProfile(); setSections(demo.sections); setResumeDb(combineSections(demo.sections)); setLibrary(demo.library); }
+      setLoaded(true); return;
+    }
     (async () => {
       const [rawSecs, oldDb, fmt, gls, lib, diag] = await Promise.all([
         loadJson('resumeSections'),
