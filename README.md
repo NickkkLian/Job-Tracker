@@ -46,7 +46,7 @@ to the repo.
 
 | Concern | Approach |
 |---|---|
-| Runtime | One `index.html`, built from `src/` by `build.mjs`: the JSX is compiled ahead of time with esbuild (pinned) and inlined. React 18, ReactDOM, mammoth, jsPDF, pdf.js (loaded the first time a `.pdf` is read) and Tailwind's Play CDN script are served from `vendor/` (sources and hashes in `vendor/SOURCE.md`). CI rebuilds the page and fails if it differs from the committed one. It also looks for scripts from another host in two forms: a `<script … src="https://…">` tag (or `http://`, `//`) written on one line with a lowercase, double-quoted `src`, and an http(s) address ending in `.js` or `.mjs`; a script loaded any other way would get past it |
+| Runtime | One `index.html`, built from `src/` by `build.mjs`: the JSX is compiled ahead of time with esbuild (pinned) and inlined. React 18, ReactDOM, mammoth, jsPDF and pdf.js (loaded the first time a `.pdf` is read) are served from `vendor/` (sources and hashes in `vendor/SOURCE.md`); the styles are plain CSS (`app.css`) on the family's design tokens (`design-tokens.css`), with light/dark and three palettes from `appearance.js`. CI rebuilds the page and fails if it differs from the committed one. It also looks for scripts from another host in two forms: a `<script … src="https://…">` tag (or `http://`, `//`) written on one line with a lowercase, double-quoted `src`, and an http(s) address ending in `.js` or `.mjs`; a script loaded any other way would get past it |
 | Storage | GitHub Contents API against a private repo. Each write sends the file's last known SHA; if another device saved first (GitHub answers 409), it reads the new SHA and writes once more, so the last device to save wins |
 | Files | PDFs are stored as raw base64 under `data/files/` and cached in localStorage for instant preview; on a new device they're pulled from the repo on first open |
 | JD parsing | Regex heuristics over the first 80 cleaned lines (noise such as contact lines, EEO boilerplate and URLs is stripped first); the raw JD is always stored unmodified |
@@ -72,13 +72,11 @@ node build.mjs --check    # what CI runs: index.html must be exactly what src/ b
 ```
 
 To use it for real, create a private repo, generate a classic token with the `repo` scope, and
-enter both in ⚙️ Settings. The optional features (Batch Tailor, Alerts) take an Anthropic API key in
-the same panel.
+enter both in Settings (the gear in the top bar). The optional features (Batch Tailor, Alerts) take an Anthropic
+API key in the same dialog.
 
 ## Limitations
 
-- Tailwind still runs as its Play CDN script (now served from `vendor/`), which builds the stylesheet in
-  the browser on every load; a stylesheet built ahead of time would be lighter.
 - Calling the Anthropic API from the browser requires the `anthropic-dangerous-direct-browser-access`
   header. The key is stored only in this browser and sent only to Anthropic's API, which suits one person's own copy
   but not a shared deployment.

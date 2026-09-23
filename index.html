@@ -2,36 +2,34 @@
 <!-- Built by build.mjs from src/index.template.html and src/app.jsx. Edit those two, then run: node build.mjs -->
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Job Application Command Center</title>
-  <script src="vendor/tailwind-cdn-3.x.js"></script>
-  <script src="vendor/react-18.3.1.production.min.js"></script>
-  <script src="vendor/react-dom-18.3.1.production.min.js"></script>
-  <script src="vendor/mammoth-1.8.0.browser.min.js"></script>
-  <script src="vendor/jspdf-2.5.1.umd.min.js"></script>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    #loading { display:flex; align-items:center; justify-content:center; min-height:100vh; color:#6b7280; font-size:14px; }
-  
-/* ===== Mobile and accessibility baseline (applied 2026-07-31; source: web-interface-guidelines) ===== */
-@media (prefers-reduced-motion: reduce){
-  *,*::before,*::after{
-    animation-duration:.01ms!important;animation-iteration-count:1!important;
-    transition-duration:.01ms!important;scroll-behavior:auto!important;
-  }
-}
-button,a,summary,label,[role="button"],[onclick]{
-  touch-action:manipulation;
-  -webkit-tap-highlight-color:transparent;
-}
-:focus-visible{outline:2px solid currentColor;outline-offset:2px}
-</style>
+<meta charset="utf-8">
+<script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem('nl-theme'),s=L.getItem('nl-scheme');if(s===null){var o=L.getItem('theme')||L.getItem('qm-theme');if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Docket: job applications, one pipeline per region, kept in a private repo you own. A tracker, a pipeline chart and an hours ledger for the Canadian Experience Class; the AI prompts run in your own Claude.ai.">
+<meta name="theme-color" content="#f7e9e8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#130e15" media="(prefers-color-scheme: dark)">
+<title>Docket</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500..600;1,9..144,400&family=Inter:wght@400..600&family=Space+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="design-tokens.css">
+<link rel="stylesheet" href="app.css">
+<script src="vendor/react-18.3.1.production.min.js"></script>
+<script src="vendor/react-dom-18.3.1.production.min.js"></script>
+<script src="vendor/mammoth-1.8.0.browser.min.js"></script>
+<script src="vendor/jspdf-2.5.1.umd.min.js"></script>
+<script src="appearance.js"></script>
 </head>
-<body class="bg-gray-50">
-  <div id="loading">Loading app…</div>
-  <div id="root" style="display:none"></div>
-  <script>try{if(localStorage.getItem('pha-lang')==='zh'){document.getElementById('loading').textContent='正在加载…';document.documentElement.lang='zh';}}catch(e){}</script>
+<body>
+<!-- the page before React mounts: the band with the mark, and three skeleton lines -->
+<div id="loading" aria-busy="true">
+  <header class="topbar"><span class="brand"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true" focusable="false"><rect x="2.5" y="2.5" width="19" height="19" rx="5" stroke="currentColor" stroke-width="2"/><rect x="14" y="6" width="4" height="4" rx="1" fill="var(--point)"/><path d="M7.5 17V9M11.5 17v-5M15.5 17v-2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><b>Docket</b></span></header>
+  <div class="boot-main"><span class="sr-only" id="loading-text">Loading Docket…</span><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
+</div>
+<div id="root" style="display:none"></div>
+<script>try{if(localStorage.getItem('pha-lang')==='zh'){document.documentElement.lang='zh';document.getElementById('loading-text').textContent='正在加载 Docket…';}}catch(e){}</script>
 
 <script>
 const { useState, useEffect, useRef, useMemo } = React;
@@ -81,16 +79,32 @@ function useLangToggle() {
 const LOCAL_PRE = "jobapp:";
 const DEMO = /[?&]demo=1\b/.test(location.search);
 const URL_TAB = new URLSearchParams(location.search).get("tab") || "";
-function sampleJobs() {
+function sampleJobs(region = "canada") {
   const ago = (n) => new Date(Date.now() - n * 864e5).toISOString();
   const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  if (region === "usa") return [
+    { id: "demo-us1", dateAdded: ago(3), status: "interested", priority: "T1", company: "Northgate Datalab", role: "Junior Data Scientist", location: "Boston, MA", salaryRange: "$95k – $110k", applicationDeadline: day(12), noc: "", empType: "", applyMethod: "Greenhouse", weeklyHours: "", startDate: "", endDate: "", notes: "", jdText: "Forecasting and experimentation for a logistics marketplace: Python, SQL, causal inference basics." },
+    { id: "demo-us2", dateAdded: ago(9), status: "applied", priority: "T2", company: "Larkspur Mutual", role: "Data Analyst", location: "Chicago, IL", salaryRange: "$78k – $88k", applicationDeadline: "", noc: "", empType: "", applyMethod: "Workday", weeklyHours: "", startDate: "", endDate: "", notes: "", jdText: "Claims analytics: SQL, Tableau, quarterly loss-ratio reviews with actuaries." },
+    { id: "demo-us3", dateAdded: ago(16), status: "interviewing", priority: "T1", company: "Bluefin Parcel", role: "Analytics Engineer", location: "Remote (US)", salaryRange: "$105k", applicationDeadline: "", noc: "", empType: "", applyMethod: "Direct", weeklyHours: "", startDate: "", endDate: "", notes: "Take-home due Monday.", jdText: "Own the dbt project behind delivery-time reporting; partner with operations." },
+    { id: "demo-us4", dateAdded: ago(25), status: "rejected", priority: "T3", company: "Juniper Row Health", role: "Business Analyst", location: "Philadelphia, PA", salaryRange: "", applicationDeadline: "", noc: "", empType: "", applyMethod: "Easy Apply", weeklyHours: "", startDate: "", endDate: "", notes: "", jdText: "Requirements, process maps and KPI definitions for a clinic network." }
+  ];
+  if (region === "uk") return [
+    { id: "demo-uk1", dateAdded: ago(4), status: "interested", priority: "T1", company: "Brackenmoor Water", role: "Data Analyst", location: "Leeds", salaryRange: "£34k – £38k", applicationDeadline: day(20), noc: "", empType: "", applyMethod: "Direct", weeklyHours: "", startDate: "", endDate: "", notes: "", jdText: "Leakage and demand dashboards; Power BI, SQL Server." },
+    { id: "demo-uk2", dateAdded: ago(11), status: "applied", priority: "T2", company: "Quillfeather Retail", role: "Insight Analyst", location: "London", salaryRange: "£40k", applicationDeadline: "", noc: "", empType: "", applyMethod: "Workday", weeklyHours: "", startDate: "", endDate: "", notes: "", jdText: "Basket analysis and promotion read-outs for a grocery chain." },
+    { id: "demo-uk3", dateAdded: ago(19), status: "applied", priority: "T3", company: "Osprey & Finch Logistics", role: "Reporting Analyst", location: "Glasgow", salaryRange: "", applicationDeadline: "", noc: "", empType: "", applyMethod: "Easy Apply", weeklyHours: "", startDate: "", endDate: "", notes: "", jdText: "Weekly warehouse KPI packs; Excel and SQL." },
+    { id: "demo-uk4", dateAdded: ago(33), status: "interview_rejected", priority: "T2", company: "Tallowby Fintech", role: "Product Analyst", location: "Manchester", salaryRange: "£45k", applicationDeadline: "", noc: "", empType: "", applyMethod: "Lever", weeklyHours: "", startDate: "", endDate: "", notes: "Final round; they hired internally.", jdText: "Funnel analysis and experiment design for a payments app." }
+  ];
+  if (region !== "canada") return [];
   return [
     { id: "demo1", dateAdded: ago(2), status: "interested", priority: "T1", company: "Northwind Analytics", role: "Data Analyst", location: "Vancouver, BC", salaryRange: "$65k – $75k", applicationDeadline: day(9), noc: "21223", empType: "", applyMethod: "Greenhouse", weeklyHours: "", startDate: "", endDate: "", notes: "Referred by a former classmate.", jdText: "Own reporting for the growth team: SQL, Python (pandas), Looker dashboards and experiment read-outs. To apply, tell us about one analysis that changed a decision." },
     { id: "demo2", dateAdded: ago(6), status: "applied", priority: "T2", company: "Fathom Robotics", role: "Junior Software Engineer", location: "Toronto, ON (hybrid)", salaryRange: "$80k – $95k", applicationDeadline: "", noc: "21232", empType: "", applyMethod: "Workday", weeklyHours: "", startDate: "", endDate: "", notes: "", jdText: "Build internal tooling in TypeScript and Python for a fleet-operations team. Tests, code review, on-call rotation after six months." },
     { id: "demo3", dateAdded: ago(14), status: "interviewing", priority: "T1", company: "Cascade Health", role: "Business Intelligence Analyst", location: "Burnaby, BC", salaryRange: "$70k – $82k", applicationDeadline: "", noc: "21223", empType: "", applyMethod: "Direct", weeklyHours: "", startDate: "", endDate: "", notes: "Second round on Thursday — case study on readmission rates.", jdText: "Maintain the clinical operations data mart (dbt, BigQuery) and ship weekly KPI packs to regional directors." },
-    { id: "demo4", dateAdded: ago(150), status: "working", priority: "", company: "Harbourline Logistics", role: "Operations Analyst", location: "Richmond, BC", salaryRange: "$58k", applicationDeadline: "", noc: "21231", empType: "T4 employee", applyMethod: "Referral", weeklyHours: "30", startDate: ago(120).slice(0, 10), endDate: "", notes: "", jdText: "Route optimisation, dock scheduling, weekly throughput reporting." },
+    { id: "demo4", dateAdded: ago(150), status: "working", priority: "", company: "Harbourline Logistics", role: "Operations Analyst", location: "Richmond, BC", salaryRange: "$58k", applicationDeadline: "", noc: "21231", empType: "T4 employee", applyMethod: "Referral", weeklyHours: "20", startDate: ago(120).slice(0, 10), endDate: "", notes: "", jdText: "Route optimisation, dock scheduling, weekly throughput reporting." },
     { id: "demo5", dateAdded: ago(21), status: "rejected", priority: "T3", company: "Glacier Capital", role: "Investment Analyst", location: "Vancouver, BC", salaryRange: "", applicationDeadline: "", noc: "11101", empType: "", applyMethod: "Easy Apply", weeklyHours: "", startDate: "", endDate: "", notes: "Auto-rejection after 3 days.", jdText: "Support the public-equities team with models, screens and memo drafts." },
-    { id: "demo6", dateAdded: ago(30), status: "interview_rejected", priority: "T2", company: "Pinecrest Software", role: "Product Analyst", location: "Remote (Canada)", salaryRange: "$72k", applicationDeadline: "", noc: "21223", empType: "", applyMethod: "Lever", weeklyHours: "", startDate: "", endDate: "", notes: "Got to the final round; they went with an internal candidate.", jdText: "Define product metrics, instrument events, run funnel analyses and write decision memos." }
+    { id: "demo6", dateAdded: ago(30), status: "interview_rejected", priority: "T2", company: "Pinecrest Software", role: "Product Analyst", location: "Remote (Canada)", salaryRange: "$72k", applicationDeadline: "", noc: "21223", empType: "", applyMethod: "Lever", weeklyHours: "", startDate: "", endDate: "", notes: "Got to the final round; they went with an internal candidate.", jdText: "Define product metrics, instrument events, run funnel analyses and write decision memos." },
+    { id: "demo7", dateAdded: ago(70), status: "working", priority: "", company: "Saltmarsh Policy Lab", role: "Research Assistant (part-time)", location: "Vancouver, BC", salaryRange: "$28/h", applicationDeadline: "", noc: "41200", empType: "T4 employee", applyMethod: "Direct", weeklyHours: "15", startDate: ago(60).slice(0, 10), endDate: ago(18).slice(0, 10), notes: "Contract ended after the survey project.", jdText: "Survey data cleaning and literature summaries for a housing-policy project." },
+    { id: "demo8", dateAdded: ago(40), status: "offered", priority: "T2", company: "Kittiwake Freight", role: "Data Engineer", location: "Delta, BC", salaryRange: "$84k", applicationDeadline: "", noc: "21223", empType: "", applyMethod: "Referral", weeklyHours: "", startDate: "", endDate: "", notes: "Offer in hand — answer due next Friday.", jdText: "Airflow pipelines for container tracking; Python, SQL, a little Terraform." },
+    { id: "demo9", dateAdded: ago(12), status: "interested", priority: "T3", company: "Tidewrack Energy Co-op", role: "Analytics Intern", location: "Victoria, BC", salaryRange: "$24/h", applicationDeadline: day(-3), noc: "", empType: "", applyMethod: "Direct", weeklyHours: "", startDate: "", endDate: "", notes: "", jdText: "Summer internship: metering data, Python notebooks, one presentation to the board." }
   ];
 }
 try {
@@ -396,20 +410,28 @@ function cecHours(jobs) {
   const eta = weeklyRate > 0 ? new Date(Date.now() + remain / weeklyRate * 7 * 24 * 3600 * 1e3) : null;
   return { total, per, weeklyRate, remain, eta, capped };
 }
-let regionNow = "canada";
-const inCanada = () => regionNow === "canada";
-const CEC_FIELDS = ["noc", "weeklyHours", "empType", "startDate", "endDate"];
-const stName = (s) => s.id === "working" && !inCanada() ? T("在职", "Working") : T(s.zh, s.label);
-const statusLabel = (id) => stName(STATUSES.find((x) => x.id === id) || STATUSES[0]);
+const statusLabel = (id) => {
+  const s = STATUSES.find((x) => x.id === id) || STATUSES[0];
+  return T(s.zh, s.label);
+};
 const TABS = [
-  { id: "addjob", label: "Add Job", zh: "添加职位", icon: "➕" },
-  { id: "tracker", label: "Tracker", zh: "追踪", icon: "📋" },
-  { id: "profile", label: "My Profile", zh: "我的资料", icon: "📝" },
-  { id: "diagnosis", label: "Diagnosis", zh: "诊断", icon: "🧭" },
-  { id: "library", label: "Resumes", zh: "简历库", icon: "📚" },
-  { id: "insights", label: "Insights", zh: "数据", icon: "📊" },
-  { id: "watchdog", label: "Alerts", zh: "提醒", icon: "📧" }
+  { id: "addjob", label: "Add job", zh: "添加职位", icon: "plus", scope: "region" },
+  { id: "tracker", label: "Tracker", zh: "追踪", icon: "list", scope: "region" },
+  { id: "insights", label: "Insights", zh: "数据", icon: "flow", scope: "region" },
+  { id: "watchdog", label: "Alerts", zh: "提醒", icon: "mail", scope: "region" },
+  { id: "profile", label: "My profile", zh: "我的资料", icon: "person", scope: "shared" },
+  { id: "diagnosis", label: "Diagnosis", zh: "诊断", icon: "compass", scope: "shared" },
+  { id: "library", label: "Resumes", zh: "简历库", icon: "file", scope: "shared" }
 ];
+const tabFromUrl = () => {
+  const t = new URLSearchParams(location.search).get("tab") || "";
+  return TABS.some((x) => x.id === t) ? t : "addjob";
+};
+function tabHref(id) {
+  const q = new URLSearchParams(location.search);
+  q.set("tab", id);
+  return "?" + q.toString();
+}
 const CLAUDE_URL = "https://claude.ai/new";
 function promptTailorResume(resumeDb, job, formatting, region) {
   return `Generate a one-page Letter PDF resume using Claude's Analysis Tool (reportlab). Extract the candidate's first and last name from the PROFILE below and save the file as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf). Present it as a downloadable file. Do NOT output HTML, markdown, or wrap code in fences without running it. After the file is generated, add ONE short confirming sentence — no more.
@@ -742,7 +764,12 @@ function newId() {
 }
 function fmtDate(iso) {
   if (!iso) return "";
-  return new Date(iso).toLocaleDateString(void 0, { year: "numeric", month: "short", day: "numeric" });
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso);
+  return d.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-GB", { year: "numeric", month: "short", day: "numeric" });
+}
+function fmtNum(n) {
+  return Math.round(n).toLocaleString(lang === "zh" ? "zh-CN" : "en-GB");
 }
 function parseJdFields(text) {
   const t = text || "";
@@ -808,84 +835,218 @@ function parseJdFields(text) {
   }
   return { role, company, location: location2, salaryRange: salary, applicationDeadline: deadline };
 }
+const ICON_PATHS = {
+  plus: /* @__PURE__ */ React.createElement("path", { d: "M12 5v14M5 12h14" }),
+  list: /* @__PURE__ */ React.createElement("path", { d: "M9.5 6.5h10M9.5 12h10M9.5 17.5h10M5 6.5h.01M5 12h.01M5 17.5h.01" }),
+  flow: /* @__PURE__ */ React.createElement("path", { d: "M3 12h5c3.5 0 4.5-6.5 8-6.5h5M8 12h13M8 12c3.5 0 4.5 6.5 8 6.5h5" }),
+  mail: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("rect", { x: "3", y: "5", width: "18", height: "14", rx: "2" }), /* @__PURE__ */ React.createElement("path", { d: "M3.5 7l8.5 6 8.5-6" })),
+  person: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "8", r: "3.5" }), /* @__PURE__ */ React.createElement("path", { d: "M5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5" })),
+  compass: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "8.5" }), /* @__PURE__ */ React.createElement("path", { d: "M15 9l-1.8 4.2L9 15l1.8-4.2z" })),
+  file: /* @__PURE__ */ React.createElement("path", { d: "M6.5 3.5h7l4 4v13h-11zM13.5 3.5v4h4M9.5 12.5h5M9.5 16h5" }),
+  trash: /* @__PURE__ */ React.createElement("path", { d: "M4 7h16M10 11v6M14 11v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V4h6v3" }),
+  edit: /* @__PURE__ */ React.createElement("path", { d: "M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" }),
+  open: /* @__PURE__ */ React.createElement("path", { d: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" }),
+  eye: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("path", { d: "M2.5 12c2.2-4 5.5-6.5 9.5-6.5s7.3 2.5 9.5 6.5c-2.2 4-5.5 6.5-9.5 6.5S4.7 16 2.5 12z" }), /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "3" })),
+  eyeOff: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("path", { d: "M2.5 12c2.2-4 5.5-6.5 9.5-6.5s7.3 2.5 9.5 6.5c-2.2 4-5.5 6.5-9.5 6.5S4.7 16 2.5 12z" }), /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "3" }), /* @__PURE__ */ React.createElement("path", { d: "M4 4l16 16" })),
+  x: /* @__PURE__ */ React.createElement("path", { d: "M6 6l12 12M18 6L6 18" }),
+  chevron: /* @__PURE__ */ React.createElement("path", { d: "M9 6l6 6-6 6" }),
+  down: /* @__PURE__ */ React.createElement("path", { d: "M6 9l6 6 6-6" })
+};
+function Icon({ name, size = 18, className }) {
+  return /* @__PURE__ */ React.createElement(
+    "svg",
+    {
+      className,
+      viewBox: "0 0 24 24",
+      width: size,
+      height: size,
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      "aria-hidden": "true",
+      focusable: "false"
+    },
+    ICON_PATHS[name]
+  );
+}
+function DocketMark() {
+  return /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "24", height: "24", fill: "none", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("rect", { x: "2.5", y: "2.5", width: "19", height: "19", rx: "5", stroke: "currentColor", strokeWidth: "2" }), /* @__PURE__ */ React.createElement("rect", { x: "14", y: "6", width: "4", height: "4", rx: "1", fill: "var(--point)" }), /* @__PURE__ */ React.createElement("path", { d: "M7.5 17V9M11.5 17v-5M15.5 17v-2.5", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" }));
+}
 function Card({ children, className = "" }) {
-  return /* @__PURE__ */ React.createElement("div", { className: `bg-white border border-gray-200 rounded-lg ${className}` }, children);
+  return /* @__PURE__ */ React.createElement("div", { className: `card ${className}` }, children);
 }
-function Btn({ children, onClick, variant = "secondary", disabled = false, className = "" }) {
-  const base = "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
-  const v = {
-    primary: "text-white bg-blue-600 hover:bg-blue-700",
-    secondary: "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50",
-    danger: "text-red-700 bg-white border border-red-200 hover:bg-red-50"
-  };
-  return /* @__PURE__ */ React.createElement("button", { onClick, disabled, className: `${base} ${v[variant] || v.secondary} ${className}` }, children);
+function Btn({ children, onClick, variant = "secondary", disabled = false, className = "", title, type = "button" }) {
+  const v = { primary: "btn-primary", secondary: "", danger: "btn-danger", ghost: "btn-ghost" };
+  return /* @__PURE__ */ React.createElement("button", { type, onClick, disabled, title, className: `btn ${v[variant] || ""} ${className}` }, children);
 }
+const STATUS_TAG = { interested: "tag-draft", applied: "tag-info", interviewing: "tag-warning", offered: "tag-success", working: "tag-success", rejected: "tag-neutral", interview_rejected: "tag-neutral" };
 function StatusPill({ status }) {
-  const s = STATUSES.find((x) => x.id === status) || STATUSES[0];
-  return /* @__PURE__ */ React.createElement("span", { className: `inline-block px-2 py-0.5 text-xs font-medium rounded-full border ${s.cls}` }, stName(s));
+  const s = STATUSES.find((x) => x.id === status);
+  return /* @__PURE__ */ React.createElement("span", { className: `tag ${STATUS_TAG[status] || "tag-neutral"}` }, s ? T(s.zh, s.label) : String(status || ""));
 }
 function TierPill({ tier }) {
   const t = tierMeta(tier);
   if (!t) return null;
-  return /* @__PURE__ */ React.createElement("span", { className: `inline-block px-2 py-0.5 text-xs font-medium rounded-full border ${t.cls}` }, T(t.zh, t.en));
+  return /* @__PURE__ */ React.createElement("span", { className: "chip" }, T(t.zh, t.en));
+}
+function StatusField({ value, onChange, name }) {
+  const known = STATUSES.some((s) => s.id === value);
+  return /* @__PURE__ */ React.createElement("label", { className: "status-field", "data-status": known ? value : "unknown" }, name && /* @__PURE__ */ React.createElement("span", { className: "sr-only" }, name), /* @__PURE__ */ React.createElement("select", { value: value || "", onChange: (e) => onChange(e.target.value) }, !known && /* @__PURE__ */ React.createElement("option", { value: value || "" }, String(value || "—")), STATUSES.map((s) => /* @__PURE__ */ React.createElement("option", { key: s.id, value: s.id }, T(s.zh, s.label)))), /* @__PURE__ */ React.createElement(Icon, { name: "down", size: 12, className: "chev" }));
 }
 function StatusSelect({ value, onChange }) {
-  return /* @__PURE__ */ React.createElement(
-    "select",
-    {
-      value,
-      onChange: (e) => onChange(e.target.value),
-      className: "text-xs px-2 py-1 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-    },
-    STATUSES.map((s) => /* @__PURE__ */ React.createElement("option", { key: s.id, value: s.id }, stName(s)))
-  );
+  return /* @__PURE__ */ React.createElement(StatusField, { value, onChange, name: T("状态", "Status") });
 }
-function SectionHdr({ icon, title, action }) {
-  return /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between mb-3" }, /* @__PURE__ */ React.createElement("h3", { className: "text-sm font-semibold text-gray-900 flex items-center gap-1.5" }, icon && /* @__PURE__ */ React.createElement("span", null, icon), title), action);
+function SectionHdr({ title, action }) {
+  return /* @__PURE__ */ React.createElement("div", { className: "card-head" }, /* @__PURE__ */ React.createElement("h2", null, title), action);
 }
 function Alert({ type = "warning", children }) {
-  const styles = {
-    warning: "bg-amber-50 border-amber-200 text-amber-900",
-    error: "bg-red-50 border-red-200 text-red-900",
-    info: "bg-blue-50 border-blue-200 text-blue-900"
-  };
-  return /* @__PURE__ */ React.createElement("div", { className: `flex items-start gap-2 p-3 border rounded-md text-sm ${styles[type] || styles.info}` }, /* @__PURE__ */ React.createElement("span", { className: "shrink-0" }, "⚠️"), /* @__PURE__ */ React.createElement("div", null, children));
+  const k = { warning: "warn", error: "error", info: "", success: "done" }[type] ?? "";
+  return /* @__PURE__ */ React.createElement("div", { className: `note ${k}`, role: type === "error" ? "alert" : void 0 }, children);
+}
+function PageHead({ eyebrow, title, sub, action }) {
+  return /* @__PURE__ */ React.createElement("div", { className: "page-head" }, /* @__PURE__ */ React.createElement("div", { className: "titles" }, eyebrow && /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, eyebrow), /* @__PURE__ */ React.createElement("h1", { tabIndex: -1 }, title), sub && /* @__PURE__ */ React.createElement("p", { className: "sub" }, sub)), action && /* @__PURE__ */ React.createElement("div", { className: "acts" }, action));
+}
+function initTips() {
+  var tip = document.createElement("div");
+  tip.className = "tip";
+  tip.setAttribute("aria-hidden", "true");
+  document.body.appendChild(tip);
+  var hoverTimer = null, pressTimer = null, pressClear = null, pressShown = false, current = null, via = null;
+  function tipFor(el) {
+    return el && el.closest ? el.closest("[data-tip]") : null;
+  }
+  function overlaps(a, b) {
+    return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  }
+  function place(btn) {
+    var r = btn.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight, gap = 6, pad = 8;
+    var left = Math.min(Math.max(pad, r.left + r.width / 2 - w / 2), window.innerWidth - w - pad);
+    var others = Array.prototype.filter.call(document.querySelectorAll("button, a, input, select"), function(o) {
+      return o !== btn && o.offsetParent;
+    }).map(function(o) {
+      return o.getBoundingClientRect();
+    });
+    var bars = Array.prototype.filter.call(document.querySelectorAll(".topbar"), function(b) {
+      return b.offsetParent;
+    }).map(function(b) {
+      return b.getBoundingClientRect();
+    });
+    function placeAt(top) {
+      return { left, right: left + w, top, bottom: top + h };
+    }
+    var above = placeAt(r.top - gap - h), below = placeAt(r.bottom + gap);
+    var free = function(box2) {
+      return box2.top >= pad && box2.bottom <= window.innerHeight - pad && !bars.some(function(o) {
+        return overlaps(box2, o);
+      });
+    };
+    var clear = function(box2) {
+      return free(box2) && !others.some(function(o) {
+        return overlaps(box2, o);
+      });
+    };
+    var box = clear(above) ? above : clear(below) ? below : free(above) ? above : free(below) ? below : r.top - gap - h >= pad ? above : below;
+    tip.style.left = Math.round(box.left) + "px";
+    tip.style.top = Math.round(box.top) + "px";
+  }
+  function show(btn, why) {
+    clearTimeout(hoverTimer);
+    if (!btn.isConnected) return;
+    current = btn;
+    via = why;
+    tip.textContent = btn.getAttribute("data-tip") || "";
+    tip.classList.add("is-on");
+    place(btn);
+  }
+  function hide() {
+    clearTimeout(hoverTimer);
+    current = null;
+    via = null;
+    tip.classList.remove("is-on");
+  }
+  function keyboardFocus(el) {
+    try {
+      return el.matches(":focus-visible");
+    } catch (err) {
+      return true;
+    }
+  }
+  function follow() {
+    if (via === "focus" && current && document.activeElement === current) place(current);
+    else hide();
+  }
+  document.addEventListener("pointerover", function(e) {
+    if (e.pointerType === "touch") return;
+    var b = tipFor(e.target);
+    if (!b || b === current) return;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(function() {
+      show(b, "hover");
+    }, 120);
+  });
+  document.addEventListener("pointerout", function(e) {
+    if (e.pointerType === "touch") return;
+    var b = tipFor(e.target);
+    if (!b || b.contains(e.relatedTarget)) return;
+    clearTimeout(hoverTimer);
+    if (current === b && via === "hover") hide();
+  });
+  document.addEventListener("focusin", function(e) {
+    var b = tipFor(e.target);
+    if (b && keyboardFocus(b)) show(b, "focus");
+  });
+  document.addEventListener("focusout", function(e) {
+    var b = tipFor(e.target);
+    if (b && current === b && via === "focus") hide();
+  });
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") hide();
+  });
+  window.addEventListener("scroll", follow, true);
+  window.addEventListener("resize", follow);
+  document.addEventListener("touchstart", function(e) {
+    clearTimeout(pressTimer);
+    clearTimeout(pressClear);
+    pressShown = false;
+    var b = tipFor(e.target);
+    if (!b) return;
+    pressTimer = setTimeout(function() {
+      pressShown = true;
+      show(b, "press");
+    }, 450);
+  }, { passive: true });
+  document.addEventListener("touchmove", function() {
+    clearTimeout(pressTimer);
+  }, { passive: true });
+  document.addEventListener("touchend", function() {
+    clearTimeout(pressTimer);
+    if (!pressShown) return;
+    setTimeout(function() {
+      if (via === "press") hide();
+    }, 1400);
+    pressClear = setTimeout(function() {
+      pressShown = false;
+    }, 800);
+  }, { passive: true });
+  document.addEventListener("click", function(e) {
+    if (pressShown && tipFor(e.target)) {
+      e.preventDefault();
+      e.stopPropagation();
+      pressShown = false;
+      clearTimeout(pressClear);
+      return;
+    }
+    hide();
+  }, true);
+  window.__docketTips = { show, hide, el: tip };
 }
 function DownloadMenu({ content, baseFilename }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const h = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
   const fn = safeName(baseFilename);
-  return /* @__PURE__ */ React.createElement("div", { className: "relative inline-block", ref }, /* @__PURE__ */ React.createElement(Btn, { onClick: () => setOpen((o) => !o) }, T("⬇️ 下载", "⬇️ Download")), open && /* @__PURE__ */ React.createElement("div", { className: "absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-md shadow-lg z-20" }, /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      onClick: () => {
-        downloadText(`${fn}.md`, content || "", "text/markdown");
-        setOpen(false);
-      },
-      className: "w-full text-left px-3 py-2 text-xs hover:bg-gray-50 rounded-t-md"
-    },
-    "Markdown (.md)"
-  ), /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      onClick: () => {
-        downloadText(`${fn}.txt`, stripMd(content || ""));
-        setOpen(false);
-      },
-      className: "w-full text-left px-3 py-2 text-xs hover:bg-gray-50 rounded-b-md border-t border-gray-100"
-    },
-    T("纯文本 (.txt)", "Plain text (.txt)")
-  )));
+  return /* @__PURE__ */ React.createElement("span", { className: "dl-pair" }, /* @__PURE__ */ React.createElement(Btn, { className: "btn-sm", onClick: () => downloadText(`${fn}.md`, content || "", "text/markdown") }, T("下载 .md", "Download .md")), /* @__PURE__ */ React.createElement(Btn, { className: "btn-sm", onClick: () => downloadText(`${fn}.txt`, stripMd(content || "")) }, T("下载 .txt", "Download .txt")));
 }
-function FileUploadButton({ onFile, label = T("上传", "Upload"), primary = false, accept = ".txt,.md,.markdown,.docx,.pdf" }) {
+function FileUploadButton({ onFile, label = T("上传文件…", "Upload file…"), primary = false, accept = ".txt,.md,.markdown,.docx,.pdf" }) {
   const ref = useRef(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -908,7 +1069,7 @@ function FileUploadButton({ onFile, label = T("上传", "Upload"), primary = fal
       setBusy(false);
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "inline-block" }, /* @__PURE__ */ React.createElement(Btn, { variant: primary ? "primary" : "secondary", onClick: () => ref.current?.click(), disabled: busy }, busy ? T("⏳ 读取中…", "⏳ Reading…") : `⬆️ ${label}`), /* @__PURE__ */ React.createElement("input", { ref, type: "file", accept, onChange: handle, className: "hidden" }), err && /* @__PURE__ */ React.createElement("div", { className: "mt-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 max-w-xs" }, err));
+  return /* @__PURE__ */ React.createElement("span", { className: "upload" }, /* @__PURE__ */ React.createElement(Btn, { variant: primary ? "primary" : "secondary", onClick: () => ref.current?.click(), disabled: busy }, busy ? T("读取中…", "Reading…") : label), /* @__PURE__ */ React.createElement("input", { ref, type: "file", accept, onChange: handle, className: "hidden" }), err && /* @__PURE__ */ React.createElement("span", { className: "field-err", role: "alert" }, err));
 }
 function PromptModal({ title, prompt, onClose }) {
   const [copied, setCopied] = useState(false);
@@ -1088,88 +1249,71 @@ function MdView({ text }) {
   flushList();
   return /* @__PURE__ */ React.createElement("div", null, out);
 }
-function SettingsPanel({ open, onClose, ghOk, onGhChange }) {
-  const [tok, setTok] = useState("");
-  const [repo, setRepo] = useState("");
-  const [anthropicKey, setAnthropicKey] = useState("");
+function SettingsSections({ ghOk, onGhChange }) {
+  const [tok, setTok] = useState(lsGet("githubToken"));
+  const [repo, setRepo] = useState(lsGet("githubRepo"));
+  const [key, setKey] = useState(lsGet("anthropicKey"));
   const [showTok, setShowTok] = useState(false);
-  const [showAnt, setShowAnt] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [showKey, setShowKey] = useState(false);
+  const [connected, setConnected] = useState(ghOk);
+  const [status, setStatus] = useState(null);
   const [testing, setTesting] = useState(false);
-  const [testRes, setTestRes] = useState(null);
-  useEffect(() => {
-    if (!open) return;
-    setTok(lsGet("githubToken"));
-    setRepo(lsGet("githubRepo"));
-    setAnthropicKey(lsGet("anthropicKey"));
-    setSaved(false);
-    setTestRes(null);
-  }, [open]);
-  if (!open) return null;
-  const handleSave = () => {
+  const [keySaved, setKeySaved] = useState(false);
+  const save = () => {
     lsSet("githubToken", tok.trim());
     lsSet("githubRepo", repo.trim());
-    lsSet("anthropicKey", anthropicKey.trim());
-    onGhChange?.(ghConfigured());
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
-    setTestRes(null);
+    const ok = ghConfigured();
+    setConnected(ok);
+    onGhChange?.(ok);
+    setStatus({ ok: true, msg: T("已保存。", "Saved.") });
   };
-  const handleTest = async () => {
+  const test = async () => {
     lsSet("githubToken", tok.trim());
     lsSet("githubRepo", repo.trim());
     setTesting(true);
-    setTestRes(null);
+    setStatus(null);
     try {
       const d = await testGhConnection();
-      setTestRes({ ok: true, msg: `✅ ${T("已连接", "Connected")} — "${d.full_name}" (${d.private ? T("私有", "private") : T("公开", "public")})` });
+      setStatus({ ok: true, msg: `✓ ${T("已连接", "Connected")} — ${d.full_name} (${d.private ? T("私有", "private") : T("公开", "public")})` });
+      setConnected(true);
       onGhChange?.(true);
     } catch (e) {
-      setTestRes({ ok: false, msg: `❌ ${e.message}` });
+      setStatus({ ok: false, msg: `✗ ${T("连接失败", "Couldn’t connect")} — ${e.message}. ${T("请确认令牌勾选了 repo 权限。", "Check that the token has the repo scope.")}` });
     } finally {
       setTesting(false);
     }
   };
-  const handleClear = () => {
+  const clear = () => {
     if (!window.confirm(T("移除 GitHub 凭证？", "Remove GitHub credentials?"))) return;
     lsDel("githubToken");
     lsDel("githubRepo");
     setTok("");
     setRepo("");
+    setConnected(false);
+    setStatus(null);
     onGhChange?.(false);
   };
-  useEscapeClose(onClose);
-  return /* @__PURE__ */ React.createElement("div", { className: "fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto", onClick: onClose }, /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-xl shadow-2xl max-w-lg w-full mt-8 mb-8", onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("div", { className: "p-4 border-b border-gray-200 flex items-center justify-between" }, /* @__PURE__ */ React.createElement("h3", { className: "text-sm font-semibold text-gray-900" }, "⚙️ ", T("设置", "Settings")), /* @__PURE__ */ React.createElement("button", { onClick: onClose, className: "text-gray-400 hover:text-gray-700 text-lg" }, "×")), /* @__PURE__ */ React.createElement("div", { className: "p-4 space-y-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-xs font-semibold text-gray-700 mb-2" }, T("GitHub 存储", "GitHub Storage")), /* @__PURE__ */ React.createElement("div", { className: "p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 space-y-1 mb-3" }, /* @__PURE__ */ React.createElement("div", { className: "font-semibold" }, T("一次性设置：", "One-time setup:")), /* @__PURE__ */ React.createElement("div", null, T("1. 创建一个 ", "1. Create a "), /* @__PURE__ */ React.createElement("strong", null, T("私有", "private")), T(" GitHub 仓库 — 例如 ", " GitHub repo — e.g. "), /* @__PURE__ */ React.createElement("code", { className: "bg-blue-100 px-1 rounded" }, "username/jobapp-data")), /* @__PURE__ */ React.createElement("div", null, T("2. 前往 ", "2. Go to "), /* @__PURE__ */ React.createElement("a", { href: "https://github.com/settings/tokens/new", target: "_blank", rel: "noreferrer", className: "underline" }, "github.com/settings/tokens/new")), /* @__PURE__ */ React.createElement("div", null, T("3. 勾选 ", "3. Tick "), /* @__PURE__ */ React.createElement("strong", null, "repo"), T(" 权限 → Generate → 复制 token", " scope → Generate → copy the token")), /* @__PURE__ */ React.createElement("div", null, T("4. 把两者粘贴到下方并点击保存", "4. Paste both below and click Save"))), /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "text-xs font-medium text-gray-700 mb-1 block" }, "Personal Access Token"), /* @__PURE__ */ React.createElement("div", { className: "relative" }, /* @__PURE__ */ React.createElement(
+  const saveKey = () => {
+    lsSet("anthropicKey", key.trim());
+    setKeySaved(true);
+    setTimeout(() => setKeySaved(false), 2e3);
+  };
+  const tokName = showTok ? T("隐藏令牌", "Hide token") : T("显示令牌", "Show token");
+  const keyName = showKey ? T("隐藏密钥", "Hide key") : T("显示密钥", "Show key");
+  return /* @__PURE__ */ React.createElement("div", { className: "set-stack" }, /* @__PURE__ */ React.createElement("section", { className: "set-sec", "aria-labelledby": "set-repo-h" }, /* @__PURE__ */ React.createElement("h3", { id: "set-repo-h" }, T("私有数据仓库", "Private data repo")), /* @__PURE__ */ React.createElement("details", { open: !connected }, /* @__PURE__ */ React.createElement("summary", null, T("怎么设置", "How to set it up")), /* @__PURE__ */ React.createElement("ol", null, /* @__PURE__ */ React.createElement("li", null, T("新建一个私有 GitHub 仓库，例如 ", "Create a private GitHub repo, for example "), /* @__PURE__ */ React.createElement("code", null, "your-username/jobapp-data")), /* @__PURE__ */ React.createElement("li", null, T("打开 ", "Open "), /* @__PURE__ */ React.createElement("a", { href: "https://github.com/settings/tokens/new", target: "_blank", rel: "noreferrer" }, "github.com/settings/tokens/new")), /* @__PURE__ */ React.createElement("li", null, T("勾选 repo 权限，生成并复制令牌", "Tick the repo scope, generate the token and copy it")), /* @__PURE__ */ React.createElement("li", null, T("把仓库名和令牌填在下面，保存", "Fill in the repository and the token below, then save")))), /* @__PURE__ */ React.createElement("div", { className: "fld" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "set-repo" }, T("仓库（owner/repo-name）", "Repository (owner/repo-name)")), /* @__PURE__ */ React.createElement("input", { id: "set-repo", type: "text", value: repo, onChange: (e) => setRepo(e.target.value), placeholder: "your-username/jobapp-data", autoComplete: "off", spellCheck: "false" })), /* @__PURE__ */ React.createElement("div", { className: "fld" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "set-token" }, T("个人访问令牌", "Personal access token")), /* @__PURE__ */ React.createElement("div", { className: "secret" }, /* @__PURE__ */ React.createElement(
     "input",
     {
+      id: "set-token",
       type: showTok ? "text" : "password",
       value: tok,
       onChange: (e) => setTok(e.target.value),
-      placeholder: "ghp_xxxxxxxxxxxxxxxx",
-      className: "w-full px-3 py-2 pr-9 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-      autoComplete: "off"
+      placeholder: "ghp_…",
+      autoComplete: "off",
+      spellCheck: "false",
+      "aria-invalid": status && !status.ok ? "true" : void 0,
+      "aria-describedby": "set-status"
     }
-  ), /* @__PURE__ */ React.createElement("button", { onClick: () => setShowTok((s) => !s), className: "absolute right-2 top-2.5 text-gray-400 text-xs", type: "button" }, showTok ? "🙈" : "👁"))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "text-xs font-medium text-gray-700 mb-1 block" }, T("仓库（owner/repo-name）", "Repository (owner/repo-name)")), /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      type: "text",
-      value: repo,
-      onChange: (e) => setRepo(e.target.value),
-      placeholder: "your-username/jobapp-data",
-      className: "w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-      autoComplete: "off"
-    }
-  ))), testRes && /* @__PURE__ */ React.createElement("div", { className: `mt-2 p-2 rounded text-xs border ${testRes.ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}` }, testRes.msg), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-center flex-wrap gap-2 mt-3" }, ghOk && /* @__PURE__ */ React.createElement(Btn, { variant: "danger", onClick: handleClear }, T("移除凭证", "Remove credentials")), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2 ml-auto" }, /* @__PURE__ */ React.createElement(Btn, { onClick: handleTest, disabled: testing || !tok.trim() || !repo.trim() }, testing ? T("测试中…", "Testing…") : T("测试连接", "Test connection"))))), /* @__PURE__ */ React.createElement("div", { className: "border-t border-gray-100" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-xs font-semibold text-gray-700 mb-1" }, "Anthropic API Key ", /* @__PURE__ */ React.createElement("span", { className: "font-normal text-gray-400" }, T("（可选 — 用于 📧 提醒 标签页）", "(optional — for 📧 Alerts tab)"))), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 mb-2" }, T("仅供 LinkedIn 邮件监测使用。前往 ", "Used only by the LinkedIn email watchdog. Get one at "), /* @__PURE__ */ React.createElement("a", { href: "https://console.anthropic.com", target: "_blank", rel: "noreferrer", className: "underline text-blue-600" }, "console.anthropic.com"), T(" → API Keys 获取。每次扫描约 $0.01–0.05。", " → API Keys. Costs ~$0.01–0.05 per scan.")), /* @__PURE__ */ React.createElement("div", { className: "relative" }, /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      type: showAnt ? "text" : "password",
-      value: anthropicKey,
-      onChange: (e) => setAnthropicKey(e.target.value),
-      placeholder: "sk-ant-xxxxxxxxxxxxxxxx",
-      className: "w-full px-3 py-2 pr-9 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-      autoComplete: "off"
-    }
-  ), /* @__PURE__ */ React.createElement("button", { onClick: () => setShowAnt((s) => !s), className: "absolute right-2 top-2.5 text-gray-400 text-xs", type: "button" }, showAnt ? "🙈" : "👁"))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-center pt-1" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-400" }, T("密钥只保存在你的浏览器，除各自的 API 外绝不发送到任何地方。", "Keys stay in your browser only. Never sent anywhere except their respective APIs.")), /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: handleSave, disabled: !tok.trim() || !repo.trim() }, saved ? T("✅ 已保存", "✅ Saved") : T("保存", "Save"))))));
+  ), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon", "aria-pressed": showTok, "aria-label": tokName, "data-tip": tokName, onClick: () => setShowTok((s) => !s) }, /* @__PURE__ */ React.createElement(Icon, { name: showTok ? "eyeOff" : "eye" })))), /* @__PURE__ */ React.createElement("p", { id: "set-status", className: `status${status ? status.ok ? " ok" : " bad" : ""}`, role: "status" }, status ? status.msg : ""), /* @__PURE__ */ React.createElement("div", { className: "row" }, /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: save, disabled: !tok.trim() || !repo.trim() }, T("保存", "Save")), /* @__PURE__ */ React.createElement(Btn, { onClick: test, disabled: testing || !tok.trim() || !repo.trim() }, testing ? T("测试中…", "Testing…") : T("测试连接", "Test connection")), connected && /* @__PURE__ */ React.createElement(Btn, { variant: "danger", onClick: clear }, T("移除凭证", "Remove credentials")))), /* @__PURE__ */ React.createElement("section", { className: "set-sec", "aria-labelledby": "set-key-h" }, /* @__PURE__ */ React.createElement("h3", { id: "set-key-h" }, T("Anthropic API 密钥（可选）", "Anthropic API key (optional)")), /* @__PURE__ */ React.createElement("p", null, T("供「提醒」与「批量定制」使用，每次扫描约 $0.01–0.05。在 ", "Used by Alerts and Batch tailor, about $0.01–0.05 per scan. Get one at "), /* @__PURE__ */ React.createElement("a", { href: "https://console.anthropic.com", target: "_blank", rel: "noreferrer" }, "console.anthropic.com"), T(" 获取。", ".")), /* @__PURE__ */ React.createElement("div", { className: "fld" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "set-key" }, T("密钥", "Key")), /* @__PURE__ */ React.createElement("div", { className: "secret" }, /* @__PURE__ */ React.createElement("input", { id: "set-key", type: showKey ? "text" : "password", value: key, onChange: (e) => setKey(e.target.value), placeholder: "sk-ant-…", autoComplete: "off", spellCheck: "false" }), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon", "aria-pressed": showKey, "aria-label": keyName, "data-tip": keyName, onClick: () => setShowKey((s) => !s) }, /* @__PURE__ */ React.createElement(Icon, { name: showKey ? "eyeOff" : "eye" })))), /* @__PURE__ */ React.createElement("div", { className: "row" }, /* @__PURE__ */ React.createElement(Btn, { onClick: saveKey }, keySaved ? T("已保存", "Saved") : T("保存密钥", "Save key")))), /* @__PURE__ */ React.createElement("p", { className: "set-note" }, T("密钥只存在这个浏览器里，只发给各自的 API。", "Keys stay in this browser and are sent only to their own APIs.")));
 }
 const PROFILE_STARTER = [
   { name: "Contact & Links", content: "Full name:\nLocation (city, country):\nPhone(s):\nEmail:\nLinkedIn:\nPortfolio / GitHub / personal site:\nWork authorization (per region, e.g. citizen / PR / visa / open to sponsorship):" },
@@ -1567,7 +1711,7 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
     ["startDate", T("入职日期（算工时用）", "Start date"), "YYYY-MM-DD"],
     ["endDate", T("离职日期（空＝在职）", "End date"), ""],
     ["priority", T("投递梯队（T1–T4）", "Tier"), "T1"]
-  ].filter(([k]) => inCanada() || !CEC_FIELDS.includes(k)).map(([k, lbl, ph]) => /* @__PURE__ */ React.createElement("div", { key: k }, /* @__PURE__ */ React.createElement("label", { className: "text-xs font-medium text-gray-700 mb-1 block" }, lbl), /* @__PURE__ */ React.createElement(
+  ].map(([k, lbl, ph]) => /* @__PURE__ */ React.createElement("div", { key: k }, /* @__PURE__ */ React.createElement("label", { className: "text-xs font-medium text-gray-700 mb-1 block" }, lbl), /* @__PURE__ */ React.createElement(
     "input",
     {
       value: form[k],
@@ -1590,7 +1734,7 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
       onChange: (e) => set("status", e.target.value),
       className: "w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
     },
-    STATUSES.map((s) => /* @__PURE__ */ React.createElement("option", { key: s.id, value: s.id }, stName(s)))
+    STATUSES.map((s) => /* @__PURE__ */ React.createElement("option", { key: s.id, value: s.id }, T(s.zh, s.label)))
   ))), /* @__PURE__ */ React.createElement("div", { className: "mb-4" }, /* @__PURE__ */ React.createElement("label", { className: "text-xs font-medium text-gray-700 mb-1 block" }, T("备注", "Notes")), /* @__PURE__ */ React.createElement(
     "textarea",
     {
@@ -1859,11 +2003,12 @@ Done. Tailored resumes saved — open each job to view.`));
     }
   ), /* @__PURE__ */ React.createElement("span", { className: "flex-1 font-medium text-gray-900" }, j.role, " ", /* @__PURE__ */ React.createElement("span", { className: "font-normal text-gray-500" }, "· ", j.company)), progress[j.id] && /* @__PURE__ */ React.createElement("span", { className: "shrink-0" }, statusIcon(progress[j.id])))), !eligible.length && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-400 p-2" }, T("没有 ", "No "), /* @__PURE__ */ React.createElement("strong", null, T("「感兴趣」", "Interested")), T(" 的职位包含 JD 文本。请先添加状态为「感兴趣」的职位并粘贴其 JD。", " jobs have JD text. Add jobs with status Interested and paste their JD first."))), noJd.length > 0 && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-400 mt-1" }, "⚠ ", noJd.length, " ", T("个「感兴趣」职位没有 JD 文本 — 打开它们并先粘贴 JD", `Interested job${noJd.length !== 1 ? "s" : ""} have no JD text — open them and paste the JD first`)), haveResume > 0 && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-400 mt-1" }, "📄 ", haveResume, " ", T("个「感兴趣」职位已定制（已排除）。在职位中删除简历可重新定制。", `Interested job${haveResume !== 1 ? "s" : ""} already tailored (excluded). Delete the resume in the job to re-tailor.`))), log.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "bg-gray-900 text-green-400 rounded-md p-3 text-xs font-mono max-h-36 overflow-y-auto" }, log.map((l, i) => /* @__PURE__ */ React.createElement("div", { key: i }, l))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-center" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-400" }, selected.size, " ", T("个职位已选", `job${selected.size !== 1 ? "s" : ""} selected`)), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2" }, /* @__PURE__ */ React.createElement(Btn, { onClick: onClose, disabled: running }, T("取消", "Cancel")), /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: startBatch, disabled: running || !selected.size || !eligible.length }, running ? T("⏳ 处理中…", "⏳ Processing…") : T(`🎯 定制 ${selected.size} 份简历`, `🎯 Tailor ${selected.size} resume${selected.size !== 1 ? "s" : ""}`)))))));
 }
-function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting }) {
-  const [filter, setFilter] = useState("all");
+function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initialStatus, onAdd }) {
+  const [filter, setFilter] = useState(initialStatus || "all");
   const [tierFilter, setTierFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [showBatch, setShowBatch] = useState(false);
+  const regionLabel = rName(REGION_BY[region]);
   const filtered = useMemo(() => jobs.filter((j) => {
     if (filter !== "all" && j.status !== filter) return false;
     if (tierFilter !== "all" && (j.priority || "") !== tierFilter) return false;
@@ -1876,13 +2021,20 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting }) {
     const r = (t) => ({ T1: 1, T2: 2, T3: 3, T4: 4 })[t || ""] || 9;
     return r(a.priority) - r(b.priority) || String(a.company || "").localeCompare(String(b.company || ""));
   }), [jobs, filter, tierFilter, search]);
+  const counts = useMemo(() => {
+    const c = {};
+    jobs.forEach((j) => {
+      c[j.status] = (c[j.status] || 0) + 1;
+    });
+    return c;
+  }, [jobs]);
   const updateStatus = async (id, status) => {
     const updated = jobs.map((j) => j.id === id ? { ...j, status } : j);
     setJobs(updated);
     await saveJson(`${region}:jobs`, updated);
   };
   const deleteJob = async (id) => {
-    if (!window.confirm(T("删除这个申请？", "Delete this application?"))) return;
+    if (!window.confirm(T("删除这条投递？它的定制简历和求职信 PDF 也会一起删除。", "Delete this application? Its tailored resume and cover-letter PDFs are deleted too."))) return;
     deletePdfLocal(`${region}:${id}:resume`);
     deletePdfLocal(`${region}:${id}:cover`);
     for (const type of ["resume", "cover"]) {
@@ -1895,35 +2047,29 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting }) {
     setJobs(updated);
     await saveJson(`${region}:jobs`, updated);
   };
-  if (!jobs.length) return /* @__PURE__ */ React.createElement(Card, { className: "p-8 text-center text-sm text-gray-500" }, T("还没有申请。前往 ", "No applications yet. Go to "), /* @__PURE__ */ React.createElement("strong", null, T("添加职位", "Add Job")), T(" 添加第一个。", " to add your first one."));
-  return /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, showBatch && /* @__PURE__ */ React.createElement(BatchTailorModal, { region, jobs, setJobs, resumeDb, formatting, onClose: () => setShowBatch(false) }), /* @__PURE__ */ React.createElement(Card, { className: "p-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap gap-2 items-center" }, /* @__PURE__ */ React.createElement("div", { className: "relative flex-1 min-w-[180px]" }, /* @__PURE__ */ React.createElement("span", { className: "absolute left-2.5 top-2 text-gray-400 text-xs" }, "🔍"), /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      value: search,
-      onChange: (e) => setSearch(e.target.value),
-      placeholder: T("搜索公司、职位…", "Search company, role…"),
-      className: "w-full pl-7 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-    }
-  )), /* @__PURE__ */ React.createElement(
-    "select",
-    {
-      value: filter,
-      onChange: (e) => setFilter(e.target.value),
-      className: "text-sm px-2 py-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-    },
-    /* @__PURE__ */ React.createElement("option", { value: "all" }, T("全部", "All"), " (", jobs.length, ")"),
-    STATUSES.map((s) => /* @__PURE__ */ React.createElement("option", { key: s.id, value: s.id }, stName(s), " (", jobs.filter((j) => j.status === s.id).length, ")"))
-  ), /* @__PURE__ */ React.createElement(
-    "select",
-    {
-      value: tierFilter,
-      onChange: (e) => setTierFilter(e.target.value),
-      className: "text-sm px-2 py-1.5 border border-gray-300 rounded-md bg-white"
-    },
-    /* @__PURE__ */ React.createElement("option", { value: "all" }, T("全部梯队", "All tiers")),
-    TIERS.map((t) => /* @__PURE__ */ React.createElement("option", { key: t.id, value: t.id }, T(t.zh, t.en), "（", jobs.filter((j) => j.priority === t.id).length, "）")),
-    /* @__PURE__ */ React.createElement("option", { value: "" }, T("未分级", "Unranked"), "（", jobs.filter((j) => !j.priority).length, "）")
-  ), lsGet("anthropicKey") && /* @__PURE__ */ React.createElement(Btn, { onClick: () => setShowBatch(true), title: T("自动为多个职位生成定制简历 PDF", "Generate tailored resume PDFs for multiple jobs automatically") }, T("🎯 批量定制", "🎯 Batch Tailor")))), filtered.map((j) => /* @__PURE__ */ React.createElement(Card, { key: j.id, className: "p-3 hover:shadow-sm transition-shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-start justify-between gap-2" }, /* @__PURE__ */ React.createElement("button", { className: "flex-1 text-left min-w-0", onClick: () => onOpen(j.id) }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2 flex-wrap" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm font-semibold text-gray-900 truncate" }, j.role || T("（无职位名）", "(no title)")), /* @__PURE__ */ React.createElement(StatusPill, { status: j.status }), /* @__PURE__ */ React.createElement(TierPill, { tier: j.priority }), j.status === "interested" && loadPdfLocal(`${region}:${j.id}:resume`) && /* @__PURE__ */ React.createElement("span", { className: "text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium" }, T("📄 简历就绪", "📄 Resume ready")), j.applicationDeadline && new Date(j.applicationDeadline) < /* @__PURE__ */ new Date() && j.status === "interested" && /* @__PURE__ */ React.createElement("span", { className: "text-xs text-red-600 font-medium" }, T("⏰ 已过截止", "⏰ Deadline passed"))), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-600 mt-0.5" }, j.company || T("（无公司）", "(no company)"), j.location ? ` · ${j.location}` : ""), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-400 mt-0.5" }, T("添加于 ", "Added "), fmtDate(j.dateAdded), j.applicationDeadline ? T(` · 截止：${fmtDate(j.applicationDeadline)}`, ` · Deadline: ${fmtDate(j.applicationDeadline)}`) : "")), /* @__PURE__ */ React.createElement("div", { className: "flex gap-1.5 shrink-0 items-center" }, /* @__PURE__ */ React.createElement(StatusSelect, { value: j.status, onChange: (s) => updateStatus(j.id, s) }), /* @__PURE__ */ React.createElement(Btn, { onClick: () => onOpen(j.id) }, T("打开 →", "Open →")), /* @__PURE__ */ React.createElement(Btn, { variant: "danger", onClick: () => deleteJob(j.id) }, "🗑"))))), !filtered.length && /* @__PURE__ */ React.createElement(Card, { className: "p-6 text-center text-sm text-gray-500" }, T("没有符合筛选条件的申请。", "No applications match your filters.")));
+  const clearFilters = () => {
+    setFilter("all");
+    setTierFilter("all");
+    setSearch("");
+  };
+  const title = T("追踪", "Tracker");
+  if (!jobs.length) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow: regionLabel, title }), /* @__PURE__ */ React.createElement("div", { className: "empty" }, /* @__PURE__ */ React.createElement("h2", null, T(`${regionLabel}还没有投递`, `No applications in ${regionLabel} yet`)), /* @__PURE__ */ React.createElement("p", null, T("从「添加职位」贴一段职位描述开始。", "Start from a job description in Add job.")), /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: onAdd }, T("添加职位", "Add job"))));
+  const groups = [...TIERS.map((t) => t.id), ""].map((id) => ({ id, items: filtered.filter((j) => (j.priority || "") === id) })).filter((g) => g.items.length);
+  const tierCount = (id) => jobs.filter((j) => (j.priority || "") === id).length;
+  const now = /* @__PURE__ */ new Date();
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, showBatch && /* @__PURE__ */ React.createElement(BatchTailorModal, { region, jobs, setJobs, resumeDb, formatting, onClose: () => setShowBatch(false) }), /* @__PURE__ */ React.createElement(PageHead, { eyebrow: regionLabel, title, action: /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: onAdd }, T("添加职位", "Add job")) }), /* @__PURE__ */ React.createElement("div", { className: "toolbar" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "trk-search", className: "sr-only" }, T("搜索投递", "Search applications")), /* @__PURE__ */ React.createElement("input", { id: "trk-search", type: "search", value: search, onChange: (e) => setSearch(e.target.value), placeholder: T("搜索公司、职位或地点", "Search company, role or location") }), /* @__PURE__ */ React.createElement("label", { htmlFor: "trk-tier", className: "sr-only" }, T("按梯队筛选", "Filter by tier")), /* @__PURE__ */ React.createElement("select", { id: "trk-tier", value: tierFilter, onChange: (e) => setTierFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, T("全部梯队", "All tiers"), " (", jobs.length, ")"), TIERS.map((t) => /* @__PURE__ */ React.createElement("option", { key: t.id, value: t.id }, T(t.zh, t.en), " (", tierCount(t.id), ")")), /* @__PURE__ */ React.createElement("option", { value: "" }, T("未分级", "Unranked"), " (", tierCount(""), ")")), lsGet("anthropicKey") && /* @__PURE__ */ React.createElement(Btn, { onClick: () => setShowBatch(true) }, T("批量定制…", "Batch tailor…")), /* @__PURE__ */ React.createElement("span", { className: "showing", role: "status" }, T(`显示 ${filtered.length} / ${jobs.length}`, `${filtered.length} of ${jobs.length}`))), /* @__PURE__ */ React.createElement("div", { className: "filters", role: "group", "aria-label": T("按状态筛选", "Filter by status") }, /* @__PURE__ */ React.createElement("button", { type: "button", "aria-pressed": filter === "all", onClick: () => setFilter("all") }, T("全部", "All"), " ", /* @__PURE__ */ React.createElement("b", null, jobs.length)), STATUSES.filter((s) => counts[s.id] || filter === s.id).map((s) => /* @__PURE__ */ React.createElement("button", { key: s.id, type: "button", "aria-pressed": filter === s.id, onClick: () => setFilter(s.id) }, T(s.zh, s.label), " ", /* @__PURE__ */ React.createElement("b", null, counts[s.id] || 0)))), groups.map((g) => {
+    const t = tierMeta(g.id);
+    const hid = `tier-${g.id || "none"}`;
+    return /* @__PURE__ */ React.createElement("section", { key: g.id || "none", className: "tier-group", "aria-labelledby": hid }, /* @__PURE__ */ React.createElement("h2", { id: hid, className: "eyebrow" }, t ? T(t.zh, t.en) : T("未分级", "Unranked"), " ", /* @__PURE__ */ React.createElement("span", { className: "n" }, "· ", g.items.length)), /* @__PURE__ */ React.createElement("ul", { className: "jobs" }, g.items.map((j) => {
+      const role = j.role || T("（无职位名）", "(no title)");
+      const company = j.company || T("（无公司）", "(no company)");
+      const ready = j.status === "interested" && !!loadPdfLocal(`${region}:${j.id}:resume`);
+      const late = j.status === "interested" && j.applicationDeadline && new Date(j.applicationDeadline) < now;
+      const openName = T(`打开：${role}，${company}`, `Open: ${role} at ${company}`) + (ready ? T("，简历就绪", ", resume ready") : "") + (late ? T("，已过截止", ", deadline passed") : "");
+      const delName = T("删除这条投递", "Delete application");
+      return /* @__PURE__ */ React.createElement("li", { key: j.id, className: "job" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "job-open", onClick: () => onOpen(j.id), "aria-label": openName }, /* @__PURE__ */ React.createElement("span", { className: "job-title" }, /* @__PURE__ */ React.createElement("span", { className: "role" }, role), ready && /* @__PURE__ */ React.createElement("span", { className: "chip" }, T("简历就绪", "resume ready")), late && /* @__PURE__ */ React.createElement("span", { className: "reason" }, T("已过截止", "Deadline passed"))), /* @__PURE__ */ React.createElement("span", { className: "job-sub" }, company, j.location ? ` · ${j.location}` : "")), /* @__PURE__ */ React.createElement(StatusField, { value: j.status, onChange: (s) => updateStatus(j.id, s), name: T(`状态：${role}`, `Status: ${role}`) }), /* @__PURE__ */ React.createElement("span", { className: "job-dates" }, /* @__PURE__ */ React.createElement("span", null, T("添加于 ", "added "), fmtDate(j.dateAdded)), j.applicationDeadline && /* @__PURE__ */ React.createElement("span", { className: late ? "late" : void 0 }, T("截止 ", "due "), fmtDate(j.applicationDeadline))), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon btn-quiet", "aria-label": delName, "data-tip": delName, onClick: () => deleteJob(j.id) }, /* @__PURE__ */ React.createElement(Icon, { name: "trash" })));
+    })));
+  }), !filtered.length && /* @__PURE__ */ React.createElement("div", { className: "empty" }, /* @__PURE__ */ React.createElement("h2", null, T("没有符合这些筛选条件的投递。", "No applications match these filters.")), /* @__PURE__ */ React.createElement(Btn, { onClick: clearFilters }, T("清除筛选", "Clear filters"))));
 }
 function PdfUploadField({ label, pdfKey, icon = "📄" }) {
   const [dataUrl, setDataUrl] = useState(() => loadPdfLocal(pdfKey));
@@ -2053,7 +2199,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
   return /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("button", { onClick: onBack, className: "inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900" }, T("← 返回追踪", "← Back to tracker")), /* @__PURE__ */ React.createElement(Card, { className: "p-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-start justify-between gap-3 flex-wrap" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-lg font-semibold text-gray-900" }, form.role || T("（无职位名）", "(no title)")), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-600" }, form.company || T("（无公司）", "(no company)"), form.location ? ` · ${form.location}` : ""), /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap gap-3 mt-1.5 text-xs text-gray-500" }, /* @__PURE__ */ React.createElement("span", null, T("添加于 ", "Added "), fmtDate(form.dateAdded)), form.salaryRange && /* @__PURE__ */ React.createElement("span", null, "💰 ", form.salaryRange), form.applicationDeadline && /* @__PURE__ */ React.createElement("span", null, "📅 ", T("截止：", "Deadline: "), fmtDate(form.applicationDeadline)))), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2 items-center" }, /* @__PURE__ */ React.createElement(StatusSelect, { value: form.status, onChange: (v) => {
     set("status", v);
     updateJob({ status: v });
-  } }), /* @__PURE__ */ React.createElement(Btn, { onClick: () => setEditing((e) => !e) }, editing ? T("取消编辑", "Cancel editing") : T("✏️ 编辑详情", "✏️ Edit details")))), editing && /* @__PURE__ */ React.createElement("div", { className: "mt-4 border-t border-gray-100 pt-4 space-y-3" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-3" }, [["company", T("公司", "Company")], ["role", T("职位", "Role")], ["location", T("地点", "Location")], ["salaryRange", T("薪资范围", "Salary Range")], ["noc", T("NOC 编码", "NOC")], ["weeklyHours", T("周工时", "Weekly hrs")], ["empType", T("雇佣类型", "Emp type")], ["applyMethod", T("投递方式", "Apply via")], ["startDate", T("入职日期", "Start")], ["endDate", T("离职日期", "End")], ["priority", T("梯队", "Tier")]].filter(([k]) => inCanada() || !CEC_FIELDS.includes(k)).map(([k, lbl]) => /* @__PURE__ */ React.createElement("div", { key: k }, /* @__PURE__ */ React.createElement("label", { className: "text-xs text-gray-600 mb-1 block" }, lbl), /* @__PURE__ */ React.createElement(
+  } }), /* @__PURE__ */ React.createElement(Btn, { onClick: () => setEditing((e) => !e) }, editing ? T("取消编辑", "Cancel editing") : T("✏️ 编辑详情", "✏️ Edit details")))), editing && /* @__PURE__ */ React.createElement("div", { className: "mt-4 border-t border-gray-100 pt-4 space-y-3" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-3" }, [["company", T("公司", "Company")], ["role", T("职位", "Role")], ["location", T("地点", "Location")], ["salaryRange", T("薪资范围", "Salary Range")], ["noc", T("NOC 编码", "NOC")], ["weeklyHours", T("周工时", "Weekly hrs")], ["empType", T("雇佣类型", "Emp type")], ["applyMethod", T("投递方式", "Apply via")], ["startDate", T("入职日期", "Start")], ["endDate", T("离职日期", "End")], ["priority", T("梯队", "Tier")]].map(([k, lbl]) => /* @__PURE__ */ React.createElement("div", { key: k }, /* @__PURE__ */ React.createElement("label", { className: "text-xs text-gray-600 mb-1 block" }, lbl), /* @__PURE__ */ React.createElement(
     "input",
     {
       value: form[k] || "",
@@ -2375,21 +2521,93 @@ Return JSON only:
     setSelected(/* @__PURE__ */ new Set());
   } }, T("📧 扫描更多职位", "📧 Scan more jobs")))));
 }
-function InsightsTab({ jobs, regionName }) {
+function pipelineCounts(jobs) {
+  const c = {};
+  jobs.forEach((j) => {
+    c[j.status] = (c[j.status] || 0) + 1;
+  });
+  const known = new Set(STATUSES.map((s) => s.id));
+  const other = jobs.filter((j) => !known.has(j.status)).length;
+  const interested = c.interested || 0;
+  const apps = jobs.length - interested;
+  const noAnswer = c.applied || 0, rejected = c.rejected || 0;
+  const offers = c.offered || 0, working = c.working || 0, inProgress = c.interviewing || 0, noOffer = c.interview_rejected || 0;
+  const interviews = offers + working + inProgress + noOffer;
+  return { interested, apps, noAnswer, rejected, interviews, other, offers, working, inProgress, noOffer };
+}
+function PipelineChart({ p, titleId, eqId }) {
+  const wrapRef = useRef(null);
+  const [W, setW] = useState(0);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    setW(Math.floor(el.clientWidth));
+    const ro = new ResizeObserver((entries) => setW(Math.floor(entries[0].contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const w = W || 600;
+  const wide = w >= 640, narrow = w < 480;
+  const H = wide ? 260 : narrow ? 250 : 220, nw = 12, gap = 6, minH = 6;
+  const top0 = narrow ? 28 : 0;
+  const L = wide ? 96 : narrow ? 8 : 80, R = wide ? 112 : 88;
+  const x0 = L, x2 = w - R - nw, x1 = Math.round((x0 + x2) / 2);
+  const plotH = H - top0;
+  const unit = p.apps ? Math.min(40, (plotH - 16) / p.apps) : 0;
+  const hOf = (n) => n > 0 ? Math.max(n * unit, minH) : 0;
+  const stack = (nodes, center) => {
+    const list = nodes.filter((n) => n.n > 0).map((n) => ({ ...n, h: hOf(n.n) }));
+    const total = list.reduce((a, n) => a + n.h, 0) + gap * Math.max(0, list.length - 1);
+    let y = Math.max(top0, Math.min(H - total, center - total / 2));
+    list.forEach((n) => {
+      n.y = y;
+      y += n.h + gap;
+    });
+    return list;
+  };
+  const srcH = hOf(p.apps), srcY = top0 + (plotH - srcH) / 2;
+  const col1 = stack([
+    { id: "noanswer", n: p.noAnswer, kind: "unk", label: T("未回复", "No answer") },
+    { id: "rejected", n: p.rejected, kind: "end", label: T("被拒", "Rejected") },
+    { id: "interviews", n: p.interviews, kind: "fwd", label: T("面试", "Interviews") },
+    { id: "other", n: p.other, kind: "unk", label: T("其他状态", "Other status") }
+  ], top0 + plotH / 2);
+  const iv = col1.find((n) => n.id === "interviews");
+  const col2 = iv ? stack([
+    { id: "offers", n: p.offers, kind: "fwd", label: T("Offer", "Offers") },
+    { id: "working", n: p.working, kind: "fwd", label: T("在职", "Working") },
+    { id: "inprogress", n: p.inProgress, kind: "unk", label: T("进行中", "In progress") },
+    { id: "nooffer", n: p.noOffer, kind: "end", label: T("无 Offer", "No offer") }
+  ], iv.y + iv.h / 2) : [];
+  const band = (xa, ya, ha, xb, yb, hb) => {
+    const mx = (xa + xb) / 2;
+    return `M${xa},${ya} C${mx},${ya} ${mx},${yb} ${xb},${yb} L${xb},${yb + hb} C${mx},${yb + hb} ${mx},${ya + ha} ${xa},${ya + ha}Z`;
+  };
+  const links = (src, sy, targets, xa, xb) => {
+    let y = sy;
+    return targets.map((t) => {
+      const hs = t.n * (src ? unit : 0);
+      const d = band(xa, y, hs, xb, t.y, t.h);
+      y += hs;
+      return { d, kind: t.kind === "fwd" ? "link-fwd" : "link-end", id: t.id };
+    });
+  };
+  const l1 = links(true, srcY, col1, x0 + nw, x1);
+  const l2 = iv ? links(true, iv.y, col2, x1 + nw, x2) : [];
+  const label = (x, y, n, word, anchor) => /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("text", { className: "n", x, y, textAnchor: anchor }, n), /* @__PURE__ */ React.createElement("text", { className: "w", x, y: y + 16, textAnchor: anchor }, word));
+  const nodeRect = (x, n) => /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("rect", { x, y: n.y, width: nw, height: n.h, rx: "2", className: n.kind }), n.kind === "unk" && /* @__PURE__ */ React.createElement("rect", { x: x + 0.5, y: n.y + 0.5, width: nw - 1, height: Math.max(0, n.h - 1), rx: "2", className: "unk-edge" }));
+  const top = (n) => Math.max(top0 + 14, Math.min(H - 20, n.y + Math.min(n.h / 2, 12) + 3));
+  return /* @__PURE__ */ React.createElement("div", { className: "sankey", ref: wrapRef }, W > 0 && /* @__PURE__ */ React.createElement("svg", { viewBox: `0 0 ${w} ${H}`, width: w, height: H, role: "img", "aria-labelledby": `${titleId} ${eqId}` }, /* @__PURE__ */ React.createElement("defs", null, /* @__PURE__ */ React.createElement("pattern", { id: "docket-hatch", patternUnits: "userSpaceOnUse", width: "7", height: "7", patternTransform: "rotate(135)" }, /* @__PURE__ */ React.createElement("rect", { width: "7", height: "7", fill: "var(--paper)" }), /* @__PURE__ */ React.createElement("rect", { width: "3", height: "7", className: "hatch-bar" }))), l1.map((l) => /* @__PURE__ */ React.createElement("path", { key: "a" + l.id, d: l.d, className: l.kind })), l2.map((l) => /* @__PURE__ */ React.createElement("path", { key: "b" + l.id, d: l.d, className: l.kind })), /* @__PURE__ */ React.createElement("rect", { x: x0, y: srcY, width: nw, height: srcH, rx: "2", className: "src" }), narrow ? /* @__PURE__ */ React.createElement("text", { x: x0, y: 18 }, /* @__PURE__ */ React.createElement("tspan", { className: "n" }, p.apps), /* @__PURE__ */ React.createElement("tspan", { className: "w", dx: "6" }, T("申请", "applications"))) : label(x0 - 8, srcY + srcH / 2 - 2, p.apps, T("申请", "Applications"), "end"), col1.map((n) => /* @__PURE__ */ React.createElement(React.Fragment, { key: n.id }, nodeRect(x1, n), label(x1 + nw + 8, top(n), n.n, n.label, "start"))), col2.map((n) => /* @__PURE__ */ React.createElement(React.Fragment, { key: n.id }, nodeRect(x2, n), label(x2 + nw + 8, top(n), n.n, n.label, "start")))));
+}
+function InsightsTab({ jobs, regionName, onWorking, onAdd }) {
+  const [view, setView] = useState("chart");
   const stats = useMemo(() => {
-    const rank = { interested: 0, applied: 1, interviewing: 2, offered: 3, working: 4, rejected: 1, interview_rejected: 2 };
-    const atLeast = (stage) => jobs.filter((j) => (rank[j.status] ?? 0) >= rank[stage]).length;
-    const pipeline = [
-      { id: "interested", label: T("感兴趣", "Interested"), count: jobs.filter((j) => j.status === "interested").length, color: "#a78bfa" },
-      { id: "applied", label: T("已投递", "Applied"), count: atLeast("applied"), color: "#60a5fa" },
-      { id: "interviewing", label: T("面试中", "Interviewing"), count: atLeast("interviewing"), color: "#fbbf24" },
-      { id: "offered", label: T("已获 Offer", "Offered"), count: atLeast("offered"), color: "#34d399" },
-      { id: "rejected", label: T("已被拒", "Rejected"), count: jobs.filter((j) => j.status === "rejected" || j.status === "interview_rejected").length, color: "#f87171" }
-    ];
     const total = jobs.length;
     const applied = jobs.filter((j) => j.status !== "interested").length;
-    const responseRate = applied ? Math.round(jobs.filter((j) => ["interviewing", "offered", "interview_rejected"].includes(j.status)).length / applied * 100) : 0;
-    const offerRate = applied ? Math.round(jobs.filter((j) => j.status === "offered").length / applied * 100) : 0;
+    const responded = jobs.filter((j) => ["interviewing", "offered", "working", "interview_rejected"].includes(j.status)).length;
+    const offered = jobs.filter((j) => ["offered", "working"].includes(j.status)).length;
+    const responseRate = applied ? Math.round(responded / applied * 100) : 0;
+    const offerRate = applied ? Math.round(offered / applied * 100) : 0;
     const now = Date.now();
     const last7 = jobs.filter((j) => now - new Date(j.dateAdded).getTime() < 7 * 864e5).length;
     const last30 = jobs.filter((j) => now - new Date(j.dateAdded).getTime() < 30 * 864e5).length;
@@ -2399,91 +2617,34 @@ function InsightsTab({ jobs, regionName }) {
     });
     const topCos = Object.entries(coMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const upcoming = jobs.filter((j) => j.applicationDeadline && new Date(j.applicationDeadline) > /* @__PURE__ */ new Date() && j.status === "interested").sort((a, b) => new Date(a.applicationDeadline) - new Date(b.applicationDeadline)).slice(0, 5);
-    return { pipeline, responseRate, offerRate, last7, last30, topCos, total, applied, upcoming };
+    return { responseRate, offerRate, last7, last30, topCos, total, applied, upcoming };
   }, [jobs]);
-  const cecPanel = /* @__PURE__ */ React.createElement(React.Fragment, null, (() => {
-    const c2 = cecHours(jobs);
-    const pct = Math.min(100, c2.total / CEC_TARGET * 100);
-    const bad = jobs.filter((j) => j.status === "working" && j.noc && !teerOk(j.noc));
-    const noType = jobs.filter((j) => j.status === "working" && !(j.empType || "").trim());
-    return /* @__PURE__ */ React.createElement("div", { className: "mb-5 rounded-lg border border-teal-200 bg-teal-50 p-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-baseline justify-between mb-2" }, /* @__PURE__ */ React.createElement("div", { className: "font-semibold text-teal-900" }, T("CEC 工时账（经验类移民）", "CEC hours ledger")), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-teal-800" }, Math.round(c2.total), " / ", CEC_TARGET, " ", T("小时", "hrs"))), /* @__PURE__ */ React.createElement("div", { className: "h-3 w-full rounded bg-teal-100 overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "h-3 bg-teal-500", style: { width: pct + "%" } })), /* @__PURE__ */ React.createElement("div", { className: "mt-2 text-xs text-teal-900 space-y-1" }, /* @__PURE__ */ React.createElement("div", null, T("超过 30 小时/周的部分不计入，已按此封顶。", "Hours above 30/week do not count; capped accordingly.")), c2.weeklyRate > 0 ? /* @__PURE__ */ React.createElement("div", null, T("当前每周计入 ", "Weekly rate "), /* @__PURE__ */ React.createElement("b", null, c2.weeklyRate, "h"), T("，还差 ", ", remaining "), /* @__PURE__ */ React.createElement("b", null, Math.round(c2.remain), "h"), c2.eta ? T("，预计达成 ", ", ETA ") + c2.eta.toISOString().slice(0, 10) : "") : /* @__PURE__ */ React.createElement("div", { className: "text-teal-700" }, T("把在职岗位状态设为「在职·计工时」并填入职日期与周工时，这里才开始计数。", "Set a job to Working (CEC hours) with start date and weekly hours to start counting.")), bad.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "text-red-700" }, T("⚠ 有在职岗位的 NOC 不在 TEER 1-3，这些工时不算数：", "⚠ Job(s) with NOC outside TEER 1-3 will not count: "), bad.length), noType.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "text-amber-700" }, T("⚠ 有在职岗位没填雇佣类型——自雇/承包人一小时都不计，务必确认是 T4 雇员：", "⚠ Job(s) missing employment type — contractor hours do not count: "), noType.length)), c2.per.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "mt-3 text-xs" }, c2.per.map((x) => /* @__PURE__ */ React.createElement("div", { key: x.id, className: "flex justify-between border-t border-teal-200 pt-1" }, /* @__PURE__ */ React.createElement("span", null, (x.role || "(role)") + " · " + (x.company || "(company)") + (x.noc ? " · NOC " + x.noc + " (TEER " + teerOf(x.noc) + ")" : "")), /* @__PURE__ */ React.createElement("span", { className: "font-medium" }, Math.round(x.hours), "h")))));
-  })());
-  if (!jobs.length) return /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, inCanada() && cecPanel, /* @__PURE__ */ React.createElement(Card, { className: "p-8 text-center text-sm text-gray-500" }, T("暂无申请数据 — 先添加职位。", "No applications yet — add some jobs first.")));
-  const c = {};
-  jobs.forEach((j) => {
-    c[j.status] = (c[j.status] || 0) + 1;
-  });
-  const interested = c.interested || 0;
-  const appliedTotal = jobs.length - interested;
-  const noAnswer = c.applied || 0;
-  const rejected = c.rejected || 0;
-  const interviews = (c.interviewing || 0) + (c.offered || 0) + (c.interview_rejected || 0);
-  const offered = c.offered || 0;
-  const inProgress = c.interviewing || 0;
-  const noOffer = c.interview_rejected || 0;
-  function SankeyChart() {
-    if (appliedTotal === 0 && interested === 0) return null;
-    const W = 600, H = 320, nw = 14;
-    const cols = [30, 250, 470];
-    const gap = 6;
-    const usableH = H - 60;
-    const scale = appliedTotal > 0 ? Math.min(usableH / appliedTotal, 40) : 10;
-    const minH = 6;
-    const h = (n) => Math.max(n * scale, n > 0 ? minH : 0);
-    const appH = h(appliedTotal);
-    const appY = (H - appH) / 2;
-    const c1 = [];
-    let y1 = appY;
-    if (noAnswer > 0) {
-      c1.push({ id: "noanswer", y: y1, h: h(noAnswer), n: noAnswer, label: T("未回复", "No Answer"), color: "#f4b8c1" });
-      y1 += h(noAnswer) + gap;
-    }
-    if (rejected > 0) {
-      c1.push({ id: "rejected", y: y1, h: h(rejected), n: rejected, label: T("已被拒", "Rejected"), color: "#c9a0c9" });
-      y1 += h(rejected) + gap;
-    }
-    if (interviews > 0) {
-      c1.push({ id: "interviews", y: y1, h: h(interviews), n: interviews, label: T("面试", "Interviews"), color: "#8fbc8f" });
-      y1 += h(interviews) + gap;
-    }
-    const intNode = c1.find((n) => n.id === "interviews");
-    const c2 = [];
-    if (intNode) {
-      const intScale = intNode.h / Math.max(interviews, 1);
-      let y2 = intNode.y;
-      if (offered > 0) {
-        c2.push({ id: "offered", y: y2, h: Math.max(offered * intScale, minH), n: offered, label: T("Offer", "Offers"), color: "#a8d5a2" });
-        y2 += Math.max(offered * intScale, minH) + gap;
-      }
-      if (inProgress > 0) {
-        c2.push({ id: "inprogress", y: y2, h: Math.max(inProgress * intScale, minH), n: inProgress, label: T("进行中", "In Progress"), color: "#b8c9b8" });
-        y2 += Math.max(inProgress * intScale, minH) + gap;
-      }
-      if (noOffer > 0) {
-        c2.push({ id: "nooffer", y: y2, h: Math.max(noOffer * intScale, minH), n: noOffer, label: T("无 Offer", "No Offer"), color: "#f4a0a0" });
-      }
-    }
-    const band = (x1, y1t, h1, x2, y2t, h2) => {
-      const mx = (x1 + x2) / 2;
-      return `M${x1},${y1t} C${mx},${y1t} ${mx},${y2t} ${x2},${y2t} L${x2},${y2t + h2} C${mx},${y2t + h2} ${mx},${y1t + h1} ${x1},${y1t + h1}Z`;
-    };
-    const links1 = [];
-    let srcY = appY;
-    c1.forEach((node) => {
-      links1.push({ d: band(cols[0] + nw, srcY, node.h, cols[1], node.y, node.h), color: node.color });
-      srcY += node.h + gap;
-    });
-    const links2 = [];
-    if (intNode) {
-      let srcY2 = intNode.y;
-      c2.forEach((node) => {
-        links2.push({ d: band(cols[1] + nw, srcY2, node.h, cols[2], node.y, node.h), color: node.color });
-        srcY2 += node.h + gap;
-      });
-    }
-    return /* @__PURE__ */ React.createElement("svg", { viewBox: `0 0 ${W} ${H}`, className: "w-full", style: { maxHeight: 360 } }, links1.map((l, i) => /* @__PURE__ */ React.createElement("path", { key: "l1" + i, d: l.d, fill: l.color, opacity: 0.45 })), links2.map((l, i) => /* @__PURE__ */ React.createElement("path", { key: "l2" + i, d: l.d, fill: l.color, opacity: 0.45 })), /* @__PURE__ */ React.createElement("rect", { x: cols[0], y: appY, width: nw, height: appH, fill: "#4a9ebb", rx: 2 }), /* @__PURE__ */ React.createElement("text", { x: cols[0] - 4, y: appY + appH / 2 - 8, textAnchor: "end", fontSize: 18, fontWeight: 700, fill: "#333" }, appliedTotal), /* @__PURE__ */ React.createElement("text", { x: cols[0] - 4, y: appY + appH / 2 + 10, textAnchor: "end", fontSize: 11, fill: "#666" }, T("申请", "Applications")), c1.map((node) => /* @__PURE__ */ React.createElement(React.Fragment, { key: node.id }, /* @__PURE__ */ React.createElement("rect", { x: cols[1], y: node.y, width: nw, height: node.h, fill: node.color, rx: 2 }), /* @__PURE__ */ React.createElement("text", { x: cols[1] + nw + 8, y: node.y + Math.min(node.h / 2, 12) - 2, fontSize: 15, fontWeight: 700, fill: "#333" }, node.n), /* @__PURE__ */ React.createElement("text", { x: cols[1] + nw + 8, y: node.y + Math.min(node.h / 2, 12) + 13, fontSize: 10, fill: "#666" }, node.label))), c2.map((node) => /* @__PURE__ */ React.createElement(React.Fragment, { key: node.id }, /* @__PURE__ */ React.createElement("rect", { x: cols[2], y: node.y, width: nw, height: node.h, fill: node.color, rx: 2 }), /* @__PURE__ */ React.createElement("text", { x: cols[2] + nw + 8, y: node.y + Math.min(node.h / 2, 12) - 2, fontSize: 15, fontWeight: 700, fill: "#333" }, node.n), /* @__PURE__ */ React.createElement("text", { x: cols[2] + nw + 8, y: node.y + Math.min(node.h / 2, 12) + 13, fontSize: 10, fill: "#666" }, node.label))), interested > 0 && /* @__PURE__ */ React.createElement("text", { x: cols[0], y: 20, fontSize: 11, fill: "#8b5cf6" }, "+ ", interested, " ", T("个感兴趣（尚未申请）", "interested (not yet applied)")));
-  }
-  return /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, /* @__PURE__ */ React.createElement(Card, { className: "p-4" }, inCanada() && cecPanel, /* @__PURE__ */ React.createElement(SectionHdr, { icon: "📊", title: T(`${regionName} 流程`, `${regionName} pipeline`) }), /* @__PURE__ */ React.createElement("div", { className: "mt-2" }, /* @__PURE__ */ React.createElement(SankeyChart, null), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-400 mt-2" }, T("流向图展示申请如何在你的流程中流转。", "Flows show how applications move through your pipeline.")))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-3" }, /* @__PURE__ */ React.createElement(Card, { className: "p-4" }, /* @__PURE__ */ React.createElement(SectionHdr, { title: T("活动", "Activity") }), /* @__PURE__ */ React.createElement("div", { className: "space-y-2 text-sm" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, T("追踪总数", "Total tracked")), /* @__PURE__ */ React.createElement("strong", null, stats.total)), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, T("近 7 天", "Last 7 days")), /* @__PURE__ */ React.createElement("strong", null, stats.last7)), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, T("近 30 天", "Last 30 days")), /* @__PURE__ */ React.createElement("strong", null, stats.last30)))), /* @__PURE__ */ React.createElement(Card, { className: "p-4" }, /* @__PURE__ */ React.createElement(SectionHdr, { title: T("转化", "Conversion") }), /* @__PURE__ */ React.createElement("div", { className: "space-y-2 text-sm" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, T("回应率", "Response rate")), /* @__PURE__ */ React.createElement("strong", null, stats.responseRate, "%")), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, T("Offer 率", "Offer rate")), /* @__PURE__ */ React.createElement("strong", null, stats.offerRate, "%")), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-400 mt-1" }, T("基于 ", "Based on "), stats.applied, " ", T("个已投递职位（不含「感兴趣」）", `applied job${stats.applied !== 1 ? "s" : ""} (excludes Interested)`))))), stats.upcoming.length > 0 && /* @__PURE__ */ React.createElement(Card, { className: "p-4" }, /* @__PURE__ */ React.createElement(SectionHdr, { title: T("📅 即将到来的截止", "📅 Upcoming deadlines") }), /* @__PURE__ */ React.createElement("div", { className: "space-y-1.5" }, stats.upcoming.map((j) => /* @__PURE__ */ React.createElement("div", { key: j.id, className: "flex justify-between text-sm" }, /* @__PURE__ */ React.createElement("span", { className: "text-gray-700" }, j.role, " ", T("·", "at"), " ", j.company), /* @__PURE__ */ React.createElement("span", { className: "text-gray-500" }, fmtDate(j.applicationDeadline)))))), stats.topCos.length > 0 && /* @__PURE__ */ React.createElement(Card, { className: "p-4" }, /* @__PURE__ */ React.createElement(SectionHdr, { title: T("热门公司", "Top companies") }), /* @__PURE__ */ React.createElement("div", { className: "space-y-1.5" }, stats.topCos.map(([co, n]) => /* @__PURE__ */ React.createElement("div", { key: co, className: "flex justify-between text-sm" }, /* @__PURE__ */ React.createElement("span", { className: "text-gray-700" }, co), /* @__PURE__ */ React.createElement("span", { className: "text-gray-500" }, n))))));
+  const c = cecHours(jobs);
+  const workingJobs = jobs.filter((j) => j.status === "working");
+  const bad = workingJobs.filter((j) => j.noc && !teerOk(j.noc));
+  const noType = workingJobs.filter((j) => !(j.empType || "").trim());
+  const shown = c.per.slice(0, 3);
+  const rest = c.per.slice(3);
+  const segs = shown.map((x) => ({ ...x, label: [x.role || T("（无职位名）", "(no title)"), x.company || T("（无公司）", "(no company)")].join(" · ") + (x.noc ? ` · NOC ${x.noc} (TEER ${teerOf(x.noc)})` : "") }));
+  if (rest.length) segs.push({ id: "rest", company: T("其他岗位", "Other jobs"), label: T(`其他 ${rest.length} 个岗位`, `${rest.length} other jobs`), hours: rest.reduce((a, x) => a + x.hours, 0) });
+  const segColours = ["var(--point)", "var(--on-band-2)", "var(--on-band-3)", "var(--on-band-3)"];
+  const counted = Math.round(c.total);
+  const perSum = segs.reduce((a, x) => a + Math.round(x.hours), 0);
+  const off = perSum - counted;
+  const plural = (n, one, many) => n === 1 ? one : many;
+  const lede = c.weeklyRate > 0 ? c.remain <= 0 ? T("1,560 小时已经数满。每周所有岗位合计超过 30 小时的部分不计入。", "All 1,560 hours are counted. Hours above 30 a week, across all jobs combined, do not count.") : T(
+    `按每周 ${fmtNum(c.weeklyRate)} 小时，${fmtDate(c.eta)} 数满 1,560 小时。每周所有岗位合计超过 30 小时的部分不计入。`,
+    `At ${fmtNum(c.weeklyRate)} hours a week you reach 1,560 on ${fmtDate(c.eta)}. Hours above 30 a week, across all jobs combined, do not count.`
+  ) : T("把在职岗位的状态设为「在职·计工时」，填上入职日期和每周工时，这里才开始计数。", "Set a job to Working (CEC hours) with a start date and weekly hours to start counting.");
+  const p = pipelineCounts(jobs);
+  const eq1 = p.noAnswer + p.rejected + p.interviews + p.other;
+  const eq2 = p.offers + p.working + p.inProgress + p.noOffer;
+  const mark = (a, b) => a === b ? /* @__PURE__ */ React.createElement("span", { className: "ok" }, "✓") : /* @__PURE__ */ React.createElement("span", { className: "bad" }, T(`✗ 差 ${Math.abs(a - b)}`, `✗ off by ${Math.abs(a - b)}`));
+  const share = (n) => p.apps ? Math.round(n / p.apps * 100) + "%" : "—";
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("section", { className: "plate", "aria-labelledby": "ins-h" }, /* @__PURE__ */ React.createElement("div", { className: "plate-in" }, /* @__PURE__ */ React.createElement("div", { className: "plate-head" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, T("数据", "Insights"), " · ", regionName), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn", onClick: onWorking }, workingJobs.length ? T(`在职岗位（${workingJobs.length}）`, `Working jobs (${workingJobs.length})`) : T("把一个岗位标为在职", "Mark a job as Working"))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h1", { id: "ins-h", className: "display", tabIndex: -1 }, T(`CEC 工时 ${fmtNum(c.total)} / ${fmtNum(CEC_TARGET)}`, `${fmtNum(c.total)} of ${fmtNum(CEC_TARGET)} CEC hours`)), /* @__PURE__ */ React.createElement("p", { className: "lede" }, lede), /* @__PURE__ */ React.createElement("div", { className: "rule", "aria-hidden": "true" })), segs.length > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "sum-bar", "aria-hidden": "true" }, segs.map((x, i) => /* @__PURE__ */ React.createElement("span", { key: x.id, style: { width: Math.min(100, x.hours / CEC_TARGET * 100) + "%", background: segColours[i] } }))), /* @__PURE__ */ React.createElement("ul", { className: "sum-legend" }, segs.map((x, i) => /* @__PURE__ */ React.createElement("li", { key: x.id }, /* @__PURE__ */ React.createElement("i", { style: { background: segColours[i] } }), /* @__PURE__ */ React.createElement("span", null, x.label), " ", /* @__PURE__ */ React.createElement("b", null, fmtNum(x.hours), " h"))), /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("i", { className: "track" }), /* @__PURE__ */ React.createElement("span", null, T("还差", "still to count")), " ", /* @__PURE__ */ React.createElement("b", null, fmtNum(c.remain), " h"))), /* @__PURE__ */ React.createElement("p", { className: "sum-eq" }, segs.map((x) => `${x.company || x.label} ${fmtNum(x.hours)} h`).join(" + "), " = ", fmtNum(counted), " h ", T("已计入", "counted"), " ", Math.abs(off) <= 1 ? /* @__PURE__ */ React.createElement("span", { className: "ok" }, "✓") : /* @__PURE__ */ React.createElement("span", { className: "bad" }, T(`✗ 差 ${Math.abs(off)} h`, `✗ off by ${Math.abs(off)} h`)), " · ", fmtNum(c.capped), " h ", T("超出每周上限、不计入", "above the weekly cap not counted"))), (bad.length > 0 || noType.length > 0) && /* @__PURE__ */ React.createElement("ul", { className: "plate-notes" }, bad.length > 0 && /* @__PURE__ */ React.createElement("li", null, T(`${bad.length} 个在职岗位的 NOC 不在 TEER 1–3，它的工时不计入`, `${bad.length} working ${plural(bad.length, "job has", "jobs have")} a NOC outside TEER 1–3 — ${plural(bad.length, "its", "their")} hours are not counted`)), noType.length > 0 && /* @__PURE__ */ React.createElement("li", null, T(`${noType.length} 个在职岗位没填雇佣类型——承包人的工时不计入`, `${noType.length} working ${plural(noType.length, "job has", "jobs have")} no employment type — contractor hours don’t count`))), /* @__PURE__ */ React.createElement("p", { className: "caption" }, T(
+    "计入的是状态为「在职·计工时」、填了入职日期和每周工时的岗位，从入职日算到离职日（没有离职日就算到今天）；NOC 不在 TEER 1–3 的岗位不计入。",
+    "Counts jobs marked Working that have a start date and weekly hours, from the start date to the end date (or today); a job whose NOC is outside TEER 1–3 is left out."
+  )))), !jobs.length ? /* @__PURE__ */ React.createElement("div", { className: "empty" }, /* @__PURE__ */ React.createElement("h2", null, T("还没有投递", "No applications yet")), /* @__PURE__ */ React.createElement("p", null, T("加几条职位之后，这里会画出它们走到了哪一步。", "Once you add some jobs, this page draws where each of them stands.")), /* @__PURE__ */ React.createElement(Btn, { onClick: onAdd }, T("添加职位", "Add job"))) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("section", { className: "chart", "aria-labelledby": "pipe-h" }, /* @__PURE__ */ React.createElement("div", { className: "ch-head" }, /* @__PURE__ */ React.createElement("h2", { id: "pipe-h" }, T("流程", "Pipeline")), /* @__PURE__ */ React.createElement("div", { className: "seg", role: "group", "aria-label": T("显示方式", "Show as") }, /* @__PURE__ */ React.createElement("button", { type: "button", "aria-pressed": view === "chart", onClick: () => setView("chart") }, T("图", "Chart")), /* @__PURE__ */ React.createElement("button", { type: "button", "aria-pressed": view === "table", onClick: () => setView("table") }, T("表", "Table"))), /* @__PURE__ */ React.createElement("p", null, T("每条投递只按它现在的状态算一次。", "Each application counted once, at its current status."))), p.interested > 0 && /* @__PURE__ */ React.createElement("p", { className: "chart-note" }, T(`另有 ${p.interested} 条感兴趣、还没投`, `+${p.interested} interested, not applied yet`)), view === "chart" ? p.apps > 0 ? /* @__PURE__ */ React.createElement(PipelineChart, { p, titleId: "pipe-h", eqId: "pipe-eq" }) : /* @__PURE__ */ React.createElement("p", { className: "hint" }, T("还没有投出去的申请。", "No applications sent yet.")) : /* @__PURE__ */ React.createElement("div", { className: "tablewrap" }, /* @__PURE__ */ React.createElement("table", { className: "data" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { scope: "col" }, T("阶段", "Stage")), /* @__PURE__ */ React.createElement("th", { scope: "col", className: "num" }, T("申请数", "Applications")), /* @__PURE__ */ React.createElement("th", { scope: "col", className: "num" }, T("占比", "Share")))), /* @__PURE__ */ React.createElement("tbody", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("td", null, T("申请", "Applications")), /* @__PURE__ */ React.createElement("td", { className: "num" }, p.apps), /* @__PURE__ */ React.createElement("td", { className: "num" }, share(p.apps))), /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("td", { className: "sub" }, T("未回复", "No answer")), /* @__PURE__ */ React.createElement("td", { className: "num" }, p.noAnswer), /* @__PURE__ */ React.createElement("td", { className: "num" }, share(p.noAnswer))), /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("td", { className: "sub" }, T("被拒", "Rejected")), /* @__PURE__ */ React.createElement("td", { className: "num" }, p.rejected), /* @__PURE__ */ React.createElement("td", { className: "num" }, share(p.rejected))), /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("td", { className: "sub" }, T("面试", "Interviews")), /* @__PURE__ */ React.createElement("td", { className: "num" }, p.interviews), /* @__PURE__ */ React.createElement("td", { className: "num" }, share(p.interviews))), /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("td", { className: "sub sub2" }, T("Offer", "Offers")), /* @__PURE__ */ React.createElement("td", { className: "num" }, p.offers), /* @__PURE__ */ React.createElement("td", { className: "num" }, share(p.offers))), /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("td", { className: "sub sub2" }, T("在职", "Working")), /* @__PURE__ */ React.createElement("td", { className: "num" }, p.working), /* @__PURE__ */ React.createElement("td", { className: "num" }, share(p.working))), /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("td", { className: "sub sub2" }, T("进行中", "In progress")), /* @__PURE__ */ React.createElement("td", { className: "num" }, p.inProgress), /* @__PURE__ */ React.createElement("td", { className: "num" }, share(p.inProgress))), /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("td", { className: "sub sub2" }, T("无 Offer", "No offer")), /* @__PURE__ */ React.createElement("td", { className: "num" }, p.noOffer), /* @__PURE__ */ React.createElement("td", { className: "num" }, share(p.noOffer))), p.other > 0 && /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("td", { className: "sub" }, T("其他状态", "Other status")), /* @__PURE__ */ React.createElement("td", { className: "num" }, p.other), /* @__PURE__ */ React.createElement("td", { className: "num" }, share(p.other))), /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("td", null, T("感兴趣（还没投）", "Interested (not applied)")), /* @__PURE__ */ React.createElement("td", { className: "num" }, p.interested), /* @__PURE__ */ React.createElement("td", { className: "num" }, "—"))))), /* @__PURE__ */ React.createElement("p", { className: "chart-eq", id: "pipe-eq" }, T(`${p.apps} 条申请 = ${p.noAnswer} 未回复 + ${p.rejected} 被拒 + ${p.interviews} 面试`, `${p.apps} applications = ${p.noAnswer} no answer + ${p.rejected} rejected + ${p.interviews} interviews`), p.other > 0 ? T(` + ${p.other} 其他状态`, ` + ${p.other} other status`) : "", " ", mark(eq1, p.apps), " · ", T(`${p.interviews} 面试 = ${p.offers} Offer + ${p.working} 在职 + ${p.inProgress} 进行中 + ${p.noOffer} 无 Offer`, `${p.interviews} interviews = ${p.offers} offers + ${p.working} working + ${p.inProgress} in progress + ${p.noOffer} no offer`), " ", mark(eq2, p.interviews))), /* @__PURE__ */ React.createElement("div", { className: "stats" }, /* @__PURE__ */ React.createElement("div", { className: "stat" }, /* @__PURE__ */ React.createElement("span", { className: "lbl" }, T("追踪总数", "Tracked")), /* @__PURE__ */ React.createElement("span", { className: "big" }, stats.total)), /* @__PURE__ */ React.createElement("div", { className: "stat" }, /* @__PURE__ */ React.createElement("span", { className: "lbl" }, T("近 7 天新增", "Added, last 7 days")), /* @__PURE__ */ React.createElement("span", { className: "big" }, stats.last7)), /* @__PURE__ */ React.createElement("div", { className: "stat" }, /* @__PURE__ */ React.createElement("span", { className: "lbl" }, T("近 30 天新增", "Added, last 30 days")), /* @__PURE__ */ React.createElement("span", { className: "big" }, stats.last30)), /* @__PURE__ */ React.createElement("div", { className: "stat" }, /* @__PURE__ */ React.createElement("span", { className: "lbl" }, T("回应率", "Response rate")), /* @__PURE__ */ React.createElement("span", { className: "big" }, stats.responseRate, "%"), /* @__PURE__ */ React.createElement("span", { className: "amt" }, T(`基于 ${stats.applied} 条已投`, `of ${stats.applied} applied`))), /* @__PURE__ */ React.createElement("div", { className: "stat" }, /* @__PURE__ */ React.createElement("span", { className: "lbl" }, T("Offer 率", "Offer rate")), /* @__PURE__ */ React.createElement("span", { className: "big" }, stats.offerRate, "%"), /* @__PURE__ */ React.createElement("span", { className: "amt" }, T(`基于 ${stats.applied} 条已投`, `of ${stats.applied} applied`)))), /* @__PURE__ */ React.createElement("div", { className: "grid-2" }, stats.upcoming.length > 0 && /* @__PURE__ */ React.createElement("section", { className: "card", "aria-labelledby": "ins-due" }, /* @__PURE__ */ React.createElement("div", { className: "card-head" }, /* @__PURE__ */ React.createElement("h2", { id: "ins-due" }, T("即将截止", "Upcoming deadlines"))), /* @__PURE__ */ React.createElement("ul", { className: "rows" }, stats.upcoming.map((j) => /* @__PURE__ */ React.createElement("li", { key: j.id }, /* @__PURE__ */ React.createElement("span", null, j.role, T("，", " · "), j.company), /* @__PURE__ */ React.createElement("span", { className: "num" }, fmtDate(j.applicationDeadline)))))), stats.topCos.length > 0 && /* @__PURE__ */ React.createElement("section", { className: "card", "aria-labelledby": "ins-cos" }, /* @__PURE__ */ React.createElement("div", { className: "card-head" }, /* @__PURE__ */ React.createElement("h2", { id: "ins-cos" }, T("投递最多的公司", "Top companies"))), /* @__PURE__ */ React.createElement("ul", { className: "rows" }, stats.topCos.map(([co, n]) => /* @__PURE__ */ React.createElement("li", { key: co }, /* @__PURE__ */ React.createElement("span", null, co), /* @__PURE__ */ React.createElement("span", { className: "num" }, n))))))));
 }
 const DIAG_DEFAULT = () => ({
   stage: "",
@@ -2666,16 +2827,15 @@ function DiagnosisTab({ diagnosis, setDiagnosis }) {
     /* @__PURE__ */ React.createElement(DiagList, { items: d.decisions, ...listOps("decisions"), placeholder: T("例：若 X 月前拿不到 Y，则转 Z", "e.g. If no Y by month X, switch to Z") })
   ));
 }
-function RegionApp({ region, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary, diagnosis, setDiagnosis }) {
+function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, onCount, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary, diagnosis, setDiagnosis }) {
   const regionMeta = REGIONS.find((r) => r.id === region);
-  const [tab, setTab] = useState(TABS.some((t) => t.id === URL_TAB) ? URL_TAB : "addjob");
+  const regionLabel = rName(regionMeta);
   const [jobs, setJobs] = useState([]);
-  const [openJobId, setOpenJobId] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const j = DEMO && !ghConfigured() ? sampleJobs() : await loadJson(`${region}:jobs`);
+      const j = DEMO && !ghConfigured() ? sampleJobs(region) : await loadJson(`${region}:jobs`);
       if (!cancelled) {
         setJobs(j);
         setLoading(false);
@@ -2685,33 +2845,26 @@ function RegionApp({ region, resumeDb, sections, updateSections, formatting, set
       cancelled = true;
     };
   }, [region]);
-  if (loading) return /* @__PURE__ */ React.createElement("div", { className: "p-8 text-center text-sm text-gray-500" }, "⏳ ", T("正在加载", "Loading"), " ", rName(regionMeta), " ", T("数据…", "data…"));
-  const openJob = jobs.find((j) => j.id === openJobId);
-  const switchTab = (t) => {
-    setTab(t);
-    setOpenJobId(null);
-  };
-  return /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex gap-0.5 border-b border-gray-200 overflow-x-auto" }, TABS.map((t) => /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      key: t.id,
-      onClick: () => switchTab(t.id),
-      className: `inline-flex items-center gap-1 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === t.id ? "border-blue-600 text-blue-700" : "border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300"}`
-    },
-    /* @__PURE__ */ React.createElement("span", null, t.icon),
-    T(t.zh, t.label),
-    t.id === "tracker" && jobs.length > 0 && /* @__PURE__ */ React.createElement("span", { className: "ml-1 px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full" }, jobs.length)
-  ))), tab === "addjob" && /* @__PURE__ */ React.createElement(AddJobTab, { resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved: (id) => {
-    switchTab("tracker");
-    setOpenJobId(id);
-  } }), tab === "tracker" && !openJob && /* @__PURE__ */ React.createElement(TrackerTab, { region, jobs, setJobs, resumeDb, formatting, onOpen: (id) => {
-    setOpenJobId(id);
-  } }), tab === "tracker" && openJob && /* @__PURE__ */ React.createElement(JobDetail, { region, job: openJob, resumeDb, formatting, glossary, library, jobs, setJobs, onBack: () => setOpenJobId(null) }), tab === "profile" && /* @__PURE__ */ React.createElement(ProfileTab, { sections, updateSections, formatting, setFormatting, glossary, setGlossary, region, resumeDb }), tab === "diagnosis" && /* @__PURE__ */ React.createElement(DiagnosisTab, { diagnosis, setDiagnosis }), tab === "library" && /* @__PURE__ */ React.createElement(LibraryTab, { library, setLibrary, updateSections }), tab === "insights" && /* @__PURE__ */ React.createElement(InsightsTab, { jobs, regionName: rName(regionMeta) }), tab === "watchdog" && /* @__PURE__ */ React.createElement(WatchdogTab, { region, jobs, setJobs, resumeDb }));
+  useEffect(() => {
+    onCount(loading ? null : jobs.length);
+  }, [loading, jobs.length]);
+  const tabMeta = TABS.find((t) => t.id === tab) || TABS[0];
+  const shared = T("所有地区共用", "Shared by all regions");
+  const eyebrow = tabMeta.scope === "region" ? regionLabel : shared;
+  if (loading) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow, title: T(tabMeta.zh, tabMeta.label) }), /* @__PURE__ */ React.createElement("div", { className: "card loading", "aria-busy": "true" }, /* @__PURE__ */ React.createElement("span", { className: "sr-only" }, T(`正在加载${regionLabel}的投递…`, `Loading ${regionLabel} applications…`)), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "40%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "85%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "70%" } })));
+  const openJob = tab === "tracker" ? jobs.find((j) => j.id === openJobId) : null;
+  const legacy = (node) => /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow, title: T(tabMeta.zh, tabMeta.label) }), /* @__PURE__ */ React.createElement("div", { className: "legacy" }, node));
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, tab === "addjob" && legacy(/* @__PURE__ */ React.createElement(AddJobTab, { resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved: (id) => go("tracker", { openJobId: id }) })), tab === "tracker" && !openJob && /* @__PURE__ */ React.createElement(TrackerTab, { region, jobs, setJobs, resumeDb, formatting, initialStatus: trackerStatus, onAdd: () => go("addjob"), onOpen: (id) => setOpenJobId(id) }), tab === "tracker" && openJob && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow: regionLabel, title: openJob.role || T("（无职位名）", "(no title)") }), /* @__PURE__ */ React.createElement("div", { className: "legacy" }, /* @__PURE__ */ React.createElement(JobDetail, { region, job: openJob, resumeDb, formatting, glossary, library, jobs, setJobs, onBack: () => setOpenJobId(null) }))), tab === "profile" && legacy(/* @__PURE__ */ React.createElement(ProfileTab, { sections, updateSections, formatting, setFormatting, glossary, setGlossary, region, resumeDb })), tab === "diagnosis" && legacy(/* @__PURE__ */ React.createElement(DiagnosisTab, { diagnosis, setDiagnosis })), tab === "library" && legacy(/* @__PURE__ */ React.createElement(LibraryTab, { library, setLibrary, updateSections })), tab === "insights" && /* @__PURE__ */ React.createElement(InsightsTab, { jobs, regionName: regionLabel, onWorking: () => go("tracker", { status: jobs.some((j) => j.status === "working") ? "working" : null }), onAdd: () => go("addjob") }), tab === "watchdog" && legacy(/* @__PURE__ */ React.createElement(WatchdogTab, { region, jobs, setJobs, resumeDb })));
 }
+const HALF_CIRCLE = /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "18", height: "18", fill: "none", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "8", stroke: "currentColor", strokeWidth: "2" }), /* @__PURE__ */ React.createElement("path", { d: "M12 4a8 8 0 0 1 0 16z", fill: "currentColor" }));
+const GEAR = /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "18", height: "18", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinejoin: "round", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("path", { d: "M10.34 5.10L10.58 2.51L13.42 2.51L13.66 5.10A7.1 7.1 0 0 1 15.71 5.95L17.71 4.28L19.72 6.29L18.05 8.29A7.1 7.1 0 0 1 18.90 10.34L21.49 10.58L21.49 13.42L18.90 13.66A7.1 7.1 0 0 1 18.05 15.71L19.72 17.71L17.71 19.72L15.71 18.05A7.1 7.1 0 0 1 13.66 18.90L13.42 21.49L10.58 21.49L10.34 18.90A7.1 7.1 0 0 1 8.29 18.05L6.29 19.72L4.28 17.71L5.95 15.71A7.1 7.1 0 0 1 5.10 13.66L2.51 13.42L2.51 10.58L5.10 10.34A7.1 7.1 0 0 1 5.95 8.29L4.28 6.29L6.29 4.28L8.29 5.95A7.1 7.1 0 0 1 10.34 5.10Z" }), /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "3" }));
 function App() {
   useLangToggle();
-  const [region, setRegion] = useState("canada");
-  regionNow = region;
+  const [region, setRegionState] = useState("canada");
+  const [tab, setTab] = useState(tabFromUrl);
+  const [openJobId, setOpenJobId] = useState(null);
+  const [trackerStatus, setTrackerStatus] = useState(null);
+  const [jobCount, setJobCount] = useState(null);
   const [sections, setSections] = useState([]);
   const [resumeDb, setResumeDb] = useState("");
   const [formatting, setFormatting] = useState("");
@@ -2719,9 +2872,10 @@ function App() {
   const [library, setLibrary] = useState([]);
   const [diagnosis, setDiagnosis] = useState(null);
   const [loaded, setLoaded] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [ghOk, setGhOk] = useState(false);
   const [saveErr, setSaveErr] = useState("");
+  const themeRef = useRef(null), gearRef = useRef(null);
+  const latest = useRef({});
   useEffect(() => {
     document.getElementById("loading").style.display = "none";
     document.getElementById("root").style.display = "";
@@ -2731,7 +2885,6 @@ function App() {
     setGhOk(ok);
     if (!ok) {
       setLoaded(true);
-      if (!DEMO) setSettingsOpen(true);
       return;
     }
     (async () => {
@@ -2757,12 +2910,18 @@ function App() {
     })();
   }, []);
   useEffect(() => {
-    const h = (e) => {
-      setSaveErr(e.detail?.message || "Save to GitHub failed");
-      setTimeout(() => setSaveErr(""), 5e3);
-    };
+    const h = (e) => setSaveErr(e.detail?.message || "Save to GitHub failed");
     window.addEventListener("jobapp:saveerror", h);
     return () => window.removeEventListener("jobapp:saveerror", h);
+  }, []);
+  useEffect(() => {
+    const h = () => {
+      setTab(tabFromUrl());
+      setOpenJobId(null);
+      setTrackerStatus(null);
+    };
+    window.addEventListener("popstate", h);
+    return () => window.removeEventListener("popstate", h);
   }, []);
   const updateSections = async (newSecs, persist = true) => {
     setSections(newSecs);
@@ -2796,36 +2955,71 @@ function App() {
       setLibrary(lib);
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "min-h-screen bg-gray-50" }, settingsOpen && /* @__PURE__ */ React.createElement(SettingsPanel, { open: settingsOpen, onClose: () => setSettingsOpen(false), ghOk, onGhChange: handleGhChange }), /* @__PURE__ */ React.createElement("div", { className: "max-w-5xl mx-auto p-4 sm:p-6" }, /* @__PURE__ */ React.createElement("div", { className: "mb-4 flex items-start justify-between gap-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h1", { className: "text-xl font-bold text-gray-900" }, "💼 ", T("求职指挥中心", "Job Application Command Center"))), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2 shrink-0" }, /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      onClick: toggleLang,
-      title: "中文 / EN",
-      className: "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-    },
-    "🌐 ",
-    T("EN", "中文")
-  ), /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      onClick: () => setSettingsOpen(true),
-      className: `inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border ${ghOk ? "text-gray-700 bg-white border-gray-300 hover:bg-gray-50" : "text-amber-900 bg-amber-50 border-amber-300 hover:bg-amber-100"}`
-    },
-    "⚙️ ",
-    ghOk ? T("设置", "Settings") : T("需要设置", "Setup required")
-  ))), !ghOk && DEMO && /* @__PURE__ */ React.createElement("div", { className: "mb-4" }, /* @__PURE__ */ React.createElement(Alert, { type: "info" }, T("演示模式 — 这些是示例数据，不会保存任何东西。", "Demo mode — sample data; nothing is saved."), " ", /* @__PURE__ */ React.createElement("button", { onClick: () => setSettingsOpen(true), className: "underline font-medium" }, T("连接你自己的仓库。", "Connect your own repo.")))), !ghOk && !DEMO && /* @__PURE__ */ React.createElement("div", { className: "mb-4" }, /* @__PURE__ */ React.createElement(Alert, { type: "warning" }, T("GitHub 未配置 — 数据不会被保存。", "GitHub not configured — data won't be saved."), " ", /* @__PURE__ */ React.createElement("button", { onClick: () => setSettingsOpen(true), className: "underline font-medium" }, T("打开设置去配置。", "Open Settings to set it up.")))), saveErr && /* @__PURE__ */ React.createElement("div", { className: "mb-4" }, /* @__PURE__ */ React.createElement(Alert, { type: "error" }, T("保存出错", "Save error"), ": ", saveErr)), /* @__PURE__ */ React.createElement("div", { className: `flex items-center gap-3 mb-5 px-4 py-3 rounded-lg border ${(REGION_BY[region] || {}).accent || "bg-white border-gray-200"}` }, /* @__PURE__ */ React.createElement("span", { className: `w-2.5 h-2.5 rounded-full ${(REGION_BY[region] || {}).dot || "bg-gray-400"}` }), /* @__PURE__ */ React.createElement("label", { className: "text-sm font-medium text-gray-700" }, T("地区", "Region")), /* @__PURE__ */ React.createElement(
-    "select",
-    {
-      value: region,
-      onChange: (e) => setRegion(e.target.value),
-      className: "flex-1 max-w-xs text-sm font-medium px-3 py-2 rounded-md border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
-    },
-    REGIONS.map((r) => /* @__PURE__ */ React.createElement("option", { key: r.id, value: r.id }, r.flag, " ", rName(r)))
-  ), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-500 hidden sm:inline" }, T("每个地区保留各自的职位列表与定制简历", "each region keeps its own job list & tailored resumes"))), loaded && /* @__PURE__ */ React.createElement(
+  latest.current = { ghOk, handleGhChange };
+  const settingsOpts = (focus) => {
+    let root = null;
+    return {
+      strings: Appearance.STRINGS[lang],
+      focus,
+      sections: [() => {
+        const box = document.createElement("div");
+        root = ReactDOM.createRoot(box);
+        ReactDOM.flushSync(() => root.render(/* @__PURE__ */ React.createElement(SettingsSections, { ghOk: latest.current.ghOk, onGhChange: (ok) => latest.current.handleGhChange(ok) })));
+        return box;
+      }],
+      onClose: () => {
+        const r = root;
+        root = null;
+        if (r) setTimeout(() => r.unmount(), 0);
+      }
+    };
+  };
+  const openSettings = (opener, focus) => Appearance.openSettings(opener || gearRef.current, settingsOpts(focus));
+  useEffect(() => {
+    if (themeRef.current) Appearance.bindToggle(themeRef.current);
+    if (gearRef.current) Appearance.bindSettings(gearRef.current, () => settingsOpts());
+  }, []);
+  const go = (t, opts = {}) => {
+    if (t !== tab) {
+      try {
+        history.pushState(null, "", tabHref(t));
+      } catch (e) {
+      }
+    }
+    setTab(t);
+    setOpenJobId(opts.openJobId || null);
+    setTrackerStatus(opts.status || null);
+  };
+  const setRegion = (r) => {
+    setRegionState(r);
+    setOpenJobId(null);
+    setJobCount(null);
+  };
+  const repo = ghCfg().repo;
+  const pill = ghOk ? { short: T("你的仓库", "Your repo"), long: ` · ${repo}`, warn: false } : DEMO ? { short: T("演示", "Demo"), long: T(" · 示例数据，不会保存", " · sample data, nothing is saved"), warn: true } : { short: T("未保存", "Not saved"), long: T(" · 没有连接仓库", " · no repo connected"), warn: true };
+  const skip = (e) => {
+    e.preventDefault();
+    const h = document.querySelector("#main h1");
+    if (h) h.focus();
+  };
+  const navLink = (t) => /* @__PURE__ */ React.createElement("a", { key: t.id, href: tabHref(t.id), "aria-current": tab === t.id ? "page" : void 0, onClick: (e) => {
+    e.preventDefault();
+    go(t.id);
+  } }, /* @__PURE__ */ React.createElement("span", { className: "ico" }, /* @__PURE__ */ React.createElement(Icon, { name: t.icon, size: 16 })), /* @__PURE__ */ React.createElement("span", null, T(t.zh, t.label)), t.id === "tracker" && jobCount != null && /* @__PURE__ */ React.createElement("span", { className: "cnt" }, jobCount));
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("a", { className: "skip", href: "#main", onClick: skip }, T("跳到内容", "Skip to content")), /* @__PURE__ */ React.createElement("header", { className: "topbar" }, /* @__PURE__ */ React.createElement("a", { className: "brand", href: tabHref("tracker"), "aria-label": T("Docket 首页", "Docket home"), onClick: (e) => {
+    e.preventDefault();
+    go("tracker");
+  } }, /* @__PURE__ */ React.createElement(DocketMark, null), /* @__PURE__ */ React.createElement("b", null, "Docket"), /* @__PURE__ */ React.createElement("span", null, T("求职投递，每个地区一条管线——数据存在你自己的私有仓库", "Job applications, one pipeline per region — kept in a private repo you own."))), /* @__PURE__ */ React.createElement("span", { className: `pill${pill.warn ? " warn" : ""}`, title: pill.short + pill.long }, pill.short, /* @__PURE__ */ React.createElement("span", { className: "long" }, pill.long)), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost lang-btn", onClick: toggleLang, title: T("切换语言", "Switch language"), lang: lang === "en" ? "zh" : "en" }, T("EN", "中文")), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon", id: "theme", ref: themeRef, "aria-label": T("深色模式", "Dark mode"), "aria-pressed": "false", title: T("深色模式", "Dark mode") }, HALF_CIRCLE), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon", id: "nl-settings-button", ref: gearRef, "aria-haspopup": "dialog", "aria-label": T("设置", "Settings"), title: T("设置", "Settings") }, GEAR), /* @__PURE__ */ React.createElement("a", { className: "btn btn-ghost gh", href: "https://github.com/NickkkLian/Job-Tracker", rel: "noopener" }, "GitHub")), /* @__PURE__ */ React.createElement("div", { className: "shell" }, /* @__PURE__ */ React.createElement("nav", { className: "nav", "aria-label": T("页面", "Sections") }, /* @__PURE__ */ React.createElement("div", { className: "nav-in" }, /* @__PURE__ */ React.createElement("div", { className: "nav-region" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "region", className: "eyebrow" }, T("地区", "Region")), /* @__PURE__ */ React.createElement("select", { id: "region", value: region, onChange: (e) => setRegion(e.target.value) }, REGIONS.map((r) => /* @__PURE__ */ React.createElement("option", { key: r.id, value: r.id }, rName(r))))), /* @__PURE__ */ React.createElement("div", { className: "nav-links" }, TABS.filter((t) => t.scope === "region").map(navLink), /* @__PURE__ */ React.createElement("p", { className: "group eyebrow" }, T("所有地区共用", "Shared by all regions")), TABS.filter((t) => t.scope === "shared").map(navLink)))), /* @__PURE__ */ React.createElement("main", { id: "main", className: "main" }, /* @__PURE__ */ React.createElement("div", { className: "main-in" }, !ghOk && !DEMO && /* @__PURE__ */ React.createElement("section", { className: "card connect", "aria-labelledby": "connect-h" }, /* @__PURE__ */ React.createElement("h2", { id: "connect-h" }, T("连接你的私有数据仓库", "Connect your private data repo")), /* @__PURE__ */ React.createElement("p", null, T("Docket 把你的投递存在你自己的 GitHub 私有仓库里。连接之前，在这里添加的东西都不会保存。", "Docket keeps your applications in a private GitHub repo you own. Until you connect one, nothing you add here is saved.")), /* @__PURE__ */ React.createElement("div", { className: "acts" }, /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: (e) => openSettings(e.currentTarget, "#set-repo") }, T("连接…", "Connect…")), /* @__PURE__ */ React.createElement("a", { href: "?demo=1&tab=tracker" }, T("先看演示", "Try the demo")))), loaded && /* @__PURE__ */ React.createElement(
     RegionApp,
     {
       key: region,
       region,
+      tab,
+      go,
+      openJobId,
+      setOpenJobId,
+      trackerStatus,
+      onCount: setJobCount,
       resumeDb,
       sections,
       diagnosis,
@@ -2838,8 +3032,12 @@ function App() {
       library,
       setLibrary
     }
-  ), /* @__PURE__ */ React.createElement("div", { className: "mt-8 text-center text-xs text-gray-400" }, T("GitHub 凭证只保存在你的浏览器。所有数据都提交到你的私有仓库。无需 Anthropic API。", "GitHub credentials stay in your browser. All app data commits to your private repo. No Anthropic API needed."))));
+  )))), /* @__PURE__ */ React.createElement("footer", { className: "honest" }, /* @__PURE__ */ React.createElement("div", { className: "honest-in" }, /* @__PURE__ */ React.createElement("dl", null, /* @__PURE__ */ React.createElement("dt", null, !ghOk && DEMO ? T("关于这个演示", "About this demo") : T("关于这个页面", "About this page")), /* @__PURE__ */ React.createElement("dd", null, ghOk ? T(`你的投递，从 ${repo} 读取、写回 ${repo}。`, `Your applications, read from and written to ${repo}.`) : DEMO ? /* @__PURE__ */ React.createElement(React.Fragment, null, T("演示用的示例投递，公司全是虚构的；在这里改的东西都不会保存。", "Sample applications made up for this demo — every company is fictional, and nothing you change here is saved."), " ", /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-link", onClick: (e) => openSettings(e.currentTarget, "#set-repo") }, T("连接仓库…", "Connect a repo…"))) : T("连接私有仓库之前，什么都不会保存。", "Nothing is saved until you connect a private repo."))), /* @__PURE__ */ React.createElement("dl", null, /* @__PURE__ */ React.createElement("dt", null, T("这里没有验证的", "Not verified here")), /* @__PURE__ */ React.createElement("dd", null, T(
+    "职位描述读取器是为英文招聘启事调的启发式规则：它帮你填字段，由你来核对。工时账按「数据」页上写的规则计算，不是 IRCC 的计算。",
+    "The job-description reader is a heuristic tuned for English postings: it fills fields in, you check them. The hours ledger follows the rules written on the Insights page; it is not an IRCC calculation."
+  ))), /* @__PURE__ */ React.createElement("dl", null, /* @__PURE__ */ React.createElement("dt", null, T("源码", "Source")), /* @__PURE__ */ React.createElement("dd", null, /* @__PURE__ */ React.createElement("a", { href: "https://github.com/NickkkLian/Job-Tracker", rel: "noopener" }, "github.com/NickkkLian/Job-Tracker"), " · MIT · ", T("Nick Lian 制作", "built by Nick Lian")), /* @__PURE__ */ React.createElement("dd", null, T("GitHub 令牌和可选的 Anthropic 密钥只存在这个浏览器里，只发给各自的 API。", "The GitHub token and the optional Anthropic key stay in this browser and go only to their own APIs."))))), saveErr && /* @__PURE__ */ React.createElement("div", { className: "toasts" }, /* @__PURE__ */ React.createElement("div", { className: "toast", role: "alert" }, /* @__PURE__ */ React.createElement("p", null, T("没能保存到 GitHub", "Couldn’t save to GitHub"), " — ", saveErr, ". ", T("这次改动只在这个页面上，刷新就没了。", "Your change is on this page only and is lost on reload.")), /* @__PURE__ */ React.createElement(Btn, { className: "btn-sm", onClick: (e) => openSettings(e.currentTarget) }, T("打开设置", "Open settings")), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon btn-sm", "aria-label": T("关闭", "Dismiss"), "data-tip": T("关闭", "Dismiss"), onClick: () => setSaveErr("") }, /* @__PURE__ */ React.createElement(Icon, { name: "x" })))));
 }
+initTips();
 ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));
 
 </script>
