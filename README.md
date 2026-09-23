@@ -30,9 +30,10 @@ sample data, nothing is saved. English by default, 中文 toggle in the header.
 Canadian Experience Class counts skilled work hours toward 1,560, and IRCC's 30-hours-per-week cap
 applies **across all jobs combined**, not per job. The ledger therefore slices time by week, sums
 every active job's hours for that week, caps the total at 30, and attributes the capped hours back
-proportionally — so two 25-hour jobs count as 30, not 50. It also refuses to count jobs whose NOC
-code isn't TEER 1–3 or whose employment type is missing (contractor hours don't count), and shows
-an ETA to the target at the current weekly rate.
+proportionally — so two 25-hour jobs count as 30, not 50. It leaves out jobs whose NOC code isn't
+TEER 1–3 (a job with no NOC code yet is treated as TEER 2), warns about working jobs with no employment
+type recorded, since contractor hours don't count, and shows an ETA to the target at the current
+weekly rate.
 
 ### Batch tailoring (optional, needs an Anthropic key)
 
@@ -45,7 +46,7 @@ to the repo.
 
 | Concern | Approach |
 |---|---|
-| Runtime | One `index.html`, built from `src/` by `build.mjs`: the JSX is compiled ahead of time with esbuild (pinned) and inlined. React 18, ReactDOM, mammoth, jsPDF and Tailwind's Play CDN script are served from `vendor/` (sources and hashes in `vendor/SOURCE.md`). CI rebuilds the page and fails if it differs from the committed one |
+| Runtime | One `index.html`, built from `src/` by `build.mjs`: the JSX is compiled ahead of time with esbuild (pinned) and inlined. React 18, ReactDOM, mammoth, jsPDF, pdf.js (loaded the first time a `.pdf` is read) and Tailwind's Play CDN script are served from `vendor/` (sources and hashes in `vendor/SOURCE.md`). CI rebuilds the page and fails if it differs from the committed one or loads a script from another host |
 | Storage | GitHub Contents API against a private repo. Each write re-reads the blob SHA on a 409 and retries once, so two devices can edit without clobbering each other |
 | Files | PDFs are stored as raw base64 under `data/files/` and cached in localStorage for instant preview; on a new device they're pulled from the repo on first open |
 | JD parsing | Regex heuristics over the first 80 cleaned lines (noise such as contact lines, EEO boilerplate and URLs is stripped first); the raw JD is always stored unmodified |
@@ -55,9 +56,8 @@ to the repo.
 
 ## Running it
 
-Open `index.html` from any static server — every script the page needs to start is in this repository. The one
-exception is reading a `.pdf` job description: that loads pdf.js from cdnjs the first time, so offline only `.txt`,
-`.md` and `.docx` files can be read. To serve it locally:
+Open `index.html` from any static server — every script the page uses is in this repository, including pdf.js
+for reading `.pdf` job descriptions. To serve it locally:
 
 ```bash
 python3 -m http.server 8732        # then http://localhost:8732/?demo=1&tab=tracker

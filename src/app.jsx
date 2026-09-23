@@ -601,15 +601,16 @@ HONG KONG PROFESSIONAL CV FORMAT REQUIREMENTS (apply after translating):
 // ════════════════════════════════════════════════════════════════
 
 let pdfjsPromise = null;
+// pdf.js is loaded the first time a .pdf is read, from vendor/ like every other library (see vendor/SOURCE.md)
 function loadPdfJs() {
   if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
   if (pdfjsPromise) return pdfjsPromise;
   const V = '3.11.174';
   pdfjsPromise = new Promise((res, rej) => {
     const s = document.createElement('script');
-    s.src = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${V}/pdf.min.js`;
+    s.src = `vendor/pdf-${V}.min.js`;
     s.onload = () => {
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${V}/pdf.worker.min.js`;
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = `vendor/pdf.worker-${V}.min.js`;
       res(window.pdfjsLib);
     };
     s.onerror = () => rej(new Error('Failed to load PDF library'));
