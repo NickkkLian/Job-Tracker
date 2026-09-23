@@ -323,6 +323,10 @@ const REGIONS = [
   { id:'remote',      name:'Remote / Global', zh:'远程 / 全球', contactNote:'include email and the best phone number; note open to remote / relocation.' },
 ];
 const REGION_BY = Object.fromEntries(REGIONS.map(r => [r.id, r]));
+// The region on screen; App sets it on every render. CEC hours (the Canadian Experience Class) exist only in Canada:
+// elsewhere the status is plain "Working", and the hours ledger, its five fields and its help are not shown.
+let regionNow = 'canada';
+const inCanada = () => regionNow === 'canada';
 // Display name for a region (the id is the stable key used for storage and AI search; never changes)
 const rName = r => r ? T(r.zh || r.name, r.name) : '';
 function regionContact(region){ const r = REGION_BY[region]; return (r && r.contactNote) || 'include all phone numbers, email, and location.'; }
@@ -380,7 +384,8 @@ function cecHours(jobs){
   const eta = weeklyRate > 0 ? new Date(Date.now() + remain/weeklyRate*7*24*3600*1000) : null;
   return { total, per, weeklyRate, remain, eta, capped };
 }
-const statusLabel = id => { const s = STATUSES.find(x => x.id === id) || STATUSES[0]; return T(s.zh, s.label); };
+const stName = s => s.id === 'working' && !inCanada() ? T('在职', 'Working') : T(s.zh, s.label);
+const statusLabel = id => stName(STATUSES.find(x => x.id === id) || STATUSES[0]);
 
 // The navigation: four views follow the region picked above them (each region keeps its own job list and tailored
 // resumes, data/<region>_jobs.json); three are shared by every region (one profile, one resume library, one diagnosis).
@@ -860,7 +865,7 @@ function Icon({ name, size=18, className }) {
   );
 }
 // The product mark: the family frame and seal, and three bars that get shorter (applications narrowing to offers)
-function DocketMark() {
+function BrandMark() {
   return (
     <svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true" focusable="false">
       <rect x="2.5" y="2.5" width="19" height="19" rx="5" stroke="currentColor" strokeWidth="2"/>
@@ -885,7 +890,7 @@ function Btn({ children, onClick, variant='secondary', disabled=false, className
 const STATUS_TAG = { interested:'tag-draft', applied:'tag-info', interviewing:'tag-warning', offered:'tag-success', working:'tag-success', rejected:'tag-neutral', interview_rejected:'tag-neutral' };
 function StatusPill({ status }) {
   const s = STATUSES.find(x => x.id === status);
-  return <span className={`tag ${STATUS_TAG[status] || 'tag-neutral'}`}>{s ? T(s.zh, s.label) : String(status || '')}</span>;
+  return <span className={`tag ${STATUS_TAG[status] || 'tag-neutral'}`}>{s ? stName(s) : String(status || '')}</span>;
 }
 
 function TierPill({ tier }) {
@@ -903,7 +908,7 @@ function StatusField({ value, onChange, name }) {
       {name && <span className="sr-only">{name}</span>}
       <select value={value || ''} onChange={e => onChange(e.target.value)}>
         {!known && <option value={value || ''}>{String(value || '—')}</option>}
-        {STATUSES.map(s => <option key={s.id} value={s.id}>{T(s.zh, s.label)}</option>)}
+        {STATUSES.map(s => <option key={s.id} value={s.id}>{stName(s)}</option>)}
       </select>
       <Icon name="down" size={12} className="chev" />
     </label>
@@ -1177,7 +1182,7 @@ function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, o
         <div className="fld">
           <label htmlFor="tr-custom">{T('把你的简历贴在这里','Paste your resume here')}</label>
           <textarea id="tr-custom" className="jd-box" value={customText} onChange={e => { setCustomText(e.target.value); setShowPrompt(false); }}
-            placeholder={T('要翻译的简历全文…','The resume text you want translated…')} autoFocus data-autofocus />
+            placeholder={T('要翻译的简历全文…','The resume text you want translated…')} data-autofocus />
           <p className="hint num">{fmtNum(customText.length)} {T('字符','chars')}</p>
         </div>
       )}
@@ -1793,7 +1798,8 @@ function Fld({ id, label, hint, error, wide, children }) {
   );
 }
 
-// The job's fields, in two groups: the job itself, and the five the CEC hours ledger reads (only once you work there).
+// The job's fields, in two groups: the job itself and, in Canada, the five the CEC hours ledger reads (only once you work
+// there).
 // Shared by Add job and by Edit details on a job. Stored values are never rewritten by the form: a tier outside T1–T4
 // or a start date in another format stays as it is (cecHours still reads any date new Date() can parse).
 function JobFields({ form, set, idPrefix, error, onTyped }) {
@@ -1822,7 +1828,7 @@ function JobFields({ form, set, idPrefix, error, onTyped }) {
           <Fld id={id('status')} label={T('状态','Status')}>
             <select id={id('status')} value={v('status') || 'interested'} onChange={e => set('status', e.target.value)}>
               {!STATUSES.some(s => s.id === form.status) && form.status && <option value={form.status}>{form.status}</option>}
-              {STATUSES.map(s => <option key={s.id} value={s.id}>{T(s.zh, s.label)}</option>)}
+              {STATUSES.map(s => <option key={s.id} value={s.id}>{stName(s)}</option>)}
             </select>
           </Fld>
           <Fld id={id('priority')} label={T('梯队','Tier')}>
@@ -1835,7 +1841,7 @@ function JobFields({ form, set, idPrefix, error, onTyped }) {
           <Fld id={id('applyMethod')} label={T('投递方式','Apply method')}>{text('applyMethod', { placeholder:T('Easy Apply / 直投 / ATS','Easy Apply / direct / ATS') })}</Fld>
         </div>
       </fieldset>
-      <fieldset className="fs">
+      {inCanada() && <fieldset className="fs">
         <legend>{T('给 CEC 工时账用','For the CEC hours ledger')}</legend>
         <p className="hint">{T('在这份工作上班之后再填：状态是「在职·计工时」时工时账才会算它。','Only needed once you work in this job: the ledger counts it when the status is Working.')}</p>
         <div className="form-grid">
@@ -1850,7 +1856,7 @@ function JobFields({ form, set, idPrefix, error, onTyped }) {
           <Fld id={id('startDate')} label={T('入职日期','Start date')}>{dateOrText('startDate')}</Fld>
           <Fld id={id('endDate')} label={T('离职日期（还在职就空着）','End date (empty while you work there)')}>{dateOrText('endDate')}</Fld>
         </div>
-      </fieldset>
+      </fieldset>}
     </>
   );
 }
@@ -2301,7 +2307,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initi
       <div className="filters" role="group" aria-label={T('按状态筛选','Filter by status')}>
         <button type="button" aria-pressed={filter==='all'} onClick={()=>setFilter('all')}>{T('全部','All')} <b>{jobs.length}</b></button>
         {STATUSES.filter(s => counts[s.id] || filter === s.id).map(s => (
-          <button key={s.id} type="button" aria-pressed={filter===s.id} onClick={()=>setFilter(s.id)}>{T(s.zh,s.label)} <b>{counts[s.id] || 0}</b></button>
+          <button key={s.id} type="button" aria-pressed={filter===s.id} onClick={()=>setFilter(s.id)}>{stName(s)} <b>{counts[s.id] || 0}</b></button>
         ))}
       </div>
       {groups.map(g => {
@@ -2822,7 +2828,8 @@ Return JSON only:
                       </Fld>
                     );
                     return (
-                      <li key={j._id} className={`al-row${isSel ? ' sel' : ''}`}>
+                      <li key={j._id} className={`al-row${isSel ? ' sel' : ''}${isEdit ? ' editing' : ''}`}
+                        onClick={e => { if (!isEdit && !e.target.closest('a,button,input,textarea,select,label')) toggle(j._id); }}>
                         <div className="al-top">
                           <label className="al-pick"><input type="checkbox" checked={isSel} disabled={isEdit} onChange={()=>toggle(j._id)} /><span><b>{j.role}</b> · {j.company}</span></label>
                           <button type="button" className="btn btn-ghost btn-icon" aria-label={editName} data-tip={editName} aria-pressed={isEdit} onClick={()=>setEditingId(isEdit ? null : j._id)}><Icon name="edit" /></button>
@@ -3377,6 +3384,7 @@ const GEAR = <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke=
 function App() {
   useLangToggle();
   const [region, setRegionState] = useState('canada');
+  regionNow = region;
   const [tab, setTab]               = useState(tabFromUrl);
   const [openJobId, setOpenJobId]   = useState(null);
   const [trackerStatus, setTrackerStatus] = useState(null);
@@ -3528,8 +3536,8 @@ function App() {
     <>
       <a className="skip" href="#main" onClick={skip}>{T('跳到内容','Skip to content')}</a>
       <header className="topbar">
-        <a className="brand" href={tabHref('tracker')} aria-label={T('Docket 首页','Docket home')} onClick={e => { e.preventDefault(); go('tracker'); }}>
-          <DocketMark /><b>Docket</b><span>{T('求职投递，每个地区一条管线——数据存在你自己的私有仓库','Job applications, one pipeline per region — kept in a private repo you own.')}</span>
+        <a className="brand" href={tabHref('tracker')} aria-label={T('ApplyLedger 首页','ApplyLedger home')} onClick={e => { e.preventDefault(); go('tracker'); }}>
+          <BrandMark /><b>ApplyLedger</b><span>{T('求职投递，每个地区一条管线——数据存在你自己的私有仓库','Job applications, one pipeline per region — kept in a private repo you own.')}</span>
         </a>
         <span className={`pill${pill.warn ? ' warn' : ''}`} title={pill.short + pill.long}>{pill.short}<span className="long">{pill.long}</span></span>
         <button type="button" className="btn btn-ghost lang-btn" onClick={toggleLang} title={T('切换语言','Switch language')} lang={lang === 'en' ? 'zh' : 'en'}>{T('EN','中文')}</button>
@@ -3560,7 +3568,7 @@ function App() {
             {!ghOk && !DEMO && (
               <section className="card connect" aria-labelledby="connect-h">
                 <h2 id="connect-h">{T('连接你的私有数据仓库','Connect your private data repo')}</h2>
-                <p>{T('Docket 把你的投递存在你自己的 GitHub 私有仓库里。连接之前，在这里添加的东西都不会保存。','Docket keeps your applications in a private GitHub repo you own. Until you connect one, nothing you add here is saved.')}</p>
+                <p>{T('ApplyLedger 把你的投递存在你自己的 GitHub 私有仓库里。连接之前，在这里添加的东西都不会保存。','ApplyLedger keeps your applications in a private GitHub repo you own. Until you connect one, nothing you add here is saved.')}</p>
                 <div className="acts">
                   <Btn variant="primary" onClick={e => openSettings(e.currentTarget, '#set-repo')}>{T('连接…','Connect…')}</Btn>
                   <a href="?demo=1&tab=tracker">{T('先看演示','Try the demo')}</a>

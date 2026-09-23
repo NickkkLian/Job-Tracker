@@ -1,5 +1,5 @@
-/* app.css — Docket. Consumes only semantic tokens from design-tokens.css (design system v4). Family components (top bar,
-   navigation, signature panel, cards, tags, footer) as in the other products, then Docket's own: the status field, the
+/* app.css — ApplyLedger. Consumes only semantic tokens from design-tokens.css (design system v4). Family components (top bar,
+   navigation, signature panel, cards, tags, footer) as in the other products, then ApplyLedger's own: the status field, the
    tier-grouped list, the hours ledger and the pipeline chart. Colours come from tokens only. */
 
 /* ===== Fallback faces: until the web fonts load (or if they never do), system fonts are scaled to the measured widths so line lengths and column widths do not jump ===== */
@@ -229,7 +229,9 @@ label{font-size:var(--text-sm)}
 @media (pointer:coarse){.filters button{height:var(--touch-min)}}
 .tier-group + .tier-group{margin-top:var(--space-5)}
 .tier-group > h2{margin:0 0 var(--space-2);display:flex;gap:var(--space-2);align-items:baseline}
-.tier-group > h2 .n{font-family:var(--font-mono);letter-spacing:0}
+/* line-height 1: the mono count sits on the heading's baseline without setting the line's height, so a fallback font
+   with other metrics (offline, before the web fonts load) does not make each tier heading 1px taller */
+.tier-group > h2 .n{font-family:var(--font-mono);letter-spacing:0;line-height:1}
 .jobs{container-type:inline-size;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--paper);box-shadow:var(--shadow-1);overflow:hidden}
 .job{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:var(--space-1) var(--space-4);align-items:center;
   padding:var(--space-2) var(--space-3) var(--space-2) var(--space-4);border-top:1px solid var(--hairline);min-height:56px}
@@ -600,6 +602,7 @@ textarea.lined{width:100%;margin-top:var(--space-3)}
 @media (prefers-reduced-motion:reduce){.pulse{animation:none}}
 .al-list{display:grid;gap:var(--space-2);margin-bottom:var(--space-2)}
 .al-row{border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-3);background:var(--paper);display:grid;gap:var(--space-2)}
+.al-row:not(.editing){cursor:pointer}
 .al-row.sel{background:var(--accent-tint);box-shadow:inset 3px 0 0 var(--accent-text)}
 .al-top{display:flex;align-items:flex-start;gap:var(--space-2)}
 .al-pick{display:flex;align-items:flex-start;gap:var(--space-2);flex:1;min-width:0;cursor:pointer;font-size:var(--text-sm);overflow-wrap:anywhere}
