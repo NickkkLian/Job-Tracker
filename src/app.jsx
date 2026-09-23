@@ -3017,6 +3017,9 @@ function pipelineCounts(jobs) {
   return { interested, apps, noAnswer, rejected, interviews, other, offers, working, inProgress, noOffer };
 }
 
+// English labels follow the count: "1 offer", "2 offers" (Chinese has no plural)
+const plur = (n, zh, one, many) => T(zh, n === 1 ? one : many);
+
 function PipelineChart({ p, titleId, eqId }) {
   const wrapRef = useRef(null);
   const [W, setW] = useState(0);
@@ -3050,12 +3053,12 @@ function PipelineChart({ p, titleId, eqId }) {
   const col1 = stack([
     { id:'noanswer',   n:p.noAnswer,   kind:'unk', label:T('未回复','No answer') },
     { id:'rejected',   n:p.rejected,   kind:'end', label:T('被拒','Rejected') },
-    { id:'interviews', n:p.interviews, kind:'fwd', label:T('面试','Interviews') },
+    { id:'interviews', n:p.interviews, kind:'fwd', label:plur(p.interviews, '面试', 'Interview', 'Interviews') },
     { id:'other',      n:p.other,      kind:'unk', label:T('其他状态','Other status') },
   ], top0 + plotH / 2);
   const iv = col1.find(n => n.id === 'interviews');
   const col2 = iv ? stack([
-    { id:'offers',     n:p.offers,     kind:'fwd', label:T('Offer','Offers') },
+    { id:'offers',     n:p.offers,     kind:'fwd', label:plur(p.offers, 'Offer', 'Offer', 'Offers') },
     { id:'working',    n:p.working,    kind:'fwd', label:T('在职','Working') },
     { id:'inprogress', n:p.inProgress, kind:'unk', label:T('进行中','In progress') },
     { id:'nooffer',    n:p.noOffer,    kind:'end', label:T('无 Offer','No offer') },
@@ -3096,8 +3099,8 @@ function PipelineChart({ p, titleId, eqId }) {
           {l2.map(l => <path key={'b' + l.id} d={l.d} className={l.kind} />)}
           <rect x={x0} y={srcY} width={nw} height={srcH} rx="2" className="src" />
           {narrow
-            ? <text x={x0} y={18}><tspan className="n">{p.apps}</tspan><tspan className="w" dx="6">{T('申请','applications')}</tspan></text>
-            : label(x0 - 8, srcY + srcH / 2 - 2, p.apps, T('申请','Applications'), 'end')}
+            ? <text x={x0} y={18}><tspan className="n">{p.apps}</tspan><tspan className="w" dx="6">{T('申请', p.apps === 1 ? 'application' : 'applications')}</tspan></text>
+            : label(x0 - 8, srcY + srcH / 2 - 2, p.apps, T('申请', p.apps === 1 ? 'Application' : 'Applications'), 'end')}
           {col1.map(n => <React.Fragment key={n.id}>{nodeRect(x1, n)}{label(x1 + nw + 8, top(n), n.n, n.label, 'start')}</React.Fragment>)}
           {col2.map(n => <React.Fragment key={n.id}>{nodeRect(x2, n)}{label(x2 + nw + 8, top(n), n.n, n.label, 'start')}</React.Fragment>)}
         </svg>
@@ -3235,10 +3238,10 @@ function InsightsTab({ jobs, regionName, onWorking, onAdd }) {
               </div>
             )}
             <p className="chart-eq" id="pipe-eq">
-              {T(`${p.apps} 条申请 = ${p.noAnswer} 未回复 + ${p.rejected} 被拒 + ${p.interviews} 面试`, `${p.apps} applications = ${p.noAnswer} no answer + ${p.rejected} rejected + ${p.interviews} interviews`)}
+              {T(`${p.apps} 条申请 = ${p.noAnswer} 未回复 + ${p.rejected} 被拒 + ${p.interviews} 面试`, `${p.apps} ${p.apps === 1 ? 'application' : 'applications'} = ${p.noAnswer} no answer + ${p.rejected} rejected + ${p.interviews} ${p.interviews === 1 ? 'interview' : 'interviews'}`)}
               {p.other > 0 ? T(` + ${p.other} 其他状态`, ` + ${p.other} other status`) : ''} {mark(eq1, p.apps)}
               {' · '}
-              {T(`${p.interviews} 面试 = ${p.offers} Offer + ${p.working} 在职 + ${p.inProgress} 进行中 + ${p.noOffer} 无 Offer`, `${p.interviews} interviews = ${p.offers} offers + ${p.working} working + ${p.inProgress} in progress + ${p.noOffer} no offer`)} {mark(eq2, p.interviews)}
+              {T(`${p.interviews} 面试 = ${p.offers} Offer + ${p.working} 在职 + ${p.inProgress} 进行中 + ${p.noOffer} 无 Offer`, `${p.interviews} ${p.interviews === 1 ? 'interview' : 'interviews'} = ${p.offers} ${p.offers === 1 ? 'offer' : 'offers'} + ${p.working} working + ${p.inProgress} in progress + ${p.noOffer} no offer`)} {mark(eq2, p.interviews)}
             </p>
           </section>
 
