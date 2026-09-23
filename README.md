@@ -1,39 +1,40 @@
-# Job Application Command Center
+# ApplyLedger
 
-A single-file job-search tracker for people applying across several countries at once. Every
-region (Canada, US, UK, Hong Kong, Mainland China, …) keeps its own pipeline and its own tailored
-documents; profile, resume library and glossary are shared. The app is one HTML file — React 18,
-compiled ahead of time, with every library served from this repository — and stores everything in
-a **private GitHub repo you own**.
+A job-application tracker for people applying in several countries at once. Every region (Canada, US, UK,
+Hong Kong, Mainland China, …) keeps its own pipeline and its own tailored documents; your profile, resume library
+and glossary are shared. The app is one HTML file — React 18, compiled ahead of time, with every library served from
+this repository — and keeps everything in a **private GitHub repo you own**.
 
-**Live demo:** https://nickkklian.github.io/Job-Tracker/?demo=1&tab=tracker (or `&tab=insights`) —
-sample data, nothing is saved. English by default, 中文 toggle in the header.
+**Live demo:** https://nickkklian.github.io/Job-Tracker/?demo=1&tab=tracker (or `&tab=insights`; add `&region=usa`
+to open another region) — sample data, nothing is saved. English by default, 中文 in the top bar.
 
 ![Tracker](docs/screenshot-tracker.png)
 
 ## What's in it
 
-| Tab | What it does |
+The navigation has two groups: the views that belong to the region you are in, and the ones every region shares.
+
+| View | What it does |
 |---|---|
-| **Add Job** | Paste or upload a job description (`.txt/.md/.docx/.pdf`); role, company, location, salary and deadline are extracted heuristically and pre-filled for review. Tier (T1–T4) is on the same form; in the Canada region so are NOC code, employment type, weekly hours and the start and end dates |
-| **Tracker** | Filter by status and tier, search, open a job. Each job gets prompt generators for a tailored resume, cover letter, interview prep, networking plan and JD analysis — copied into Claude.ai, no API key required — plus PDF slots that sync to the repo |
-| **My Profile** | Sectioned profile (upload files or insert a skeleton / per-role skills blocks), a translation glossary, and formatting rules that are injected into every resume prompt |
-| **Diagnosis** | A six-step pre-application check: stage → strengths → target profile → reality check against real JDs → resume narrative → high-stakes decisions |
-| **Resumes** | A library of resume versions with preview, rename, download and "use as profile" |
-| **Insights** | A Sankey of the pipeline, response and offer rates, upcoming deadlines — and, in the Canada region, a **CEC hours ledger** (see below) |
-| **Alerts** | Optional, needs an Anthropic key: paste a LinkedIn job-alert email, Claude looks up each posting on the company's career page, scores it against your profile, and the ones you tick go straight into the tracker |
+| **Add job** | Paste a job description or upload one (`.txt/.md/.docx/.pdf`). An upload fills the empty fields — company, role, location, salary, deadline — from the text, heuristically; for pasted text, *Fill fields from the description* does the same. You check them before saving. Tier (T1–T4) and status are on the same form, and in Canada so are the five fields the hours ledger reads |
+| **Tracker** | Applications grouped by tier, with a search box and status filters that show their counts; the status is a control you change in place. Opening a job gives prompt generators for a tailored resume, cover letter, interview prep, networking plan and job-description analysis — copied into Claude.ai, no API key needed — the same kind of prompt for translating a resume into Simplified or Traditional Chinese, and PDF slots that sync to the repo |
+| **Insights** | Where every application stands: a pipeline chart (or the same numbers as a table) whose parts add up to the whole, response and offer rates, upcoming deadlines and the companies you applied to most. In Canada it opens with the **CEC hours ledger** (below) |
+| **Alerts** | Optional, needs an Anthropic key: paste a LinkedIn job-alert email; Claude looks up each posting on the company's careers page and scores it against your profile, and the ones you tick go into the tracker. *Discover new jobs* searches postings from the last 24 hours |
+| **My profile** | A sectioned profile (upload files, or start from a skeleton and per-role skills blocks), a translation glossary, and formatting rules that go into every resume prompt |
+| **Diagnosis** | A six-step check before applying: stage → strengths → target profile → reality check against real postings → resume narrative → high-stakes decisions |
+| **Resumes** | A library of resume versions: preview, rename, download, delete, or use one as your profile |
 
 ![Insights](docs/screenshot-insights.png)
 
-### Canada: the CEC hours ledger
+### The CEC hours ledger (Canada only)
 
-Canadian Experience Class counts skilled work hours toward 1,560, and IRCC's 30-hours-per-week cap
-applies **across all jobs combined**, not per job. The ledger therefore slices time by week, sums
-every active job's hours for that week, caps the total at 30, and attributes the capped hours back
-proportionally — so two 25-hour jobs count as 30, not 50. It leaves out jobs whose NOC code isn't
-TEER 1–3 (a job with no NOC code yet is treated as TEER 2), warns about working jobs with no employment
-type recorded, since contractor hours don't count, and shows an ETA to the target at the current
-weekly rate.
+The Canadian Experience Class counts skilled work hours toward 1,560, and IRCC's 30-hours-a-week cap applies
+**across all jobs combined**, not per job. The ledger therefore slices time by week, sums every working job's hours
+for that week, caps the total at 30 and gives the capped hours back to each job in proportion — so two 25-hour jobs
+count as 30, not 50. It leaves out jobs whose NOC code isn't TEER 1–3 (a job with no NOC code yet is treated as
+TEER 2), warns about working jobs with no employment type recorded, since contractor hours don't count, and shows
+the date you reach 1,560 at the current weekly rate. The ledger, its five fields and the "(CEC hours)" in the status
+name appear only in the Canada region.
 
 ### Batch tailoring (optional, needs an Anthropic key)
 
@@ -52,7 +53,7 @@ to the repo.
 | JD parsing | Regex heuristics over the first 80 cleaned lines (noise such as contact lines, EEO boilerplate and URLs is stripped first); the raw JD is always stored unmodified |
 | Prompts | Long, explicit reportlab instructions (column widths, table styles, one-page enforcement, a banned-word list for junior résumés) so Claude.ai's Analysis tool produces a consistent PDF every time |
 | Secrets | GitHub token and Anthropic key live only in this browser's localStorage |
-| Language | English by default, 中文 via the toggle; stored ids and prompt templates are never translated |
+| Language | English by default, 中文 via the top bar; stored ids and prompt templates are never translated |
 
 ## Running it
 
@@ -71,6 +72,9 @@ node build.mjs            # writes index.html
 node build.mjs --check    # what CI runs: index.html must be exactly what src/ builds to
 ```
 
+A link can open a region: `?region=usa` (the ids are the `REGIONS` list in `src/app.jsx`); the region picker still
+changes it.
+
 To use it for real, create a private repo, generate a classic token with the `repo` scope, and
 enter both in Settings (the gear in the top bar). The optional features (Batch Tailor, Alerts) take an Anthropic
 API key in the same dialog.
@@ -80,7 +84,9 @@ API key in the same dialog.
 - Calling the Anthropic API from the browser requires the `anthropic-dangerous-direct-browser-access`
   header. The key is stored only in this browser and sent only to Anthropic's API, which suits one person's own copy
   but not a shared deployment.
-- The JD extractor is heuristic and tuned for English postings; it pre-fills, you verify.
+- The JD extractor is heuristic and tuned for English postings; it fills, you check.
+- *Discover new jobs* knows three places: Canada, Hong Kong and Mainland China. Every other region searches Canada,
+  and the Alerts page says so.
 
 ## License
 
