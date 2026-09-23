@@ -400,6 +400,9 @@ const TABS = [
   { id:'library',  label:'Resumes',    zh:'简历库',     icon:'file',    scope:'shared' },
 ];
 const tabFromUrl = () => { const t = new URLSearchParams(location.search).get('tab') || ''; return TABS.some(x => x.id === t) ? t : 'addjob'; };
+// A link can open a region: ?region=usa (any id in REGIONS). Read once when the page opens; the region picker still
+// changes it and does not write it back, so a link keeps meaning the same thing.
+const regionFromUrl = () => { const r = new URLSearchParams(location.search).get('region') || ''; return REGION_BY[r] ? r : 'canada'; };
 // A view's address keeps every other parameter (demo=1 in particular) and changes only tab=
 function tabHref(id) { const q = new URLSearchParams(location.search); q.set('tab', id); return '?' + q.toString(); }
 
@@ -3387,7 +3390,7 @@ const GEAR = <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke=
 
 function App() {
   useLangToggle();
-  const [region, setRegionState] = useState('canada');
+  const [region, setRegionState] = useState(regionFromUrl);
   regionNow = region;
   const [tab, setTab]               = useState(tabFromUrl);
   const [openJobId, setOpenJobId]   = useState(null);
