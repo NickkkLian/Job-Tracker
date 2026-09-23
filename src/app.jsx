@@ -2985,6 +2985,18 @@ function PipelineChart({ p, titleId, eqId }) {
   );
   // a label sits by the top of its node and always inside the drawing (the lowest node's word used to be cut off)
   const top = n => Math.max(top0 + 14, Math.min(H - 20, n.y + Math.min(n.h / 2, 12) + 3));
+  // Labels in one column never run into each other. A label is two lines, the count and the word 16px below it, and
+  // needs about 34px, so consecutive labels keep 36px between their counts: each is moved down past the one above, then,
+  // if the last one would leave the drawing, they are moved back up. With a handful of applications nothing moves; with
+  // dozens, a 3-of-27 node is 20px tall on a phone and the next label used to overlap its word.
+  const LABEL_STEP = 36;
+  const spread = col => {
+    const ys = col.map(top);
+    for (let i = 1; i < ys.length; i++) ys[i] = Math.max(ys[i], ys[i - 1] + LABEL_STEP);
+    for (let i = ys.length - 1; i >= 0; i--) ys[i] = Math.min(ys[i], i === ys.length - 1 ? H - 20 : ys[i + 1] - LABEL_STEP);
+    return ys;
+  };
+  const ly1 = spread(col1), ly2 = spread(col2);
   return (
     <div className="sankey" ref={wrapRef}>
       {W > 0 && (
@@ -3001,8 +3013,8 @@ function PipelineChart({ p, titleId, eqId }) {
           {narrow
             ? <text x={x0} y={18}><tspan className="n">{p.apps}</tspan><tspan className="w" dx="6">{T('申请', p.apps === 1 ? 'application' : 'applications')}</tspan></text>
             : label(x0 - 8, srcY + srcH / 2 - 2, p.apps, T('申请', p.apps === 1 ? 'Application' : 'Applications'), 'end')}
-          {col1.map(n => <React.Fragment key={n.id}>{nodeRect(x1, n)}{label(x1 + nw + 8, top(n), n.n, n.label, 'start')}</React.Fragment>)}
-          {col2.map(n => <React.Fragment key={n.id}>{nodeRect(x2, n)}{label(x2 + nw + 8, top(n), n.n, n.label, 'start')}</React.Fragment>)}
+          {col1.map((n, i) => <React.Fragment key={n.id}>{nodeRect(x1, n)}{label(x1 + nw + 8, ly1[i], n.n, n.label, 'start')}</React.Fragment>)}
+          {col2.map((n, i) => <React.Fragment key={n.id}>{nodeRect(x2, n)}{label(x2 + nw + 8, ly2[i], n.n, n.label, 'start')}</React.Fragment>)}
         </svg>
       )}
     </div>
