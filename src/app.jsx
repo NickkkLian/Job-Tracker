@@ -323,8 +323,9 @@ const REGIONS = [
   { id:'remote',      name:'Remote / Global', zh:'远程 / 全球', contactNote:'include email and the best phone number; note open to remote / relocation.' },
 ];
 const REGION_BY = Object.fromEntries(REGIONS.map(r => [r.id, r]));
-// The region on screen; App sets it on every render. CEC hours (the Canadian Experience Class) exist only in Canada:
-// elsewhere the status is plain "Working", and the hours ledger, its five fields and its help are not shown.
+// The region on screen; App sets it on every render. CEC hours (the Canadian Experience Class) are Canada's, so the
+// Canada region has the hours ledger, its five fields, its help and the status name "Working (CEC hours)"; other
+// regions say plain "Working".
 let regionNow = 'canada';
 const inCanada = () => regionNow === 'canada';
 // Display name for a region (the id is the stable key used for storage and AI search; never changes)
@@ -3627,8 +3628,8 @@ function App() {
           </dl>
           <dl>
             <dt>{T('这里没有验证的','Not verified here')}</dt>
-            <dd>{T('职位描述读取器是为英文招聘启事调的启发式规则：它帮你填字段，由你来核对。工时账（只在加拿大）按加拿大「数据」页上写的规则计算，不是 IRCC 的计算。',
-              'The job-description reader is a heuristic tuned for English postings: it fills fields in, you check them. The hours ledger (Canada only) follows the rules written on Canada’s Insights page; it is not an IRCC calculation.')}</dd>
+            <dd>{T('职位描述读取器是为英文招聘启事调的启发式规则：它帮你填字段，由你来核对。加拿大的工时账按加拿大「数据」页上写的规则计算，不是 IRCC 的计算。',
+              'The job-description reader is a heuristic tuned for English postings: it fills fields in, you check them. Canada’s hours ledger follows the rules written on its Insights page; it is not an IRCC calculation.')}</dd>
           </dl>
           <dl>
             <dt>{T('源码','Source')}</dt>
