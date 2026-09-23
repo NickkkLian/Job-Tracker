@@ -15,17 +15,17 @@ sample data, nothing is saved. English by default, 中文 toggle in the header.
 
 | Tab | What it does |
 |---|---|
-| **Add Job** | Paste or upload a job description (`.txt/.md/.docx/.pdf`); role, company, location, salary and deadline are extracted heuristically and pre-filled for review. Tier (T1–T4), NOC code, employment type and weekly hours live on the same form |
+| **Add Job** | Paste or upload a job description (`.txt/.md/.docx/.pdf`); role, company, location, salary and deadline are extracted heuristically and pre-filled for review. Tier (T1–T4) is on the same form; in the Canada region so are NOC code, employment type, weekly hours and the start and end dates |
 | **Tracker** | Filter by status and tier, search, open a job. Each job gets prompt generators for a tailored resume, cover letter, interview prep, networking plan and JD analysis — copied into Claude.ai, no API key required — plus PDF slots that sync to the repo |
 | **My Profile** | Sectioned profile (upload files or insert a skeleton / per-role skills blocks), a translation glossary, and formatting rules that are injected into every resume prompt |
 | **Diagnosis** | A six-step pre-application check: stage → strengths → target profile → reality check against real JDs → resume narrative → high-stakes decisions |
 | **Resumes** | A library of resume versions with preview, rename, download and "use as profile" |
-| **Insights** | A Sankey of the pipeline, response and offer rates, upcoming deadlines — and a **CEC hours ledger** (see below) |
+| **Insights** | A Sankey of the pipeline, response and offer rates, upcoming deadlines — and, in the Canada region, a **CEC hours ledger** (see below) |
 | **Alerts** | Optional, needs an Anthropic key: paste a LinkedIn job-alert email, Claude looks up each posting on the company's career page, scores it against your profile, and the ones you tick go straight into the tracker |
 
 ![Insights](docs/screenshot-insights.png)
 
-### The CEC hours ledger
+### The CEC hours ledger (Canada only)
 
 Canadian Experience Class counts skilled work hours toward 1,560, and IRCC's 30-hours-per-week cap
 applies **across all jobs combined**, not per job. The ledger therefore slices time by week, sums
@@ -33,7 +33,7 @@ every active job's hours for that week, caps the total at 30, and attributes the
 proportionally — so two 25-hour jobs count as 30, not 50. It leaves out jobs whose NOC code isn't
 TEER 1–3 (a job with no NOC code yet is treated as TEER 2), warns about working jobs with no employment
 type recorded, since contractor hours don't count, and shows an ETA to the target at the current
-weekly rate.
+weekly rate. The ledger, its fields and the "(CEC hours)" in the status name appear only in the Canada region.
 
 ### Batch tailoring (optional, needs an Anthropic key)
 
