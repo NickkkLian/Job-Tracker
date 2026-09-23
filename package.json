@@ -1,0 +1,12 @@
+{
+  "name": "job-tracker",
+  "private": true,
+  "description": "Builds index.html from src/: node build.mjs (check with node build.mjs --check)",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node build.mjs --check"
+  },
+  "devDependencies": {
+    "esbuild": "0.27.7"
+  }
+}

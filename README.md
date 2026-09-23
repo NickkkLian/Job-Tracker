@@ -2,8 +2,9 @@
 
 A single-file job-search tracker for people applying across several countries at once. Every
 region (Canada, US, UK, Hong Kong, Mainland China, …) keeps its own pipeline and its own tailored
-documents; profile, resume library and glossary are shared. The app is one HTML file — React 18
-from a CDN, compiled in the browser — and stores everything in a **private GitHub repo you own**.
+documents; profile, resume library and glossary are shared. The app is one HTML file — React 18,
+compiled ahead of time, with every library served from this repository — and stores everything in
+a **private GitHub repo you own**.
 
 **Live demo:** https://nickkklian.github.io/Job-Tracker/?demo=1&tab=tracker (or `&tab=insights`) —
 sample data, nothing is saved. English by default, 中文 toggle in the header.
@@ -44,7 +45,7 @@ to the repo.
 
 | Concern | Approach |
 |---|---|
-| Runtime | One `index.html`: React 18 + ReactDOM from cdnjs, JSX compiled in the browser by Babel standalone, Tailwind via CDN. No build step, nothing to install |
+| Runtime | One `index.html`, built from `src/` by `build.mjs`: the JSX is compiled ahead of time with esbuild (pinned) and inlined. React 18, ReactDOM, mammoth, jsPDF and Tailwind's Play CDN script are served from `vendor/` (sources and hashes in `vendor/SOURCE.md`). CI rebuilds the page and fails if it differs from the committed one |
 | Storage | GitHub Contents API against a private repo. Each write re-reads the blob SHA on a 409 and retries once, so two devices can edit without clobbering each other |
 | Files | PDFs are stored as raw base64 under `data/files/` and cached in localStorage for instant preview; on a new device they're pulled from the repo on first open |
 | JD parsing | Regex heuristics over the first 80 cleaned lines (noise such as contact lines, EEO boilerplate and URLs is stripped first); the raw JD is always stored unmodified |
@@ -54,11 +55,18 @@ to the repo.
 
 ## Running it
 
-Open `index.html` from any static server (it fetches its libraries from CDNs, so a network
-connection is required):
+Open `index.html` from any static server — every script it loads is in this repository:
 
 ```bash
 python3 -m http.server 8732        # then http://localhost:8732/?demo=1&tab=tracker
+```
+
+To change it, edit `src/app.jsx` (the app) or `src/index.template.html` (the page around it), install the one
+build dependency with `npm install` (esbuild 0.27.7), then:
+
+```bash
+node build.mjs            # writes index.html
+node build.mjs --check    # what CI runs: index.html must be exactly what src/ builds to
 ```
 
 To use it for real, create a private repo, generate a classic token with the `repo` scope, and
@@ -67,8 +75,8 @@ the same panel.
 
 ## Limitations
 
-- Compiling JSX in the browser costs ~1–2 s on first paint; fine for a personal tool, not a pattern
-  for a product.
+- Tailwind still runs as its Play CDN script (now served from `vendor/`), which builds the stylesheet in
+  the browser on every load; a stylesheet built ahead of time would be lighter.
 - Calling the Anthropic API from the browser requires the `anthropic-dangerous-direct-browser-access`
   header; the key never leaves your machine, but this is a single-user trade-off.
 - The JD extractor is heuristic and tuned for English postings; it pre-fills, you verify.

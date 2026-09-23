@@ -1,0 +1,24 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  page-is-built-from-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # the one pinned build dependency, without writing a lock file into the checkout
+      - run: npm install --no-save --no-package-lock esbuild@0.27.7
+      # index.html must be exactly what src/ builds to
+      - run: node build.mjs --check
+      # every script the page loads comes from this repository
+      - name: no script from another host
+        run: |
+          if grep -nE '<script[^>]+src="(https?:)?//' index.html; then echo "a script is loaded from another host"; exit 1; fi
+          echo "0 scripts from other hosts"
