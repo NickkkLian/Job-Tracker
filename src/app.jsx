@@ -284,6 +284,11 @@ async function ghDeleteFile(path) {
 async function loadText(key)  { try { return await ghRead(keyToPath(key)) || ''; } catch { return ''; } }
 async function saveText(key, v){ if (DEMO && !ghConfigured()) return; try { await ghWrite(keyToPath(key), v); } catch(e){ console.error(e); dispatchSaveErr(e); } }
 async function loadJson(key)  { try { const t = await ghRead(keyToPath(key)); return t ? JSON.parse(t) : []; } catch { return []; } }
+// Reads that must not fail quietly: a missing file (404) is empty, anything else is an error the view shows. loadJson and
+// loadText turn every error into "empty", so a bad token looked exactly like "no applications yet" — and the next save
+// could then overwrite the real file with a nearly empty one.
+async function loadJsonStrict(key) { const t = await ghRead(keyToPath(key)); return t ? JSON.parse(t) : []; }
+async function loadTextStrict(key) { return (await ghRead(keyToPath(key))) || ''; }
 async function saveJson(key, v){ if (DEMO && !ghConfigured()) return; try { await ghWrite(keyToPath(key), JSON.stringify(v)); } catch(e){ console.error(e); dispatchSaveErr(e); } }
 
 function dispatchSaveErr(e) { window.dispatchEvent(new CustomEvent('jobapp:saveerror', {detail: e})); }
@@ -304,18 +309,18 @@ function lsDel(k)  { localStorage.removeItem(LOCAL_PRE + k); }
 // ════════════════════════════════════════════════════════════════
 
 const REGIONS = [
-  { id:'canada',      name:'Canada',          zh:'加拿大',      flag:'🇨🇦', accent:'bg-red-50 border-red-300 text-red-900',       dot:'bg-red-500',     contactNote:'include a Canadian phone (+1) and email only — leave out phone numbers from other countries.', phoneTip:'Exclude non-local phone numbers from the contact line' },
-  { id:'usa',         name:'United States',   zh:'美国',        flag:'🇺🇸', accent:'bg-blue-50 border-blue-300 text-blue-900',    dot:'bg-blue-500',    contactNote:'include a US phone (+1), email and city/state; leave out non-local numbers.' },
-  { id:'uk',          name:'United Kingdom',  zh:'英国',        flag:'🇬🇧', accent:'bg-indigo-50 border-indigo-300 text-indigo-900', dot:'bg-indigo-500', contactNote:'include a UK phone (+44), email and city; leave out non-local numbers.' },
-  { id:'australia',   name:'Australia',       zh:'澳大利亚',    flag:'🇦🇺', accent:'bg-emerald-50 border-emerald-300 text-emerald-900', dot:'bg-emerald-500', contactNote:'include an Australian phone (+61), email and city; leave out non-local numbers.' },
-  { id:'singapore',   name:'Singapore',       zh:'新加坡',      flag:'🇸🇬', accent:'bg-rose-50 border-rose-300 text-rose-900',    dot:'bg-rose-500',    contactNote:'include a Singapore phone (+65) and email.' },
-  { id:'hongkong',    name:'Hong Kong',       zh:'香港',        flag:'🇭🇰', accent:'bg-pink-50 border-pink-300 text-pink-900',    dot:'bg-pink-500' },
-  { id:'china',       name:'Mainland China',  zh:'中国大陆',    flag:'🇨🇳', accent:'bg-amber-50 border-amber-300 text-amber-900', dot:'bg-amber-500' },
-  { id:'germany',     name:'Germany',         zh:'德国',        flag:'🇩🇪', accent:'bg-slate-50 border-slate-300 text-slate-900', dot:'bg-slate-500',   contactNote:'include a German phone (+49), email and city; leave out non-local numbers.' },
-  { id:'netherlands', name:'Netherlands',     zh:'荷兰',        flag:'🇳🇱', accent:'bg-orange-50 border-orange-300 text-orange-900', dot:'bg-orange-500', contactNote:'include a Dutch phone (+31), email and city.' },
-  { id:'japan',       name:'Japan',           zh:'日本',        flag:'🇯🇵', accent:'bg-red-50 border-red-300 text-red-900',       dot:'bg-red-400',     contactNote:'include a Japan phone (+81) and email.' },
-  { id:'uae',         name:'UAE',             zh:'阿联酋',      flag:'🇦🇪', accent:'bg-teal-50 border-teal-300 text-teal-900',    dot:'bg-teal-500',    contactNote:'include a UAE phone (+971) and email.' },
-  { id:'remote',      name:'Remote / Global', zh:'远程 / 全球', flag:'🌍', accent:'bg-violet-50 border-violet-300 text-violet-900', dot:'bg-violet-500', contactNote:'include email and the best phone number; note open to remote / relocation.' },
+  { id:'canada',      name:'Canada',          zh:'加拿大',     contactNote:'include a Canadian phone (+1) and email only — leave out phone numbers from other countries.', phoneTip:'Exclude non-local phone numbers from the contact line' },
+  { id:'usa',         name:'United States',   zh:'美国',    contactNote:'include a US phone (+1), email and city/state; leave out non-local numbers.' },
+  { id:'uk',          name:'United Kingdom',  zh:'英国', contactNote:'include a UK phone (+44), email and city; leave out non-local numbers.' },
+  { id:'australia',   name:'Australia',       zh:'澳大利亚', contactNote:'include an Australian phone (+61), email and city; leave out non-local numbers.' },
+  { id:'singapore',   name:'Singapore',       zh:'新加坡',    contactNote:'include a Singapore phone (+65) and email.' },
+  { id:'hongkong',    name:'Hong Kong',       zh:'香港' },
+  { id:'china',       name:'Mainland China',  zh:'中国大陆' },
+  { id:'germany',     name:'Germany',         zh:'德国',   contactNote:'include a German phone (+49), email and city; leave out non-local numbers.' },
+  { id:'netherlands', name:'Netherlands',     zh:'荷兰', contactNote:'include a Dutch phone (+31), email and city.' },
+  { id:'japan',       name:'Japan',           zh:'日本',     contactNote:'include a Japan phone (+81) and email.' },
+  { id:'uae',         name:'UAE',             zh:'阿联酋',    contactNote:'include a UAE phone (+971) and email.' },
+  { id:'remote',      name:'Remote / Global', zh:'远程 / 全球', contactNote:'include email and the best phone number; note open to remote / relocation.' },
 ];
 const REGION_BY = Object.fromEntries(REGIONS.map(r => [r.id, r]));
 // Display name for a region (the id is the stable key used for storage and AI search; never changes)
@@ -929,6 +934,22 @@ function PageHead({ eyebrow, title, sub, action }) {
       </div>
       {action && <div className="acts">{action}</div>}
     </div>
+  );
+}
+
+function ErrorCard({ title, error, onRetry, openSettings }) {
+  const msg = String((error && error.message) || error || '');
+  const auth = /GitHub 40[13]\b/.test(msg);
+  return (
+    <section className="error" role="alert">
+      <h2>{title}</h2>
+      <p>{msg}</p>
+      {auth && <p className="hint">{T('令牌可能过期了，或者没有 repo 权限。','The token may have expired or lost the repo scope.')}</p>}
+      <div className="btn-row">
+        {auth && openSettings ? <Btn onClick={e => openSettings(e.currentTarget, '#set-token')}>{T('打开设置','Open settings')}</Btn>
+                              : <Btn onClick={onRetry}>{T('再试一次','Try again')}</Btn>}
+      </div>
+    </section>
   );
 }
 
@@ -2078,7 +2099,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
     const toProcess = eligible.filter(j=>selected.has(j.id));
     if (!toProcess.length) return;
     const key = lsGet('anthropicKey');
-    if (!key) { addLog(T('❌ 没有 Anthropic API 密钥 — 请在 ⚙️ 设置中添加。','❌ No Anthropic API key — add it in ⚙️ Settings.')); return; }
+    if (!key) { addLog(T('没有 Anthropic API 密钥——请在「设置」里添加。','No Anthropic API key — add one in Settings.')); return; }
 
     setRunning(true);
     const initProg = {};
@@ -2130,16 +2151,16 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
         await ghWriteDataUrl(pdfGhPath(pdfKey), dataUrl);
 
         setProgress(p=>({...p,[job.id]:'done'}));
-        addLog(T('  ✅ 已保存','  ✅ Saved'));
+        addLog(T('  已保存','  Saved'));
 
         // Brief pause between calls
         if (i < toProcess.length-1) await new Promise(r=>setTimeout(r,2000));
 
       } catch(e) {
         setProgress(p=>({...p,[job.id]:'error'}));
-        addLog(`  ❌ ${e.message}`);
+        addLog(T(`  失败：${e.message}`, `  Failed: ${e.message}`));
         if (e.message.includes('429')) {
-          addLog(T('  ⏳ 触发限流 — 等待 30 秒…','  ⏳ Rate limited — waiting 30s…'));
+          addLog(T('  触发限流——等 30 秒…','  Rate limited — waiting 30 s…'));
           await new Promise(r=>setTimeout(r,30000));
         }
       }
@@ -2149,65 +2170,54 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
     setRunning(false);
   }
 
-  const statusIcon = s => ({ queued:'⏳', running:'🔄', done:'✅', error:'❌', skip:'⏭' }[s]||'');
+  const TAG = { queued:['tag-neutral', T('排队','Queued')], running:['tag-info', T('进行中','Running')], done:['tag-success', T('完成','Done')], error:['tag-danger', T('失败','Failed')], skip:['tag-neutral', T('跳过','Skipped')] };
+  const total = Object.keys(progress).length;
+  const finished = Object.values(progress).filter(s => s === 'done' || s === 'error').length;
+  const plural = (n, one, many) => n === 1 ? one : many;
 
-  useEscapeClose(onClose);
+  // while a run is going the dialog cannot be closed (Esc and the backdrop do nothing, Cancel is disabled), as before
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full mt-8 mb-8" onClick={e=>e.stopPropagation()}>
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900">{T('🎯 批量定制简历','🎯 Batch Tailor Resumes')}</h3>
-            <p className="text-xs text-gray-500 mt-0.5">{T('通过 Anthropic API 为每个职位生成一份定制简历 PDF（每份约 $0.02–0.04）','Generates a tailored PDF resume for each job via Anthropic API (~$0.02–0.04 per resume)')}</p>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg">&times;</button>
-        </div>
-        <div className="p-4 space-y-3">
-          {/* Job list */}
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-xs font-medium text-gray-700">{eligible.length} {T('个「感兴趣」职位待定制', `Interested job${eligible.length!==1?'s':''} to tailor`)}</p>
-              <div className="flex gap-3">
-                <button onClick={()=>setSelected(new Set(eligible.map(j=>j.id)))} className="text-xs text-blue-600 hover:underline">{T('全选','Select all')}</button>
-                <button onClick={()=>setSelected(new Set())} className="text-xs text-gray-500 hover:underline">{T('清除','Clear')}</button>
-              </div>
-            </div>
-            <div className="space-y-1.5 max-h-52 overflow-y-auto">
-              {eligible.map(j => (
-                <label key={j.id} className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer text-xs ${selected.has(j.id)?'border-blue-200 bg-blue-50':'border-gray-200 hover:bg-gray-50'}`}>
-                  <input type="checkbox" checked={selected.has(j.id)} disabled={running}
-                    onChange={()=>{ const s=new Set(selected); s.has(j.id)?s.delete(j.id):s.add(j.id); setSelected(s); }} />
-                  <span className="flex-1 font-medium text-gray-900">{j.role} <span className="font-normal text-gray-500">· {j.company}</span></span>
-                  {progress[j.id] && <span className="shrink-0">{statusIcon(progress[j.id])}</span>}
-                </label>
-              ))}
-              {!eligible.length && <p className="text-xs text-gray-400 p-2">{T('没有 ','No ')}<strong>{T('「感兴趣」','Interested')}</strong>{T(' 的职位包含 JD 文本。请先添加状态为「感兴趣」的职位并粘贴其 JD。',' jobs have JD text. Add jobs with status Interested and paste their JD first.')}</p>}
-            </div>
-            {noJd.length > 0 && <p className="text-xs text-gray-400 mt-1">⚠ {noJd.length} {T('个「感兴趣」职位没有 JD 文本 — 打开它们并先粘贴 JD', `Interested job${noJd.length!==1?'s':''} have no JD text — open them and paste the JD first`)}</p>}
-            {haveResume > 0 && <p className="text-xs text-gray-400 mt-1">📄 {haveResume} {T('个「感兴趣」职位已定制（已排除）。在职位中删除简历可重新定制。', `Interested job${haveResume!==1?'s':''} already tailored (excluded). Delete the resume in the job to re-tailor.`)}</p>}
-          </div>
-
-          {/* Log */}
-          {log.length > 0 && (
-            <div className="bg-gray-900 text-green-400 rounded-md p-3 text-xs font-mono max-h-36 overflow-y-auto">
-              {log.map((l,i)=><div key={i}>{l}</div>)}
-            </div>
-          )}
-
-          <div className="flex justify-between items-center">
-            <p className="text-xs text-gray-400">{selected.size} {T('个职位已选', `job${selected.size!==1?'s':''} selected`)}</p>
-            <div className="flex gap-2">
-              <Btn onClick={onClose} disabled={running}>{T('取消','Cancel')}</Btn>
-              <Btn variant="primary" onClick={startBatch} disabled={running||!selected.size||!eligible.length}>
-                {running ? T('⏳ 处理中…','⏳ Processing…') : T(`🎯 定制 ${selected.size} 份简历`, `🎯 Tailor ${selected.size} resume${selected.size!==1?'s':''}`)}
-              </Btn>
-            </div>
-          </div>
-        </div>
+    <Dialog labelId="bt-h" onClose={running ? () => {} : onClose} wide>
+      <h2 id="bt-h">{T('批量定制简历','Batch tailor resumes')}</h2>
+      <p className="hint">{T('每个职位调用一次 API，每份约 $0.02–0.04；结果是一页 PDF，存到这个职位下。','One API call per job, about $0.02–0.04 each; each result is a one-page PDF saved to the job.')}</p>
+      <div className="bt-head">
+        <p className="bt-count">{T(`${eligible.length} 个「感兴趣」的职位可以定制`, `${eligible.length} Interested ${plural(eligible.length, 'job', 'jobs')} to tailor`)}</p>
+        <span className="btn-row">
+          <button type="button" className="btn-link" onClick={() => setSelected(new Set(eligible.map(j=>j.id)))} disabled={running}>{T('全选','Select all')}</button>
+          <button type="button" className="btn-link" onClick={() => setSelected(new Set())} disabled={running}>{T('清除','Clear')}</button>
+        </span>
       </div>
-    </div>
+      {eligible.length ? (
+        <ul className="bt-list">
+          {eligible.map(j => (
+            <li key={j.id}>
+              <label><input type="checkbox" checked={selected.has(j.id)} disabled={running} onChange={() => { const s = new Set(selected); s.has(j.id) ? s.delete(j.id) : s.add(j.id); setSelected(s); }} />
+                <span className="nm"><b>{j.role}</b> · {j.company}</span></label>
+              {progress[j.id] && <span className={`tag ${TAG[progress[j.id]][0]}`}>{TAG[progress[j.id]][1]}</span>}
+            </li>
+          ))}
+        </ul>
+      ) : <p className="hint">{T('没有带职位描述的「感兴趣」职位。先加几个状态为「感兴趣」的职位，并贴上它们的描述。','No Interested jobs have a job description. Add jobs with the status Interested and paste their descriptions first.')}</p>}
+      {noJd.length > 0 && <p className="hint">{T(`${noJd.length} 个「感兴趣」职位没有职位描述——先打开它们贴上描述。`, `${noJd.length} Interested ${plural(noJd.length, 'job has', 'jobs have')} no job description — open ${plural(noJd.length, 'it', 'them')} and paste one first.`)}</p>}
+      {haveResume > 0 && <p className="hint">{T(`${haveResume} 个「感兴趣」职位已经有定制简历（不在上面）。在职位里删掉简历就能重新定制。`, `${haveResume} Interested ${plural(haveResume, 'job already has', 'jobs already have')} a tailored resume (not listed). Delete the resume in the job to tailor it again.`)}</p>}
+      {running && total > 0 && (
+        <div className="bt-progress">
+          <div className="progress" role="progressbar" aria-label={T('进度','Progress')} aria-valuemin={0} aria-valuemax={total} aria-valuenow={finished}><i style={{ transform: `scaleX(${finished / total})` }}></i></div>
+          <p className="hint" role="status">{T(`正在定制第 ${Math.min(finished + 1, total)} / ${total} 份…`, `Tailoring ${Math.min(finished + 1, total)} of ${total}…`)}</p>
+        </div>
+      )}
+      {log.length > 0 && <pre className="sunken bt-log" role="log" aria-live="polite">{log.join('\n')}</pre>}
+      <div className="dlg-acts">
+        <span className="hint bt-sel">{T(`已选 ${selected.size} 个`, `${selected.size} selected`)}</span>
+        <Btn onClick={onClose} disabled={running}>{log.length && !running ? T('关闭','Close') : T('取消','Cancel')}</Btn>
+        <Btn variant="primary" onClick={startBatch} disabled={running || !selected.size || !eligible.length}>
+          {running ? T('处理中…','Working…') : T(`定制 ${selected.size} 份简历`, `Tailor ${selected.size} ${plural(selected.size, 'resume', 'resumes')}`)}
+        </Btn>
+      </div>
+    </Dialog>
   );
 }
+
 
 
 function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initialStatus, onAdd, focusJobId, onFocused }) {
@@ -2541,7 +2551,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
 // WATCHDOG TAB  (LinkedIn email scanner — requires Anthropic API key)
 // ════════════════════════════════════════════════════════════════
 
-function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
+function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey }) {
   const [step, setStep]           = useState('setup');
   const [profile, setProfile]     = useState('');
   const [pastedText, setPastedText] = useState('');
@@ -2563,7 +2573,7 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb }) {
 
   async function callClaude(messages, useWebSearch = false) {
     const key = anthropicKey();
-    if (!key) throw new Error(T('没有 Anthropic API 密钥 — 请在 ⚙️ 设置中添加。','No Anthropic API key — add it in ⚙️ Settings.'));
+    if (!key) throw new Error(T('没有 Anthropic API 密钥——请在「设置」里添加。','No Anthropic API key — add one in Settings.'));
     const body = {
       model:'claude-haiku-4-5-20251001',
       max_tokens:8192,
@@ -2657,7 +2667,7 @@ ${trimmedText}` }], true);
 
   async function manualSearch() {
     if (!profile || profile.startsWith('Edit this profile')) {
-      setMsg(T('⚠ 请先填写你的资料概述 — Claude 需要它来确定要搜索哪些职位。','⚠ Please write your profile summary first — Claude needs it to know what jobs to search for.'));
+      setMsg(T('请先写好你的资料概述——Claude 要靠它决定搜哪些职位。','Write your profile summary first — Claude needs it to know which jobs to search for.'));
       return;
     }
     setStep('scanning'); setFound([]); setSelected(new Set());
@@ -2725,174 +2735,149 @@ Return JSON only:
   }
 
   const hasKey = !!anthropicKey();
-  const scoreColor = s => s>=8 ? 'bg-green-100 text-green-800' : s>=6 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
   const toggle = id => { const s = new Set(selected); s.has(id)?s.delete(id):s.add(id); setSelected(s); };
   const [editingId, setEditingId] = useState(null);
   const updateJob = (id, field, value) => setFound(f => f.map(j => j._id===id ? {...j, [field]:value} : j));
+  // What "Discover new jobs" really searches: the region's own place for Canada, Hong Kong and Mainland China, and
+  // Canada for every other region (the search prompt knows those three only). Said on the page rather than hidden.
+  const loc = REGION_LABELS[region] || 'Canada';
+  const regionLabel = rName(REGION_BY[region]);
+  const searchesElsewhere = !REGION_LABELS[region];
+  const msgKind = /^(Error|错误)/.test(msg) ? 'error' : (step === 'review' && !found.length && msg) ? 'warn' : '';
+  const reset = () => { setStep('setup'); setFound([]); setAdded([]); setMsg(''); setSelected(new Set()); };
+  const plural = (n, one, many) => n === 1 ? one : many;
 
   return (
-    <div className="space-y-3">
-      <Card className="p-4">
-        <SectionHdr icon="📧" title={T('LinkedIn 职位提醒扫描器','LinkedIn job alert scanner')} />
-        <p className="text-xs text-gray-500 mb-3">
-          {T('粘贴一封 LinkedIn 职位提醒邮件 → Claude 在每家公司的招聘页搜索完整 JD → 对照你的资料评分 → 批量加入追踪，描述已就绪可用于简历定制。',"Paste a LinkedIn job alert email → Claude searches each company's career page for the full JD → scores against your profile → batch-add to tracker with descriptions ready for resume tailoring.")}
-        </p>
-
+    <>
+      <PageHead eyebrow={regionLabel} title={T('提醒','Alerts')}
+        sub={T('粘贴一封 LinkedIn 职位提醒邮件：Claude 到每家公司的招聘页找完整的职位描述，再按你的资料打分，挑好的一次加进追踪。',
+          'Paste a LinkedIn job-alert email; Claude looks up each posting on the company’s careers page and scores it against your profile, and you add the good ones to the tracker in one go.')} />
+      <div className="stack">
         {!hasKey && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-800 mb-3">
-            ⚠ {T('未设置 Anthropic API 密钥。在 ','No Anthropic API key set. Add one in ')}<strong>⚙️ {T('设置','Settings')}</strong>{T(' 中添加以使用此功能。',' to use this feature.')}
+          <div className="status-bar warn al-key" id="al-need">
+            <p>{T('「提醒」要用 Anthropic API 密钥（每次扫描约 $0.01–0.05），密钥只存在这个浏览器里。','Alerts need an Anthropic API key (about $0.01–0.05 per scan). It stays in this browser.')}</p>
+            {onOpenKey && <Btn className="btn-sm" onClick={e => onOpenKey(e.currentTarget)}>{T('去「设置」里添加','Add a key in Settings')}</Btn>}
           </div>
         )}
 
         {step === 'setup' && (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1 font-medium">{T('你的资料（用于匹配与评分）','Your profile (used for matching & scoring)')}</label>
-              <textarea value={profile} onChange={e=>setProfile(e.target.value)} onBlur={e=>saveText('watchdogProfile', e.target.value)} rows={3}
-                className="w-full text-xs border border-gray-200 rounded-md p-2 resize-none text-gray-700 focus:outline-none focus:border-gray-400"
-                placeholder={T('用 2-3 句话描述你自己以便职位匹配…','Describe yourself in 2-3 sentences for job matching…')} />
-              <div className="flex justify-between items-center mt-1">
-                <p className="text-xs text-gray-400">{T('点击其他位置时会保存到 GitHub。','Saved to GitHub when you click away.')}</p>
-                <button onClick={()=>saveProfile(DEFAULT_PROFILE)} className="text-xs text-gray-400 hover:text-gray-600 hover:underline">{T('重置为默认','Reset to default')}</button>
+          <>
+            <section className="card" aria-labelledby="al-h1">
+              <div className="card-head"><h2 id="al-h1">{T('扫描一封提醒邮件','Scan an alert email')}</h2></div>
+              <Fld id="al-profile" label={T('你的资料（用来匹配和打分）','Your profile, for matching')} hint={T('离开这个框时保存到你的仓库。','Saved to your repo when you leave the field.')}>
+                <textarea id="al-profile" rows={3} value={profile} onChange={e=>setProfile(e.target.value)} onBlur={e=>saveText('watchdogProfile', e.target.value)}
+                  aria-describedby="al-profile-hint" placeholder={T('用 2–3 句话介绍你自己，用来匹配职位…','Describe yourself in 2–3 sentences for job matching…')} />
+              </Fld>
+              <p className="al-reset"><button type="button" className="btn-link" onClick={()=>saveProfile(DEFAULT_PROFILE)}>{T('恢复默认','Reset to default')}</button></p>
+              <Fld id="al-email" label={T('LinkedIn 职位提醒邮件','LinkedIn job-alert email')}>
+                <textarea id="al-email" rows={8} value={pastedText} onChange={e=>setPastedText(e.target.value)}
+                  placeholder={T("打开一封 LinkedIn 职位提醒邮件 → Ctrl+A → Ctrl+C → 粘贴到这里。\n邮件里有职位名称和公司名——Claude 找完整职位只需要这些。","Open a LinkedIn job alert email → Ctrl+A → Ctrl+C → paste here.\nThe email has job titles and company names — that's all Claude needs to search for the full listings.")} />
+              </Fld>
+              <div className="form-acts">
+                <Btn variant="primary" onClick={scan} disabled={!profile.trim()||!pastedText.trim()||!hasKey} aria-describedby={!hasKey ? 'al-need' : undefined}>{T('搜索并打分','Search & score jobs')}</Btn>
               </div>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1 font-medium">
-                {T('粘贴 LinkedIn 职位提醒邮件','Paste LinkedIn job alert email')}
-              </label>
-              <textarea value={pastedText} onChange={e=>setPastedText(e.target.value)} rows={8}
-                className="w-full text-xs border border-gray-200 rounded-md p-2 resize-y text-gray-700 focus:outline-none focus:border-gray-400"
-                placeholder={T("打开一封 LinkedIn 职位提醒邮件 → Ctrl+A → Ctrl+C → 粘贴到这里。\n邮件里有职位名称和公司名 — 这就是 Claude 搜索完整职位所需的全部。","Open a LinkedIn job alert email → Ctrl+A → Ctrl+C → paste here.\nThe email has job titles and company names — that's all Claude needs to search for the full listings.")} />
-            </div>
-            <Btn variant="primary" onClick={scan} disabled={!profile.trim()||!pastedText.trim()||!hasKey}>
-              {T('🔍 搜索并评分职位','🔍 Search & score jobs')}
-            </Btn>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 pt-1">
-              <div className="flex-1 border-t border-gray-200" />
-              <span className="text-xs text-gray-400">{T('或','or')}</span>
-              <div className="flex-1 border-t border-gray-200" />
-            </div>
-
-            {/* Manual search */}
-            <div className="bg-gray-50 rounded-md p-3 border border-gray-200">
-              <p className="text-xs text-gray-600 mb-2">
-                <strong>{T('🌐 发现新职位','🌐 Discover new jobs')}</strong>{T(' — Claude 在网络上搜索 ',' — Claude searches the web for fresh postings in ')}<strong>{REGION_LABELS[region]||region}</strong>{T(' 中符合你资料的最新职位。无需邮件。',' matching your profile. No email needed.')}
-              </p>
-              <Btn onClick={manualSearch} disabled={!profile.trim()||!hasKey}>
-                {T('🌐 搜索新职位（近 24 小时）','🌐 Search new jobs (last 24h)')}
-              </Btn>
-            </div>
-          </div>
+            </section>
+            <p className="or" aria-hidden="true"><span>{T('或','or')}</span></p>
+            <section className="card al-discover" aria-labelledby="al-h2">
+              <div className="card-head"><h2 id="al-h2">{T('发现新职位','Discover new jobs')}</h2></div>
+              <p className="hint">{T(`Claude 在网上找「${loc}」里符合你资料的新职位，不需要邮件。`, `Claude searches the web for fresh postings in ${loc} that match your profile. No email needed.`)}
+                {searchesElsewhere && ' ' + T(`这项搜索只认识加拿大、香港和中国大陆；在「${regionLabel}」下它搜的是加拿大。`, `The search knows Canada, Hong Kong and Mainland China only; under ${regionLabel} it searches Canada.`)}</p>
+              <div className="btn-row"><Btn onClick={manualSearch} disabled={!profile.trim()||!hasKey} aria-describedby={!hasKey ? 'al-need' : undefined}>{T('搜索新职位（近 24 小时）','Search new jobs (last 24 h)')}</Btn></div>
+            </section>
+          </>
         )}
 
         {step === 'scanning' && (
-          <div className="flex flex-col items-center gap-3 py-8">
-            <div className="w-7 h-7 border-2 border-gray-200 border-t-gray-700 rounded-full animate-spin" />
-            <p className="text-sm text-gray-500 text-center max-w-sm">{msg}</p>
-            <p className="text-xs text-gray-400 text-center">{T('这可能需要 20–40 秒（为每个职位进行网络搜索）','This may take 20–40 seconds (web search for each job)')}</p>
-          </div>
+          <section className="card" aria-busy="true" aria-labelledby="al-h3">
+            <h2 id="al-h3" className="sr-only">{T('正在搜索','Searching')}</h2>
+            <p className="status-bar" role="status"><span className="pulse" aria-hidden="true"></span>{msg}</p>
+            <p className="hint">{T('可能要 20–40 秒：每个职位都要做一次网络搜索。','This can take 20–40 seconds: one web search per job.')}</p>
+          </section>
         )}
 
         {step === 'review' && (
-          <div>
-            <div className="text-xs text-gray-500 bg-gray-50 rounded-md p-2 mb-3">{msg}</div>
-            {found.length > 0 && (
+          <section className="card" aria-labelledby="al-h4">
+            <h2 id="al-h4" className="sr-only">{T('搜索结果','Results')}</h2>
+            {msg && <p className={`status-bar ${msgKind}`} role={msgKind === 'error' ? 'alert' : 'status'}>{msg}</p>}
+            {found.length > 0 ? (
               <>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs text-gray-600">{T('已选 ','')}{selected.size} / {found.length}{T(' 项',' selected')}</span>
-                  <div className="flex gap-3">
-                    <button onClick={()=>setSelected(new Set(found.map(j=>j._id)))} className="text-xs text-blue-600 hover:underline">{T('全选','Select all')}</button>
-                    <button onClick={()=>setSelected(new Set())} className="text-xs text-gray-500 hover:underline">{T('清除','Clear')}</button>
-                    <button onClick={()=>setStep('setup')} className="text-xs text-gray-500 hover:underline">{T('← 返回','← Back')}</button>
-                  </div>
+                <div className="al-head">
+                  <span className="num">{T(`已选 ${selected.size} / ${found.length}`, `${selected.size} of ${found.length} selected`)}</span>
+                  <span className="btn-row">
+                    <button type="button" className="btn-link" onClick={()=>setSelected(new Set(found.map(j=>j._id)))}>{T('全选','Select all')}</button>
+                    <button type="button" className="btn-link" onClick={()=>setSelected(new Set())}>{T('清除','Clear')}</button>
+                    <button type="button" className="btn-link" onClick={()=>setStep('setup')}>{T('← 返回','← Back')}</button>
+                  </span>
                 </div>
-                <div className="space-y-2 mb-3">
+                <ul className="al-list">
                   {found.map(j => {
-                    const isSel = selected.has(j._id);
-                    const isEdit = editingId === j._id;
+                    const isSel = selected.has(j._id), isEdit = editingId === j._id;
                     const isDup = jobs.some(e => fuzzy(e.company, j.company) && fuzzy(e.role, j.role));
+                    const editName = T('添加前编辑','Edit before adding');
+                    const f = (k, label, wide) => (
+                      <Fld id={`al-${j._id}-${k}`} label={label} wide={wide}>
+                        {k === 'description'
+                          ? <textarea id={`al-${j._id}-${k}`} rows={6} value={j[k]||''} onChange={e=>updateJob(j._id,k,e.target.value)} />
+                          : <input id={`al-${j._id}-${k}`} type="text" value={j[k]||''} onChange={e=>updateJob(j._id,k,e.target.value)} className={k === 'url' ? 'mono' : undefined} />}
+                      </Fld>
+                    );
                     return (
-                    <div key={j._id} className={`rounded-md border transition-colors ${isDup?'border-orange-200 bg-orange-50/50':isSel?'border-blue-200 bg-blue-50':'border-gray-200 bg-white'}`}>
-                      <div className="flex gap-2 p-3 cursor-pointer" onClick={()=>{ if(!isEdit) toggle(j._id); }}>
-                        <input type="checkbox" checked={isSel} onChange={()=>{ if(!isEdit) toggle(j._id); }} aria-label={T('选择这条职位','Select this job')} className="mt-0.5 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start gap-2 mb-0.5">
-                            <p className="text-sm font-medium text-gray-900">{j.role} <span className="font-normal text-gray-500">· {j.company}</span></p>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${scoreColor(j.score)}`}>{j.score}/10</span>
-                              {isDup && <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">{T('已在追踪','In tracker')}</span>}
-                              <button onClick={e=>{e.stopPropagation(); setEditingId(isEdit?null:j._id);}}
-                                className={`text-xs px-1.5 py-0.5 rounded border ${isEdit?'bg-gray-200 border-gray-300':'border-gray-200 hover:bg-gray-100'}`}
-                                title={T('编辑','Edit')}>✏️</button>
-                            </div>
-                          </div>
-                          {!isEdit && j.location && <p className="text-xs text-gray-400 mb-0.5">{j.location}</p>}
-                          {!isEdit && j.salary && <p className="text-xs text-gray-500 mb-0.5">💰 {j.salary}</p>}
-                          {!isEdit && <p className="text-xs text-gray-500 mb-1">{j.reason}</p>}
-                          {!isEdit && j.description && <p className="text-xs text-gray-400 italic mb-1">{j.description.slice(0,300)}{j.description.length>300?'…':''}</p>}
-                          {!isEdit && (j.url) && (
-                            <a href={j.url} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()}
-                              className="text-xs text-blue-500 hover:underline inline-flex items-center gap-1">{T('↗ 查看并申请','↗ View & apply')}</a>
-                          )}
+                      <li key={j._id} className={`al-row${isSel ? ' sel' : ''}`}>
+                        <div className="al-top">
+                          <label className="al-pick"><input type="checkbox" checked={isSel} disabled={isEdit} onChange={()=>toggle(j._id)} /><span><b>{j.role}</b> · {j.company}</span></label>
+                          <button type="button" className="btn btn-ghost btn-icon" aria-label={editName} data-tip={editName} aria-pressed={isEdit} onClick={()=>setEditingId(isEdit ? null : j._id)}><Icon name="edit" /></button>
                         </div>
-                      </div>
-                      {isEdit && (
-                        <div className="px-3 pb-3 pt-1 space-y-2 border-t border-gray-100 ml-6" onClick={e=>e.stopPropagation()}>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div><label className="text-xs text-gray-500 mb-0.5 block">{T('公司','Company')}</label>
-                              <input value={j.company||''} onChange={e=>updateJob(j._id,'company',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-gray-400" /></div>
-                            <div><label className="text-xs text-gray-500 mb-0.5 block">{T('职位','Role')}</label>
-                              <input value={j.role||''} onChange={e=>updateJob(j._id,'role',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-gray-400" /></div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div><label className="text-xs text-gray-500 mb-0.5 block">{T('地点','Location')}</label>
-                              <input value={j.location||''} onChange={e=>updateJob(j._id,'location',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-gray-400" /></div>
-                            <div><label className="text-xs text-gray-500 mb-0.5 block">{T('薪资','Salary')}</label>
-                              <input value={j.salary||''} onChange={e=>updateJob(j._id,'salary',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-gray-400" /></div>
-                          </div>
-                          <div><label className="text-xs text-gray-500 mb-0.5 block">{T('申请链接','Apply URL')}</label>
-                            <input value={j.url||''} onChange={e=>updateJob(j._id,'url',e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1 font-mono focus:outline-none focus:border-gray-400" /></div>
-                          <div><label className="text-xs text-gray-500 mb-0.5 block">{T('职位描述','Job description')}</label>
-                            <textarea value={j.description||''} onChange={e=>updateJob(j._id,'description',e.target.value)} rows={6}
-                              className="w-full text-xs border border-gray-200 rounded px-2 py-1 resize-y focus:outline-none focus:border-gray-400" /></div>
-                          <div className="flex justify-end">
-                            <button onClick={()=>setEditingId(null)} className="text-xs px-3 py-1 rounded bg-gray-900 text-white hover:bg-gray-700">{T('完成','Done')}</button>
-                          </div>
+                        <div className="al-tags">
+                          <span className="chip">{j.score}/10</span>
+                          {j.score >= 7 && <span className="tag tag-success">{T('高匹配','high fit')}</span>}
+                          {isDup && <span className="tag tag-warning">{T('已在追踪里','Already in tracker')}</span>}
                         </div>
-                      )}
-                    </div>);
+                        {!isEdit ? (
+                          <div className="al-body">
+                            {j.location && <p className="hint">{j.location}</p>}
+                            {j.salary && <p className="hint">{T('薪资：','Salary: ')}{j.salary}</p>}
+                            {j.reason && <p className="al-reason">{j.reason}</p>}
+                            {j.description && <p className="caption">{j.description.slice(0,300)}{j.description.length>300?'…':''}</p>}
+                            {j.url && <a className="al-link" href={j.url} target="_blank" rel="noreferrer">{T('查看职位','View posting')}<Icon name="open" size={14} /></a>}
+                          </div>
+                        ) : (
+                          <div className="form-grid two al-edit">
+                            {f('company', T('公司','Company'))}{f('role', T('职位','Role'))}{f('location', T('地点','Location'))}{f('salary', T('薪资','Salary'))}
+                            {f('url', T('申请链接','Apply URL'), true)}{f('description', T('职位描述','Job description'), true)}
+                            <div className="form-acts fld wide"><Btn onClick={()=>setEditingId(null)}>{T('完成','Done')}</Btn></div>
+                          </div>
+                        )}
+                      </li>
+                    );
                   })}
+                </ul>
+                <div className="form-acts">
+                  <Btn variant="primary" onClick={addToTracker} disabled={!selected.size||adding}>
+                    {adding ? T('添加中…','Adding…') : T(`把 ${selected.size} 个职位加进追踪`, `Add ${selected.size} ${plural(selected.size, 'job', 'jobs')} to tracker`)}
+                  </Btn>
                 </div>
-                <Btn variant="primary" onClick={addToTracker} disabled={!selected.size||adding}>
-                  {adding?T('⏳ 添加中…','⏳ Adding…'):T(`➕ 添加 ${selected.size} 个职位到追踪`,`➕ Add ${selected.size} job${selected.size!==1?'s':''} to tracker`)}
-                </Btn>
               </>
-            )}
-          </div>
+            ) : <div className="btn-row"><Btn onClick={()=>setStep('setup')}>{T('← 返回','← Back')}</Btn></div>}
+          </section>
         )}
 
         {step === 'done' && (
-          <div>
-            <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-md p-2 mb-3">✅ {msg}</div>
-            <div className="space-y-1.5 mb-3">
+          <section className="card" aria-labelledby="al-h5">
+            <h2 id="al-h5" className="sr-only">{T('已添加','Added')}</h2>
+            <p className="status-bar done" role="status">{msg}</p>
+            <ul className="rows">
               {added.map(j => (
-                <div key={j.id} className="text-xs p-2 bg-gray-50 rounded-md border border-gray-200">
-                  <span className="font-medium text-gray-900">{j.role}</span>
-                  <span className="text-gray-500"> · {j.company}</span>
-                  {j.location && <span className="text-gray-400"> · {j.location}</span>}
-                  {j.notes && j.notes.split('\n').map((n,i)=><p key={i} className="text-gray-400 mt-0.5">{n}</p>)}
-                </div>
+                <li key={j.id}><span><b>{j.role}</b> · {j.company}{j.location ? ` · ${j.location}` : ''}{j.notes && j.notes.split('\n').map((n,i)=><span key={i} className="hint al-note">{n}</span>)}</span></li>
               ))}
-            </div>
-            <Btn onClick={()=>{setStep('setup');setFound([]);setAdded([]);setMsg('');setSelected(new Set());}}>{T('📧 扫描更多职位','📧 Scan more jobs')}</Btn>
-          </div>
+            </ul>
+            <div className="form-acts"><Btn onClick={reset}>{T('再扫一次','Scan more jobs')}</Btn></div>
+          </section>
         )}
-      </Card>
-    </div>
+      </div>
+    </>
   );
 }
+
 
 // ════════════════════════════════════════════════════════════════
 // INSIGHTS TAB
@@ -2964,7 +2949,7 @@ function PipelineChart({ p, titleId, eqId }) {
     return `M${xa},${ya} C${mx},${ya} ${mx},${yb} ${xb},${yb} L${xb},${yb + hb} C${mx},${yb + hb} ${mx},${ya + ha} ${xa},${ya + ha}Z`;
   };
   // a link leaves its source as a slice of exactly n units, so the slices of one node add up to the node
-  const links = (src, sy, targets, xa, xb) => { let y = sy; return targets.map(t => { const hs = t.n * (src ? unit : 0); const d = band(xa, y, hs, xb, t.y, t.h); y += hs; return { d, kind: t.kind === 'fwd' ? 'link-fwd' : 'link-end', id: t.id }; }); };
+  const links = (src, sy, targets, xa, xb) => { let y = sy; return targets.map(t => { const hs = t.n * (src ? unit : 0); const d = band(xa, y, hs, xb, t.y, t.h); y += hs; return { d, kind: t.kind === 'fwd' ? 'link-fwd' : 'link-end', id: t.id, node: t }; }); };
   const l1 = links(true, srcY, col1, x0 + nw, x1);
   const l2 = iv ? links(true, iv.y, col2, x1 + nw, x2) : [];
   const label = (x, y, n, word, anchor) => (
@@ -2973,9 +2958,11 @@ function PipelineChart({ p, titleId, eqId }) {
       <text className="w" x={x} y={y + 16} textAnchor={anchor}>{word}</text>
     </>
   );
+  const pct = n => p.apps ? Math.round(n / p.apps * 100) : 0;
+  const tipOf = n => T(`${n.label}：${n.n} 条，占全部申请的 ${pct(n.n)}%`, `${n.label}: ${n.n} of ${p.apps} applications (${pct(n.n)}%)`);
   const nodeRect = (x, n) => (
     <>
-      <rect x={x} y={n.y} width={nw} height={n.h} rx="2" className={n.kind} />
+      <rect x={x} y={n.y} width={nw} height={n.h} rx="2" className={n.kind}><title>{tipOf(n)}</title></rect>
       {n.kind === 'unk' && <rect x={x + .5} y={n.y + .5} width={nw - 1} height={Math.max(0, n.h - 1)} rx="2" className="unk-edge" />}
     </>
   );
@@ -2991,9 +2978,9 @@ function PipelineChart({ p, titleId, eqId }) {
               <rect width="3" height="7" className="hatch-bar" />
             </pattern>
           </defs>
-          {l1.map(l => <path key={'a' + l.id} d={l.d} className={l.kind} />)}
-          {l2.map(l => <path key={'b' + l.id} d={l.d} className={l.kind} />)}
-          <rect x={x0} y={srcY} width={nw} height={srcH} rx="2" className="src" />
+          {l1.map(l => <path key={'a' + l.id} d={l.d} className={l.kind}><title>{tipOf(l.node)}</title></path>)}
+          {l2.map(l => <path key={'b' + l.id} d={l.d} className={l.kind}><title>{tipOf(l.node)}</title></path>)}
+          <rect x={x0} y={srcY} width={nw} height={srcH} rx="2" className="src"><title>{T(`申请：${p.apps} 条`, `Applications: ${p.apps}`)}</title></rect>
           {narrow
             ? <text x={x0} y={18}><tspan className="n">{p.apps}</tspan><tspan className="w" dx="6">{T('申请', p.apps === 1 ? 'application' : 'applications')}</tspan></text>
             : label(x0 - 8, srcY + srcH / 2 - 2, p.apps, T('申请', p.apps === 1 ? 'Application' : 'Applications'), 'end')}
@@ -3316,21 +3303,26 @@ function DiagnosisTab({ diagnosis, setDiagnosis }) {
 // REGION APP
 // ════════════════════════════════════════════════════════════════
 
-function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, onCount, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary, diagnosis, setDiagnosis }) {
+function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, onCount, openSettings, sharedErr, onRetryShared, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary, diagnosis, setDiagnosis }) {
   const regionMeta = REGIONS.find(r=>r.id===region);
   const regionLabel = rName(regionMeta);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [focusJob, setFocusJob] = useState(null);   // back from a job: its row takes focus again
+  const [loadErr, setLoadErr] = useState(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true); setLoadErr(null);
     (async () => {
-      const j = (DEMO && !ghConfigured()) ? sampleJobs(region) : await loadJson(`${region}:jobs`);
-      if (!cancelled) { setJobs(j); setLoading(false); }
+      try {
+        const j = (DEMO && !ghConfigured()) ? sampleJobs(region) : await loadJsonStrict(`${region}:jobs`);
+        if (!cancelled) { setJobs(Array.isArray(j) ? j : []); setLoading(false); }
+      } catch (e) { if (!cancelled) { setLoadErr(e); setLoading(false); } }
     })();
     return () => { cancelled=true; };
-  }, [region]);
+  }, [region, attempt]);
   useEffect(() => { onCount(loading ? null : jobs.length); }, [loading, jobs.length]);
 
   const tabMeta = TABS.find(t => t.id === tab) || TABS[0];
@@ -3346,9 +3338,20 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
     </>
   );
 
+  if (tabMeta.scope === 'region' && loadErr) return (
+    <>
+      <PageHead eyebrow={eyebrow} title={T(tabMeta.zh, tabMeta.label)} />
+      <ErrorCard title={T(`没能从 GitHub 读到${regionLabel}的投递`, `Couldn’t read your ${regionLabel} applications from GitHub`)} error={loadErr} onRetry={() => setAttempt(a => a + 1)} openSettings={openSettings} />
+    </>
+  );
+  if (tabMeta.scope === 'shared' && sharedErr) return (
+    <>
+      <PageHead eyebrow={eyebrow} title={T(tabMeta.zh, tabMeta.label)} />
+      <ErrorCard title={T('没能从 GitHub 读到你的资料','Couldn’t read your profile from GitHub')} error={sharedErr} onRetry={onRetryShared} openSettings={openSettings} />
+    </>
+  );
+
   const openJob = tab === 'tracker' ? jobs.find(j=>j.id===openJobId) : null;
-  // the views not redrawn yet keep their old insides under the family heading (round 1 redraws the shell, Tracker and Insights)
-  const legacy = node => <><PageHead eyebrow={eyebrow} title={T(tabMeta.zh, tabMeta.label)} /><div className="legacy">{node}</div></>;
 
   return (
     <>
@@ -3359,7 +3362,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
       {tab==='diagnosis' && <DiagnosisTab diagnosis={diagnosis} setDiagnosis={setDiagnosis} />}
       {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}
       {tab==='insights'&& <InsightsTab jobs={jobs} regionName={regionLabel} onWorking={()=>go('tracker', { status: jobs.some(j => j.status === 'working') ? 'working' : null })} onAdd={()=>go('addjob')} />}
-      {tab==='watchdog'&& legacy(<WatchdogTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} />)}
+      {tab==='watchdog'&& <WatchdogTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} onOpenKey={opener => openSettings(opener, '#set-key')} />}
     </>
   );
 }
@@ -3396,6 +3399,8 @@ function App() {
     document.getElementById('root').style.display = '';
   }, []);
 
+  const [sharedErr, setSharedErr] = useState(null);
+  const [sharedTry, setSharedTry] = useState(0);
   useEffect(() => {
     const ok = ghConfigured(); setGhOk(ok);
     if (!ok) {   // no dialog on arrival: the connect card on every view opens Settings
@@ -3403,14 +3408,18 @@ function App() {
       setLoaded(true); return;
     }
     (async () => {
-      const [rawSecs, oldDb, fmt, gls, lib, diag] = await Promise.all([
-        loadJson('resumeSections'),
-        loadText('resumeDb'),
-        loadText('formatting'),
-        loadText('glossary'),
-        loadJson('library'),
-        loadJson('diagnosis'),
-      ]);
+      let rawSecs, oldDb, fmt, gls, lib, diag;
+      try {
+        setSharedErr(null);
+        [rawSecs, oldDb, fmt, gls, lib, diag] = await Promise.all([
+          loadJsonStrict('resumeSections'),
+          loadTextStrict('resumeDb'),
+          loadTextStrict('formatting'),
+          loadTextStrict('glossary'),
+          loadJsonStrict('library'),
+          loadJsonStrict('diagnosis'),
+        ]);
+      } catch (e) { setSharedErr(e); setLoaded(true); return; }
       setDiagnosis(diag && !Array.isArray(diag) ? diag : null);
       let secs = rawSecs;
       if ((!secs || secs.length === 0) && oldDb.trim()) {
@@ -3423,7 +3432,7 @@ function App() {
       setLibrary(lib);
       setLoaded(true);
     })();
-  }, []);
+  }, [sharedTry]);
 
   // a failed save stays on screen until dismissed: the change is on this page only and is lost on reload
   useEffect(() => {
@@ -3568,6 +3577,9 @@ function App() {
                 setOpenJobId={setOpenJobId}
                 trackerStatus={trackerStatus}
                 onCount={setJobCount}
+                openSettings={openSettings}
+                sharedErr={sharedErr}
+                onRetryShared={() => setSharedTry(n => n + 1)}
                 resumeDb={resumeDb}
                 sections={sections}
                 diagnosis={diagnosis}
