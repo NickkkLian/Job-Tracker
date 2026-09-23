@@ -46,8 +46,8 @@ to the repo.
 
 | Concern | Approach |
 |---|---|
-| Runtime | One `index.html`, built from `src/` by `build.mjs`: the JSX is compiled ahead of time with esbuild (pinned) and inlined. React 18, ReactDOM, mammoth, jsPDF, pdf.js (loaded the first time a `.pdf` is read) and Tailwind's Play CDN script are served from `vendor/` (sources and hashes in `vendor/SOURCE.md`). CI rebuilds the page and fails if it differs from the committed one or loads a script from another host |
-| Storage | GitHub Contents API against a private repo. Each write re-reads the blob SHA on a 409 and retries once, so two devices can edit without clobbering each other |
+| Runtime | One `index.html`, built from `src/` by `build.mjs`: the JSX is compiled ahead of time with esbuild (pinned) and inlined. React 18, ReactDOM, mammoth, jsPDF, pdf.js (loaded the first time a `.pdf` is read) and Tailwind's Play CDN script are served from `vendor/` (sources and hashes in `vendor/SOURCE.md`). CI rebuilds the page and fails if it differs from the committed one, or if the page names a script on another host: a `<script src>` there, or an http(s) address ending in `.js` or `.mjs` |
+| Storage | GitHub Contents API against a private repo. Each write sends the file's last known SHA; if another device saved first (GitHub answers 409), it reads the new SHA and writes once more, so the last device to save wins |
 | Files | PDFs are stored as raw base64 under `data/files/` and cached in localStorage for instant preview; on a new device they're pulled from the repo on first open |
 | JD parsing | Regex heuristics over the first 80 cleaned lines (noise such as contact lines, EEO boilerplate and URLs is stripped first); the raw JD is always stored unmodified |
 | Prompts | Long, explicit reportlab instructions (column widths, table styles, one-page enforcement, a banned-word list for junior résumés) so Claude.ai's Analysis tool produces a consistent PDF every time |
@@ -80,7 +80,8 @@ the same panel.
 - Tailwind still runs as its Play CDN script (now served from `vendor/`), which builds the stylesheet in
   the browser on every load; a stylesheet built ahead of time would be lighter.
 - Calling the Anthropic API from the browser requires the `anthropic-dangerous-direct-browser-access`
-  header; the key never leaves your machine, but this is a single-user trade-off.
+  header. The key is stored only in this browser and sent only to Anthropic's API, which suits one person's own copy
+  but not a shared deployment.
 - The JD extractor is heuristic and tuned for English postings; it pre-fills, you verify.
 
 ## License

@@ -5,8 +5,9 @@
 //                            source that was never built, or a built page edited by hand, turns red)
 //
 // Why: the page used to ship its JSX to the browser together with Babel (2.7 MB) and compile it on every visit, and it
-// loaded React, ReactDOM, Tailwind, mammoth and jsPDF from four other hosts. Now the JSX is compiled here with esbuild and
-// inlined, and the libraries are served from vendor/ (copies, sources and hashes in vendor/SOURCE.md).
+// loaded React, ReactDOM, Tailwind, mammoth and jsPDF from two other hosts (cdn.tailwindcss.com, cdnjs.cloudflare.com).
+// Now the JSX is compiled here with esbuild and inlined, and the libraries are served from vendor/ (copies, sources and
+// hashes in vendor/SOURCE.md).
 //
 // esbuild is the only dependency, pinned: the same input must give the same page byte for byte on every machine.
 // Set ESBUILD_MODULE to the path of an installed esbuild's lib/main.js to use one that is not in node_modules.
