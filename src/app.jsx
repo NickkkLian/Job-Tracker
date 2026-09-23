@@ -854,9 +854,9 @@ function Card({ children, className='' }) {
   return <div className={`card ${className}`}>{children}</div>;
 }
 
-function Btn({ children, onClick, variant='secondary', disabled=false, className='', title, type='button' }) {
+function Btn({ children, onClick, variant='secondary', disabled=false, className='', title, type='button', ...rest }) {
   const v = { primary:'btn-primary', secondary:'', danger:'btn-danger', ghost:'btn-ghost' };
-  return <button type={type} onClick={onClick} disabled={disabled} title={title} className={`btn ${v[variant] || ''} ${className}`}>{children}</button>;
+  return <button type={type} onClick={onClick} disabled={disabled} title={title} className={`btn ${v[variant] || ''} ${className}`} {...rest}>{children}</button>;
 }
 
 // Status colours: interested is a draft (dashed, not sent yet), applied waits (info), interviewing needs attention
@@ -1029,45 +1029,76 @@ function FileUploadButton({ onFile, label=T('上传文件…','Upload file…'),
 // PROMPT MODAL
 // ════════════════════════════════════════════════════════════════
 
-function PromptModal({ title, prompt, onClose }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
-    try { await navigator.clipboard.writeText(prompt); setCopied(true); setTimeout(()=>setCopied(false),2000); } catch {}
+// A modal dialog on the native <dialog>, as the family does it: showModal(), the --overlay backdrop, Esc or a click on
+// the backdrop closes it, and focus goes back to whatever opened it. It is rendered only while open: the parent
+// unmounts it to close it.
+function Dialog({ labelId, onClose, wide, children }) {
+  const ref = useRef(null);
+  const opener = useRef(document.activeElement);
+  const closeRef = useRef(onClose); closeRef.current = onClose;
+  useEffect(() => {
+    const d = ref.current;
+    if (d && !d.open) { try { d.showModal(); } catch (e) { d.setAttribute('open', ''); } }
+    // showModal() puts focus on the first control; a field marked data-autofocus (the only thing to do next) takes it instead
+    const af = d && d.querySelector('[data-autofocus]');
+    if (af) af.focus();
+    const onCancel = e => { e.preventDefault(); closeRef.current(); };
+    if (d) d.addEventListener('cancel', onCancel);
+    return () => {
+      if (d) d.removeEventListener('cancel', onCancel);
+      const o = opener.current;
+      if (o && o.isConnected && o.focus) setTimeout(() => o.focus(), 0);
+    };
+  }, []);
+  // a pointer click on the backdrop closes; keyboard-made clicks (detail 0, at 0,0) never count
+  const onClick = e => {
+    const d = ref.current;
+    if (e.target !== d || !e.detail) return;
+    const r = d.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) closeRef.current();
   };
-  useEscapeClose(onClose);
+  return <dialog ref={ref} className={`dlg${wide ? ' dlg-wide' : ''}`} aria-labelledby={labelId} onClick={onClick}>{children}</dialog>;
+}
+
+// The read-only prompt, and what to do with it: copy (a failed copy says so, it used to fail silently), open Claude.ai
+// in a new tab, close. Clicking the text selects all of it, as before.
+function PromptBlock({ prompt, onClose, id }) {
+  const [state, setState] = useState('idle');   // idle | copied | failed
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(prompt); setState('copied'); setTimeout(() => setState(s => s === 'copied' ? 'idle' : s), 2000); }
+    catch (e) { setState('failed'); }
+  };
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mt-8 mb-8" onClick={e=>e.stopPropagation()}>
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-900">✨ {title}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none">&times;</button>
-        </div>
-        <div className="p-4">
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 mb-3 space-y-1">
-            <div className="font-semibold">{T('使用方法：','How to use:')}</div>
-            <div>{T('1. 点击下方的 ','1. Click ')}<strong>{T('复制提示词','Copy prompt')}</strong>{T(' 按钮',' below')}</div>
-            <div>{T('2. 点击 ','2. Click ')}<strong>{T('打开 Claude.ai','Open Claude.ai')}</strong>{T(' — 会在新标签页打开',' — it opens in a new tab')}</div>
-            <div>{T('3. 粘贴提示词（⌘V / Ctrl+V）并发送','3. Paste the prompt (⌘V / Ctrl+V) and press Send')}</div>
-            <div>4. <strong>{T('定制简历 / 求职信：','Tailor Resume / Cover Letter:')}</strong>{T(' 确保 Analysis 工具已开启 → Claude 运行 Python 生成 PDF 文件 → 点击文件下载 → 在下方上传',' make sure the Analysis tool is on → Claude runs Python and generates a PDF file → click the file to download it → upload below')}</div>
-            <div>5. <strong>{T('其他提示词：','Other prompts:')}</strong>{T(" 直接阅读并使用 Claude 的回复"," read and use Claude's response directly")}</div>
-          </div>
-          <textarea
-            value={prompt}
-            readOnly
-            className="w-full h-64 p-3 text-xs font-mono border border-gray-300 rounded-md bg-gray-50 resize-y focus:outline-none"
-            onClick={e => e.target.select()}
-          />
-          <div className="flex gap-2 mt-3 justify-end flex-wrap">
-            <Btn onClick={handleCopy}>{copied ? T('✅ 已复制!','✅ Copied!') : T('📋 复制提示词','📋 Copy prompt')}</Btn>
-            <a href={CLAUDE_URL} target="_blank" rel="noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600">
-              {T('打开 Claude.ai →','Open Claude.ai →')}
-            </a>
-          </div>
-          <p className="mt-2 text-xs text-gray-400">{T('使用你现有的 Claude.ai 订阅 — 无额外费用。','Uses your existing Claude.ai subscription — no extra cost.')}</p>
-        </div>
+    <>
+      <label htmlFor={id} className="sr-only">{T('提示词','Prompt')}</label>
+      <textarea id={id} className="prompt-box" value={prompt} readOnly onClick={e => e.target.select()} />
+      <div className="dlg-acts">
+        <Btn variant="primary" onClick={copy}>{state === 'copied' ? T('已复制','Copied') : T('复制提示词','Copy prompt')}</Btn>
+        <a className="btn" href={CLAUDE_URL} target="_blank" rel="noreferrer">{T('打开 Claude.ai','Open Claude.ai')}<Icon name="open" size={14} /></a>
+        <Btn onClick={onClose}>{T('关闭','Close')}</Btn>
       </div>
-    </div>
+      <p className="sr-only" role="status">{state === 'copied' ? T('提示词已复制到剪贴板','The prompt is on the clipboard') : ''}</p>
+      {state === 'failed' && <p className="field-err" role="alert">{T('没能复制——选中上面的文字，按 ⌘C / Ctrl+C。','Couldn’t copy — select the text above and press ⌘C / Ctrl+C.')}</p>}
+      <p className="hint dlg-foot">{T('用的是你自己的 Claude.ai 订阅，不另外收费。','Uses your Claude.ai subscription — no extra cost.')}</p>
+    </>
+  );
+}
+
+function PromptModal({ title, prompt, onClose }) {
+  const steps = [
+    T('复制提示词。','Copy the prompt.'),
+    T('打开 Claude.ai，它会在新标签页里打开。','Open Claude.ai — it opens in a new tab.'),
+    T('粘贴（⌘V / Ctrl+V）并发送。','Paste it (⌘V / Ctrl+V) and send it.'),
+    T('定制简历、求职信：先打开 Analysis 工具；Claude 会写出一个 PDF，下载后上传到这个职位下面。','Tailored resume and cover letter: turn on the Analysis tool first; Claude writes a PDF — download it and upload it to this job.'),
+    T('其余几个：直接读 Claude 的回答来用。','The others: read Claude’s answer and use it.'),
+  ];
+  return (
+    <Dialog labelId="prompt-h" onClose={onClose} wide>
+      <h2 id="prompt-h">{title}</h2>
+      <h3 className="eyebrow">{T('怎么用','How to use')}</h3>
+      <ol className="how">{steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
+      <PromptBlock prompt={prompt} onClose={onClose} id="prompt-text" />
+    </Dialog>
   );
 }
 
@@ -1076,118 +1107,63 @@ function PromptModal({ title, prompt, onClose }) {
 // ════════════════════════════════════════════════════════════════
 
 function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, onClose }) {
-  const langLabel = targetLang === 'simplified' ? T('简体中文','Simplified Chinese (简体中文)') : T('繁體中文','Traditional Chinese (繁體中文)');
-  const langIcon  = targetLang === 'simplified' ? '🇨🇳' : '🇭🇰';
-
+  const langLabel = targetLang === 'simplified' ? T('简体中文','Simplified Chinese') : T('繁體中文','Traditional Chinese');
   const sources = [
-    ...(tailoredResume?.trim() ? [{ id:'tailored', label:T('定制简历（已为此职位保存）','Tailored resume (saved for this job)') }] : []),
-    ...(library||[]).map(r => ({ id:`lib:${r.id}`, label:T('简历库：','Resume library: ')+r.name })),
-    { id:'custom', label:T('粘贴 / 输入我自己的文本','Paste / type my own text') },
+    ...(tailoredResume?.trim() ? [{ id:'tailored', label:T('这个职位的定制简历','The tailored resume saved for this job'), text: tailoredResume }] : []),
+    ...(library||[]).map(r => ({ id:`lib:${r.id}`, label:T('简历库：','Resume library: ') + r.name, text: r.content || '' })),
+    { id:'custom', label:T('粘贴我自己的文字','Paste my own text'), text: null },
   ];
-
-  const [sel, setSel]             = useState(sources[0]?.id || 'custom');
+  const [sel, setSel]               = useState(sources[0]?.id || 'custom');
   const [customText, setCustomText] = useState('');
   const [showPrompt, setShowPrompt] = useState(false);
-  const [copied, setCopied]       = useState(false);
-
-  const getContent = () => {
-    if (sel === 'tailored') return tailoredResume || '';
-    if (sel === 'custom')   return customText;
-    const libId = sel.replace('lib:', '');
-    return (library||[]).find(r => r.id === libId)?.content || '';
-  };
-
-  const content = getContent();
+  const cur = sources.find(s => s.id === sel) || sources[sources.length - 1];
+  const content = cur.id === 'custom' ? customText : (cur.text || '');
   const prompt  = promptTranslateResume(content, targetLang, glossary);
-
-  const handleCopy = async () => {
-    try { await navigator.clipboard.writeText(prompt); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
-  };
-
-  useEscapeClose(onClose);
+  const steps = [
+    T('复制提示词，打开 Claude.ai。','Copy the prompt and open Claude.ai.'),
+    T('粘贴（⌘V / Ctrl+V）并发送。','Paste it (⌘V / Ctrl+V) and send it.'),
+    T('Claude 用 Markdown 返回译好的简历：复制下来，贴进 Word 自己排版，或者再用一条提示词做成 PDF。','Claude returns the translated resume in Markdown: copy it into a Word document, format it yourself, or turn it into a PDF with another prompt.'),
+  ];
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mt-8 mb-8" onClick={e => e.stopPropagation()}>
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-900">{langIcon} {T('翻译简历 →','Translate Resume →')} {langLabel}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none">&times;</button>
+    <Dialog labelId="tr-h" onClose={onClose} wide>
+      <h2 id="tr-h">{T(`把一份简历翻译成${langLabel}`, `Translate a resume into ${langLabel}`)}</h2>
+      <fieldset className="pick-list">
+        <legend>{T('哪一份简历？','Which resume?')}</legend>
+        {sources.map(s => (
+          <label key={s.id} className="pick-row">
+            <input type="radio" name="tr-source" value={s.id} checked={sel === s.id} onChange={() => { setSel(s.id); setShowPrompt(false); }} />
+            <span className="nm">{s.label}</span>
+            {s.text != null && <span className="num">{fmtNum(s.text.length)} {T('字符','chars')}</span>}
+          </label>
+        ))}
+      </fieldset>
+      {sel === 'custom' && (
+        <div className="fld">
+          <label htmlFor="tr-custom">{T('把你的简历贴在这里','Paste your resume here')}</label>
+          <textarea id="tr-custom" className="jd-box" value={customText} onChange={e => { setCustomText(e.target.value); setShowPrompt(false); }}
+            placeholder={T('要翻译的简历全文…','The resume text you want translated…')} autoFocus data-autofocus />
+          <p className="hint num">{fmtNum(customText.length)} {T('字符','chars')}</p>
         </div>
-        <div className="p-4 space-y-4">
-
-          {/* Source picker */}
-          <div>
-            <label className="text-xs font-medium text-gray-700 mb-2 block">{T('你想翻译哪份简历？','Which resume do you want to translate?')}</label>
-            <div className="space-y-2">
-              {sources.map(s => (
-                <label key={s.id} className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
-                  sel === s.id ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
-                }`}>
-                  <input type="radio" name="translateSource" value={s.id}
-                    checked={sel === s.id} onChange={() => { setSel(s.id); setShowPrompt(false); }} className="shrink-0" />
-                  <span className="text-sm text-gray-800 flex-1">{s.label}</span>
-                  {sel === s.id && s.id !== 'custom' && content && (
-                    <span className="text-xs text-gray-400">{content.length.toLocaleString()} {T('字符','chars')}</span>
-                  )}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Custom text area */}
-          {sel === 'custom' && (
-            <div>
-              <label className="text-xs font-medium text-gray-700 mb-1 block">{T('在此粘贴你的简历','Paste your resume here')}</label>
-              <textarea value={customText} onChange={e => { setCustomText(e.target.value); setShowPrompt(false); }}
-                placeholder={T('粘贴你想翻译的简历文本…','Paste the resume text you want to translate…')}
-                className="w-full h-40 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-                autoFocus />
-              <div className="text-xs text-gray-400 mt-0.5">{customText.length.toLocaleString()} {T('字符','chars')}</div>
-            </div>
-          )}
-
-          {/* Collapsible source preview */}
-          {sel !== 'custom' && content && (
-            <details className="border border-gray-200 rounded-md">
-              <summary className="cursor-pointer px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 rounded-md">
-                {T('预览来源内容','Preview source content')}
-              </summary>
-              <div className="px-3 pb-3 max-h-40 overflow-y-auto text-xs font-mono text-gray-700 whitespace-pre-wrap border-t border-gray-100 pt-2">
-                {content.slice(0, 1000)}{content.length > 1000 ? '\n…' : ''}
-              </div>
-            </details>
-          )}
-
-          {/* Generate prompt */}
-          {!showPrompt ? (
-            <div className="flex justify-end">
-              <Btn variant="primary" disabled={!content.trim()} onClick={() => setShowPrompt(true)}>
-                {T('生成提示词 →','Generate prompt →')}
-              </Btn>
-            </div>
-          ) : (
-            <div>
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900 mb-2 space-y-0.5">
-                <div className="font-semibold">{T('使用方法：','How to use:')}</div>
-                <div>{T('1. 点击 ','1. Click ')}<strong>{T('复制提示词','Copy prompt')}</strong>{T(' → 点击 ',' → click ')}<strong>{T('打开 Claude.ai','Open Claude.ai')}</strong></div>
-                <div>{T('2. 粘贴（⌘V / Ctrl+V）并发送','2. Paste (⌘V / Ctrl+V) and press Send')}</div>
-                <div>{T('3. Claude 以 Markdown 返回翻译后的简历 — 复制并按需使用（粘贴到 Word、自行排版，或再用一条提示词转成 PDF）','3. Claude returns the translated resume in Markdown — copy and use it however you need (paste into a Word doc, format yourself, or run another prompt to convert to PDF)')}</div>
-              </div>
-              <textarea value={prompt} readOnly
-                className="w-full h-52 p-3 text-xs font-mono border border-gray-300 rounded-md bg-gray-50 resize-y focus:outline-none"
-                onClick={e => e.target.select()} />
-              <div className="flex gap-2 mt-3 justify-end flex-wrap">
-                <Btn onClick={handleCopy}>{copied ? T('✅ 已复制!','✅ Copied!') : T('📋 复制提示词','📋 Copy prompt')}</Btn>
-                <a href={CLAUDE_URL} target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600">
-                  {T('打开 Claude.ai →','Open Claude.ai →')}
-                </a>
-              </div>
-              <p className="mt-2 text-xs text-gray-400">{T('使用你现有的 Claude.ai 订阅 — 无额外费用。','Uses your existing Claude.ai subscription — no extra cost.')}</p>
-            </div>
-          )}
+      )}
+      {sel !== 'custom' && content && (
+        <details className="preview">
+          <summary>{T('预览这份内容','Preview source')}</summary>
+          <pre className="sunken">{content.slice(0, 1000)}{content.length > 1000 ? '\n…' : ''}</pre>
+        </details>
+      )}
+      {!showPrompt ? (
+        <div className="dlg-acts">
+          <Btn variant="primary" disabled={!content.trim()} onClick={() => setShowPrompt(true)}>{T('生成提示词','Generate prompt')}</Btn>
+          <Btn onClick={onClose}>{T('关闭','Close')}</Btn>
         </div>
-      </div>
-    </div>
+      ) : (
+        <>
+          <h3 className="eyebrow">{T('怎么用','How to use')}</h3>
+          <ol className="how">{steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
+          <PromptBlock prompt={prompt} onClose={onClose} id="tr-prompt" />
+        </>
+      )}
+    </Dialog>
   );
 }
 
@@ -1195,60 +1171,47 @@ function TranslatePickerModal({ targetLang, tailoredResume, library, glossary, o
 // AI PROMPT BUTTONS (reused in AddJobTab and JobDetail)
 // ════════════════════════════════════════════════════════════════
 
-function AiPromptSection({ resumeDb, job, formatting, glossary, tailoredResume, library, region }) {
-  const [modal, setModal]             = useState(null);
+// Without a profile the prompts have nothing to be built from: the buttons are disabled and the reason is on the page,
+// with a way to fix it (it used to be an alert() after the click). Translating needs no profile and stays available.
+function AiPromptSection({ resumeDb, job, formatting, glossary, tailoredResume, library, region, onOpenProfile }) {
+  const [modal, setModal]                 = useState(null);
   const [translateLang, setTranslateLang] = useState(null); // 'simplified' | 'traditional'
-
   const hasResume = !!(resumeDb || '').trim();
   const hasJd     = !!(job?.jdText || '').trim();
-
-  const open = (title, promptFn) => {
-    if (!hasResume) { alert(T('请先在「我的资料」标签页添加你的资料/背景 — 能让提示词效果好很多。','Add your profile/background in My Profile tab first — it makes the prompts much better.')); return; }
-    setModal({ title, prompt: promptFn() });
-  };
-
-  const mainBtns = [
-    { label:T('📝 定制简历','📝 Tailor Resume'),    fn: () => promptTailorResume(resumeDb, job, formatting, region) },
-    { label:T('✉️ 求职信','✉️ Cover Letter'),     fn: () => promptCoverLetter(resumeDb, job)               },
-    { label:T('🎯 面试准备','🎯 Interview Prep'),   fn: () => promptInterviewPrep(resumeDb, job)             },
-    { label:T('👥 人脉拓展','👥 Networking'),       fn: () => promptNetworking(resumeDb, job)                },
-    { label:T('🔍 分析此职位','🔍 Analyze This Job'), fn: () => promptJobAnalysis(job)                         },
+  const btns = [
+    { id:'tailor',  label:T('定制简历','Tailor resume'),     fn: () => promptTailorResume(resumeDb, job, formatting, region) },
+    { id:'cover',   label:T('求职信','Cover letter'),        fn: () => promptCoverLetter(resumeDb, job) },
+    { id:'prep',    label:T('面试准备','Interview prep'),     fn: () => promptInterviewPrep(resumeDb, job) },
+    { id:'network', label:T('人脉拓展','Networking'),         fn: () => promptNetworking(resumeDb, job) },
+    { id:'analyze', label:T('分析这个职位','Analyze this job'), fn: () => promptJobAnalysis(job) },
   ];
-
   return (
-    <Card className="p-4">
-      <SectionHdr icon="✨" title={T('通过 Claude.ai 获取 AI 帮助','AI Help via Claude.ai')} />
-      <p className="text-xs text-gray-600 mb-3">
-        {T('这些按钮会为 Claude.ai 生成一段可直接粘贴的提示词。简历和求职信由 Claude 通过 Analysis 工具直接生成 PDF — 下载后在下方上传。其他提示词（面试、人脉、分析）可直接在 Claude.ai 中阅读。','These buttons generate a ready-to-paste prompt for Claude.ai. For Resume and Cover Letter, Claude generates a PDF directly via the Analysis Tool — download and upload below. Other prompts (Interview, Networking, Analysis) can be read directly in Claude.ai.')}
-        {!hasResume && <span className="block mt-1 text-amber-700">{T('先添加你的资料以获得最佳效果。','Add your profile first for best results.')}</span>}
-        {!hasJd && hasResume && <span className="block mt-1 text-gray-500">{T('添加 JD 以生成针对该职位的提示词。','Add a JD for job-specific prompts.')}</span>}
-      </p>
-      <div className="flex flex-wrap gap-2 mb-3">
-        {mainBtns.map(b => (
-          <Btn key={b.label} variant="secondary"
-            onClick={() => open(b.label.replace(/^\S+\s/, ''), b.fn)}>
-            {b.label}
-          </Btn>
+    <section className="card ai-help" aria-labelledby="ai-h">
+      <div className="card-head"><h2 id="ai-h">{T('用 Claude.ai 帮忙','AI help via Claude.ai')}</h2></div>
+      <p className="hint">{T('每个按钮写出一段可以直接贴进 Claude.ai 的提示词。简历和求职信由 Claude 直接做成 PDF，下载后上传到职位里；其余三个在 Claude.ai 里直接读。',
+        'Each button writes a prompt to paste into Claude.ai. For the resume and the cover letter Claude makes the PDF itself — download it and upload it to the job; read the other three in Claude.ai.')}</p>
+      {!hasResume && (
+        <p className="need" id="ai-need">
+          {T('先在「我的资料」里加上你的资料——提示词是用它写的。','Add your profile in My profile first — the prompts are built from it.')}{' '}
+          {onOpenProfile && <button type="button" className="btn-link" onClick={onOpenProfile}>{T('打开我的资料','Open My profile')}</button>}
+        </p>
+      )}
+      {hasResume && !hasJd && <p className="hint">{T('加上职位描述，提示词才会针对这个职位。','Add a job description for prompts about this job.')}</p>}
+      <div className="btn-row">
+        {btns.map(b => (
+          <Btn key={b.id} disabled={!hasResume} aria-describedby={!hasResume ? 'ai-need' : undefined} onClick={() => setModal({ title: b.label, prompt: b.fn() })}>{b.label}</Btn>
         ))}
       </div>
-      <div className="border-t border-gray-100 pt-3">
-        <p className="text-xs text-gray-500 mb-2">{T("把简历翻译成中文 — 你将选择使用哪一份简历。","Translate a resume to Chinese — you'll choose which resume to use.")}</p>
-        <div className="flex flex-wrap gap-2">
-          <Btn variant="secondary" onClick={() => setTranslateLang('simplified')}>{T('🇨🇳 → 简体中文','🇨🇳 → Simplified Chinese')}</Btn>
-          <Btn variant="secondary" onClick={() => setTranslateLang('traditional')}>{T('🇭🇰 → 繁體中文','🇭🇰 → Traditional Chinese')}</Btn>
+      <div className="ai-translate">
+        <h3 className="eyebrow">{T('翻译一份简历','Translate a resume')}</h3>
+        <div className="btn-row">
+          <Btn onClick={() => setTranslateLang('simplified')}>{T('译成简体中文','Into Simplified Chinese')}</Btn>
+          <Btn onClick={() => setTranslateLang('traditional')}>{T('译成繁體中文','Into Traditional Chinese')}</Btn>
         </div>
       </div>
       {modal && <PromptModal title={modal.title} prompt={modal.prompt} onClose={() => setModal(null)} />}
-      {translateLang && (
-        <TranslatePickerModal
-          targetLang={translateLang}
-          tailoredResume={tailoredResume || ''}
-          library={library || []}
-          glossary={glossary || ''}
-          onClose={() => setTranslateLang(null)}
-        />
-      )}
-    </Card>
+      {translateLang && <TranslatePickerModal targetLang={translateLang} tailoredResume={tailoredResume || ''} library={library || []} glossary={glossary || ''} onClose={() => setTranslateLang(null)} />}
+    </section>
   );
 }
 
@@ -1854,115 +1817,143 @@ function LibraryTab({ library, setLibrary, updateSections }) {
 // ADD JOB TAB
 // ════════════════════════════════════════════════════════════════
 
-function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved }) {
-  const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'interested', jdText:'', notes:'', noc:'', weeklyHours:'', empType:'', applyMethod:'', startDate:'', endDate:'', priority:'' };
-  const [form, setForm]       = useState(empty);
-  const [saved, setSaved]     = useState(false);
-  const [extracted, setExtracted] = useState(null); // fields extracted from upload, for the hint banner
+// One field: its label, the control, an optional hint and an optional error (the error is announced and the control
+// points at it with aria-describedby, set by the caller)
+function Fld({ id, label, hint, error, wide, children }) {
+  return (
+    <div className={`fld${wide ? ' wide' : ''}`}>
+      <label htmlFor={id}>{label}</label>
+      {children}
+      {hint && <p className="hint" id={`${id}-hint`}>{hint}</p>}
+      {error && <p className="field-err" id={`${id}-err`} role="alert">{error}</p>}
+    </div>
+  );
+}
 
+// The job's fields, in two groups: the job itself, and the five the CEC hours ledger reads (only once you work there).
+// Shared by Add job and by Edit details on a job. Stored values are never rewritten by the form: a tier outside T1–T4
+// or a start date in another format stays as it is (cecHours still reads any date new Date() can parse).
+function JobFields({ form, set, idPrefix, error, onTyped }) {
+  const id = k => `${idPrefix}-${k}`;
+  const v = k => form[k] || '';
+  const isoOrEmpty = s => !s || /^\d{4}-\d{2}-\d{2}$/.test(s);
+  const tierKnown = !form.priority || TIERS.some(t => t.id === form.priority);
+  const errId = error ? `${id('company')}-err` : undefined;
+  const text = (k, extra = {}) => <input id={id(k)} type="text" value={v(k)} onChange={e => { set(k, e.target.value); onTyped && onTyped(k); }} {...extra} />;
+  const dateOrText = k => isoOrEmpty(v(k)) ? <input id={id(k)} type="date" value={v(k)} onChange={e => set(k, e.target.value)} /> : text(k);
+  return (
+    <>
+      <fieldset className="fs">
+        <legend>{T('职位','The job')}</legend>
+        <p className="hint">{T('* 公司和职位名称至少填一个。','* Fill in at least one of these two.')}</p>
+        <div className="form-grid">
+          <Fld id={id('company')} label={T('公司 *','Company *')} error={error}>
+            {text('company', { placeholder:'Northwind Analytics', 'aria-invalid': error ? 'true' : undefined, 'aria-describedby': errId })}
+          </Fld>
+          <Fld id={id('role')} label={T('职位名称 *','Job title *')}>
+            {text('role', { placeholder:T('数据分析师','Data Analyst'), 'aria-invalid': error ? 'true' : undefined, 'aria-describedby': errId })}
+          </Fld>
+          <Fld id={id('location')} label={T('地点','Location')}>{text('location', { placeholder:T('多伦多 / 远程','Toronto, ON / Remote') })}</Fld>
+          <Fld id={id('salaryRange')} label={T('薪资范围','Salary range')}>{text('salaryRange', { placeholder:'$70k – $85k' })}</Fld>
+          <Fld id={id('applicationDeadline')} label={T('申请截止日期','Application deadline')}>{dateOrText('applicationDeadline')}</Fld>
+          <Fld id={id('status')} label={T('状态','Status')}>
+            <select id={id('status')} value={v('status') || 'interested'} onChange={e => set('status', e.target.value)}>
+              {!STATUSES.some(s => s.id === form.status) && form.status && <option value={form.status}>{form.status}</option>}
+              {STATUSES.map(s => <option key={s.id} value={s.id}>{T(s.zh, s.label)}</option>)}
+            </select>
+          </Fld>
+          <Fld id={id('priority')} label={T('梯队','Tier')}>
+            <select id={id('priority')} value={v('priority')} onChange={e => set('priority', e.target.value)}>
+              {TIERS.map(t => <option key={t.id} value={t.id}>{T(t.zh, t.en)}</option>)}
+              <option value="">{T('未分级','Unranked')}</option>
+              {!tierKnown && <option value={form.priority}>{form.priority}</option>}
+            </select>
+          </Fld>
+          <Fld id={id('applyMethod')} label={T('投递方式','Apply method')}>{text('applyMethod', { placeholder:T('Easy Apply / 直投 / ATS','Easy Apply / direct / ATS') })}</Fld>
+        </div>
+      </fieldset>
+      <fieldset className="fs">
+        <legend>{T('给 CEC 工时账用','For the CEC hours ledger')}</legend>
+        <p className="hint">{T('在这份工作上班之后再填：状态是「在职·计工时」时工时账才会算它。','Only needed once you work in this job: the ledger counts it when the status is Working.')}</p>
+        <div className="form-grid">
+          <Fld id={id('noc')} label={T('NOC 编码','NOC code')} hint={T('5 位数字，第二位是 TEER','5 digits; the second digit is the TEER')}>
+            {text('noc', { inputMode:'numeric', placeholder:'21223', 'aria-describedby': `${id('noc')}-hint` })}
+          </Fld>
+          <Fld id={id('empType')} label={T('雇佣类型','Employment type')}>
+            {text('empType', { list:`${idPrefix}-emp-types`, placeholder:T('T4 雇员','T4 employee') })}
+            <datalist id={`${idPrefix}-emp-types`}><option value="T4 employee" /><option value="Contractor" /><option value="Unknown" /></datalist>
+          </Fld>
+          <Fld id={id('weeklyHours')} label={T('每周工时','Weekly hours')}>{text('weeklyHours', { inputMode:'decimal', placeholder:'20' })}</Fld>
+          <Fld id={id('startDate')} label={T('入职日期','Start date')}>{dateOrText('startDate')}</Fld>
+          <Fld id={id('endDate')} label={T('离职日期（还在职就空着）','End date (empty while you work there)')}>{dateOrText('endDate')}</Fld>
+        </div>
+      </fieldset>
+    </>
+  );
+}
+
+function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved, onOpenProfile }) {
+  const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'interested', jdText:'', notes:'', noc:'', weeklyHours:'', empType:'', applyMethod:'', startDate:'', endDate:'', priority:'' };
+  const [form, setForm]     = useState(empty);
+  const [filled, setFilled] = useState(null);   // { keys } — which empty fields the last fill wrote
+  const [error, setError]   = useState('');
   const set = (k, v) => setForm(f => ({...f, [k]:v}));
 
-  const handleJdUpload = (text, filename) => {
+  // Fill only the fields that are still empty, from the uploaded file or from the pasted text (the paste used to fill
+  // nothing, although the placeholder said the fields would be filled from it)
+  const fillFrom = (text, extra = {}) => {
     const parsed = parseJdFields(text);
-    // Compute which fields to fill using current form snapshot (single action — no stale state risk)
-    const update = { jdText: text };
-    const filled = {};
-    for (const [k, v] of Object.entries(parsed)) {
-      if (v && !form[k]) { update[k] = v; filled[k] = v; }
-    }
+    const update = { ...extra }, keys = [];
+    for (const [k, val] of Object.entries(parsed)) { if (val && !form[k]) { update[k] = val; keys.push(k); } }
     setForm(f => ({ ...f, ...update }));
-    setExtracted(Object.keys(filled).length > 0 ? filled : null);
+    setFilled({ keys });
+    if (keys.includes('company') || keys.includes('role')) setError('');
   };
+  const handleJdUpload = text => fillFrom(text, { jdText: text });
 
   const handleSave = async () => {
-    if (!form.company.trim() && !form.role.trim()) { alert(T('请至少填写公司名称或职位。','Please enter at least a company name or role.')); return; }
+    if (!form.company.trim() && !form.role.trim()) { setError(T('公司和职位名称至少填一个。','Fill in the company or the job title.')); return; }
     const job = { id: newId(), dateAdded: new Date().toISOString(), ...form };
     const updated = [job, ...jobs];
     setJobs(updated); await saveJson(`${region}:jobs`, updated);
-    setSaved(true); setTimeout(()=>setSaved(false), 1200);
-    setForm(empty);
-    setExtracted(null);
+    if (DEMO && !ghConfigured()) window.dispatchEvent(new CustomEvent('jobapp:toast', { detail: T('已添加——演示数据，不会保存。','Added — demo data, not saved.') }));
+    setForm(empty); setFilled(null);
     onSaved?.(job.id);
   };
+  const names = { company:T('公司','company'), role:T('职位','role'), location:T('地点','location'), salaryRange:T('薪资','salary'), applicationDeadline:T('截止日期','deadline') };
 
   return (
-    <div className="space-y-4">
-      <Card className="p-4">
-        <SectionHdr icon="➕" title={T('添加一个职位申请','Add a job application')} />
-        {/* JD textarea with upload */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-medium text-gray-700">{T('职位描述','Job description')}</label>
-            <FileUploadButton
-              onFile={handleJdUpload}
-              label={T('上传 JD 文件','Upload JD file')}
-              accept=".txt,.md,.markdown,.docx,.pdf"
-            />
+    <>
+      <PageHead eyebrow={rName(REGION_BY[region])} title={T('添加职位','Add job')}
+        sub={T('先贴职位描述——公司、职位、地点、薪资和截止日期会帮你填好，你再核对。','Paste the job description first — company, role, location, salary and deadline are filled in for you to check.')} />
+      <div className="stack">
+        <section className="card" aria-labelledby="jd-h">
+          <div className="card-head"><h2 id="jd-h">{T('职位描述','Job description')}</h2></div>
+          <textarea id="add-jd" className="jd-box" aria-labelledby="jd-h" rows={10} value={form.jdText} onChange={e => set('jdText', e.target.value)}
+            placeholder={T('把完整的职位描述贴在这里，或者上传一个文件。','Paste the full job description here, or upload a file.')} />
+          <div className="jd-acts">
+            <FileUploadButton onFile={handleJdUpload} label={T('上传职位描述文件…','Upload JD file…')} accept=".txt,.md,.markdown,.docx,.pdf" />
+            <Btn onClick={() => fillFrom(form.jdText)} disabled={!form.jdText.trim()}>{T('从描述里填字段','Fill fields from the description')}</Btn>
+            <span className="count num">{fmtNum(form.jdText.length)} {T('字符','chars')}</span>
           </div>
-          <textarea value={form.jdText} onChange={e=>set('jdText',e.target.value)}
-            placeholder={T('在此粘贴完整的职位描述，或在上方上传文件。下方字段会根据内容自动填充。','Paste the full job description here, or upload a file above. Fields below will be auto-filled from the content.')}
-            className="w-full h-36 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
-          <div className="text-xs text-gray-400 mt-0.5">{form.jdText.length.toLocaleString()} {T('字符','chars')}</div>
-        </div>
-
-        {/* Auto-fill hint banner */}
-        {extracted && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-xs text-green-900">
-            <strong>{T('✅ 已从文件自动填充：','✅ Auto-filled from file:')}</strong>{' '}
-            {Object.entries(extracted).map(([k,v]) => (
-              <span key={k} className="inline-block mr-2">
-                <span className="font-medium capitalize">{T({company:'公司',role:'职位',location:'地点',salaryRange:'薪资',applicationDeadline:'截止日期'}[k]||k, k === 'salaryRange' ? 'salary' : k === 'applicationDeadline' ? 'deadline' : k)}</span>: {v}
-              </span>
-            ))}
-            <span className="text-green-700 ml-1">{T('— 请在下方检查并更正任何错误。','— Review and correct any errors below.')}</span>
-          </div>
-        )}
-
-        {/* Form fields */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          {[['company',T('公司 *','Company *'),'Google'],['role',T('职位名称 *','Job Title *'),T('软件工程师','Software Engineer')],['location',T('地点','Location'),T('多伦多 / 远程','Toronto, ON / Remote')],['salaryRange',T('薪资范围','Salary Range'),'$120k – $150k'],
-            ['noc',T('NOC 编码（第二位＝TEER）','NOC code'),'12200'],
-            ['weeklyHours',T('周工时','Weekly hours'),'30'],
-            ['empType',T('雇佣类型','Employment type'),T('T4雇员 / 承包人 / 未确认','T4 employee / contractor / unknown')],
-            ['applyMethod',T('投递方式','Apply method'),T('Easy Apply / 站内直投 / ATS','Easy Apply / direct / ATS')],
-            ['startDate',T('入职日期（算工时用）','Start date'),'YYYY-MM-DD'],
-            ['endDate',T('离职日期（空＝在职）','End date'),''],
-            ['priority',T('投递梯队（T1–T4）','Tier'),'T1']].map(([k,lbl,ph]) => (
-            <div key={k}>
-              <label className="text-xs font-medium text-gray-700 mb-1 block">{lbl}</label>
-              <input value={form[k]} onChange={e=>set(k,e.target.value)} placeholder={ph}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-          ))}
-          <div>
-            <label className="text-xs font-medium text-gray-700 mb-1 block">{T('申请截止日期','Application Deadline')}</label>
-            <input type="date" value={form.applicationDeadline} onChange={e=>set('applicationDeadline',e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-700 mb-1 block">{T('状态','Status')}</label>
-            <select value={form.status} onChange={e=>set('status',e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {STATUSES.map(s=><option key={s.id} value={s.id}>{T(s.zh,s.label)}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="mb-4">
-          <label className="text-xs font-medium text-gray-700 mb-1 block">{T('备注','Notes')}</label>
-          <textarea value={form.notes} onChange={e=>set('notes',e.target.value)}
-            placeholder={T('招聘者姓名、你如何找到它、第一印象…','Recruiter name, how you found it, first impressions…')}
-            className="w-full h-20 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
-        </div>
-        <div className="flex justify-end">
-          <Btn variant="primary" onClick={handleSave} className="px-4 py-2 text-sm">
-            {saved ? T('✅ 已保存!','✅ Saved!') : T('💾 保存到追踪','💾 Save to Tracker')}
-          </Btn>
-        </div>
-      </Card>
-
-      {/* AI Help section */}
-      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} glossary={glossary} tailoredResume="" library={library} region={region} />
-    </div>
+          {filled && (
+            <p className={`status-bar${filled.keys.length ? ' done' : ''}`} role="status">
+              {filled.keys.length
+                ? T(`已从描述里填好：${filled.keys.map(k => names[k]).join('、')}——请在下面核对。`, `Filled in from the description: ${filled.keys.map(k => names[k]).join(', ')} — check them below.`)
+                : T('描述里没有能填进空字段的内容。','Nothing in the description fitted an empty field.')}
+            </p>
+          )}
+        </section>
+        <section className="card" aria-label={T('职位信息','Job details')}>
+          <JobFields form={form} set={set} idPrefix="add" error={error} onTyped={k => { if (k === 'company' || k === 'role') setError(''); }} />
+          <Fld id="add-notes" label={T('备注','Notes')}>
+            <textarea id="add-notes" rows={3} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder={T('招聘者名字、在哪看到的、第一印象…','Recruiter name, how you found it, first impressions…')} />
+          </Fld>
+          <div className="form-acts"><Btn variant="primary" onClick={handleSave}>{T('保存到追踪','Save to tracker')}</Btn></div>
+        </section>
+        <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} glossary={glossary} tailoredResume="" library={library} region={region} onOpenProfile={onOpenProfile} />
+      </div>
+    </>
   );
 }
 
@@ -2277,7 +2268,13 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
 }
 
 
-function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initialStatus, onAdd }) {
+function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initialStatus, onAdd, focusJobId, onFocused }) {
+  useEffect(() => {
+    if (!focusJobId) return;
+    const b = document.querySelector(`[data-job="${CSS.escape(focusJobId)}"] .job-open`);
+    if (b) b.focus();
+    onFocused && onFocused();
+  }, []);
   const [filter, setFilter] = useState(initialStatus || 'all');
   const [tierFilter, setTierFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -2370,7 +2367,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initi
                 const openName = T(`打开：${role}，${company}`, `Open: ${role} at ${company}`) + (ready ? T('，简历就绪', ', resume ready') : '') + (late ? T('，已过截止', ', deadline passed') : '');
                 const delName = T('删除这条投递','Delete application');
                 return (
-                  <li key={j.id} className="job">
+                  <li key={j.id} className="job" data-job={j.id}>
                     <button type="button" className="job-open" onClick={()=>onOpen(j.id)} aria-label={openName}>
                       <span className="job-title"><span className="role">{role}</span>
                         {ready && <span className="chip">{T('简历就绪','resume ready')}</span>}
@@ -2405,15 +2402,18 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initi
 // PDF / HTML UPLOAD + PREVIEW FIELD
 // ════════════════════════════════════════════════════════════════
 
-function PdfUploadField({ label, pdfKey, icon='📄' }) {
-  const [dataUrl, setDataUrl] = useState(() => loadPdfLocal(pdfKey));
-  const [blobUrl, setBlobUrl] = useState(null);
-  const [busy, setBusy]       = useState(false);
+// A PDF for this job (the tailored resume, or the cover letter): read from this browser first, then from the repo;
+// upload keeps a copy here at once and then syncs to the repo; download and remove as before.
+function PdfUploadField({ label, pdfKey }) {
+  const [dataUrl, setDataUrl]   = useState(() => loadPdfLocal(pdfKey));
+  const [blobUrl, setBlobUrl]   = useState(null);
+  const [busy, setBusy]         = useState(false);
   const [ghSaving, setGhSaving] = useState(false);
-  const [err, setErr]         = useState('');
+  const [err, setErr]           = useState(null);   // { kind: 'error' | 'warn', msg }
   const ref = useRef(null);
+  const headId = `slot-${pdfKey.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
-  // Convert data URL → blob URL for iframe (works in Safari, Chrome, Firefox)
+  // data URL → blob URL for the iframe (works in Safari, Chrome, Firefox)
   useEffect(() => {
     if (!dataUrl) { setBlobUrl(null); return; }
     try {
@@ -2422,107 +2422,79 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
       const bytes = atob(b64);
       const arr = new Uint8Array(bytes.length);
       for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-      const blob = new Blob([arr], { type: mime });
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(new Blob([arr], { type: mime }));
       setBlobUrl(url);
       return () => URL.revokeObjectURL(url);
     } catch { setBlobUrl(null); }
   }, [dataUrl]);
 
-  // On mount: if nothing cached locally, pull from GitHub (enables cross-device sync)
-  // Try .html first for backward compat with any previously stored files, then .pdf
+  // nothing cached here: pull it from the repo (another device may have uploaded it); .pdf first, then the older .html
   useEffect(() => {
     if (dataUrl || !ghConfigured()) return;
     (async () => {
       for (const [ext, mime] of [['pdf','application/pdf'],['html','text/html']]) {
         try {
-          const path = `data/files/${pdfKey.replace(/:/g,'_')}.${ext}`;
-          const url = await ghReadDataUrl(path, mime);
+          const url = await ghReadDataUrl(`data/files/${pdfKey.replace(/:/g,'_')}.${ext}`, mime);
           if (url) { setDataUrl(url); savePdfLocal(pdfKey, url); return; }
         } catch {}
       }
     })();
   }, [pdfKey]);
 
-  const handleUpload = async (e) => {
+  const handleUpload = async e => {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
     const ext = (file.name.split('.').pop() || '').toLowerCase();
-    if (ext !== 'pdf') { setErr(T('请上传 PDF 文件。「定制简历 / 求职信」提示词会让 Claude 通过 Analysis 工具直接生成 PDF — 那就是要在这里上传的文件。','Please upload a PDF file. Tailor Resume / Cover Letter prompts ask Claude to generate a PDF directly via the Analysis Tool — that\'s the file to upload here.')); return; }
-    setBusy(true); setErr('');
+    if (ext !== 'pdf') { setErr({ kind:'error', msg: T('请上传 PDF 文件：定制简历和求职信的提示词会让 Claude 直接做出 PDF，要上传的就是那个文件。','Upload a PDF: the tailored-resume and cover-letter prompts have Claude make a PDF, and that is the file to upload here.') }); return; }
+    setBusy(true); setErr(null);
     try {
       const url = await readFileAsDataUrl(file);
-      // Save locally first for immediate preview
-      savePdfLocal(pdfKey, url);
+      savePdfLocal(pdfKey, url);   // here first, for the preview
       setDataUrl(url);
-      // Then sync to GitHub
       setGhSaving(true);
       await ghWriteDataUrl(pdfGhPath(pdfKey), url);
-    } catch(e) {
-      const msg = e.message || T('上传失败','Upload failed');
-      if (msg.includes('GitHub') || msg.includes('configured')) {
-        setErr(T(`已保存到本地。GitHub 同步失败：${msg}`,`Saved locally. GitHub sync failed: ${msg}`));
-      } else {
-        setErr(msg);
-      }
+    } catch(e2) {
+      const msg = e2.message || T('上传失败','Upload failed');
+      setErr(msg.includes('GitHub') || msg.includes('configured')
+        ? { kind:'warn', msg: T(`已存在这个浏览器里。同步到 GitHub 失败：${msg}`, `Saved in this browser. Syncing to GitHub failed: ${msg}`) }
+        : { kind:'error', msg });
     }
     finally { setBusy(false); setGhSaving(false); }
   };
 
   const handleDelete = () => {
-    if (!window.confirm(T('移除此文件？','Remove this file?'))) return;
+    if (!window.confirm(T('移除这个 PDF？','Remove this PDF?'))) return;
     deletePdfLocal(pdfKey);
-    // Delete from GitHub — try both extensions for backward compat
-    for (const ext of ['pdf','html']) {
-      ghDeleteFile(`data/files/${pdfKey.replace(/:/g,'_')}.${ext}`).catch(()=>{});
-    }
-    setDataUrl(null);
+    for (const ext of ['pdf','html']) ghDeleteFile(`data/files/${pdfKey.replace(/:/g,'_')}.${ext}`).catch(()=>{});
+    setDataUrl(null); setErr(null);
   };
 
   const handleDownload = () => {
     if (!dataUrl) return;
     const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `${pdfKey.replace(/:/g,'_')}.pdf`;
+    a.href = dataUrl; a.download = `${pdfKey.replace(/:/g,'_')}.pdf`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
+  const removeName = T('移除这个 PDF','Remove this PDF');
 
   return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <h3 className="text-sm font-semibold text-gray-900">{icon} {label}</h3>
-        <div className="flex gap-2 flex-wrap items-center">
-          {ghSaving && <span className="text-xs text-blue-600 animate-pulse">{T('⏳ 正在保存到 GitHub…','⏳ Saving to GitHub…')}</span>}
-          {dataUrl && <Btn onClick={handleDownload}>{T('⬇️ 下载 PDF','⬇️ Download PDF')}</Btn>}
-          <input ref={ref} type="file" accept=".pdf" onChange={handleUpload} className="hidden" />
-          <Btn variant="primary" onClick={() => ref.current?.click()} disabled={busy || ghSaving}>
-            {busy ? T('⏳ 读取中…','⏳ Reading…') : T('⬆️ 上传 PDF','⬆️ Upload PDF')}
-          </Btn>
-          {dataUrl && <Btn variant="danger" onClick={handleDelete}>🗑</Btn>}
+    <section className="card file-slot" aria-labelledby={headId}>
+      <div className="slot-head">
+        <h3 id={headId}>{label}</h3>
+        <div className="slot-acts">
+          {dataUrl && <Btn className="btn-sm" onClick={handleDownload}>{T('下载 PDF','Download PDF')}</Btn>}
+          <input ref={ref} type="file" accept=".pdf,application/pdf" onChange={handleUpload} className="hidden" />
+          <Btn className="btn-sm" onClick={() => ref.current?.click()} disabled={busy || ghSaving}>{busy ? T('读取中…','Reading…') : T('上传 PDF…','Upload PDF…')}</Btn>
+          {dataUrl && <button type="button" className="btn btn-ghost btn-icon btn-quiet" aria-label={removeName} data-tip={removeName} onClick={handleDelete}><Icon name="trash" /></button>}
         </div>
       </div>
-      {err && <div className="text-xs text-red-700 mb-2 p-2 bg-red-50 border border-red-200 rounded">{err}</div>}
-      {dataUrl ? (
-        blobUrl ? (
-          <iframe
-            src={blobUrl}
-            className="w-full rounded-md border border-gray-200"
-            style={{ height:'620px' }}
-            title={label}
-          />
-        ) : (
-          <div className="border border-gray-200 rounded-md p-4 text-center text-xs text-gray-500">{T('正在渲染 PDF…','Rendering PDF…')}</div>
-        )
-      ) : (
-        <div className="border-2 border-dashed border-gray-300 rounded-md p-8 text-center">
-          <p className="text-sm text-gray-500 mb-1">{T('还没有上传 PDF','No PDF uploaded yet')}</p>
-          <p className="text-xs text-gray-400">{T('在此上传 PDF 文件','Upload a PDF file here')}</p>
-        </div>
-      )}
-      <p className="mt-2 text-xs text-gray-400">
-        {T('PDF 保存在 GitHub 的 ','PDF saved to GitHub at ')}<code className="bg-gray-100 px-1 rounded">data/files/</code>{T(' 并在本地缓存以加快加载。',' and cached locally for fast loading.')}
-      </p>
-    </Card>
+      {ghSaving && <p className="status-bar" role="status">{T('正在保存到你的仓库…','Saving to your repo…')}</p>}
+      {err && <p className={`status-bar ${err.kind}`} role="alert">{err.msg}</p>}
+      {dataUrl ? (blobUrl ? <iframe className="pdf-view" src={blobUrl} title={label} />
+                         : <div className="pdf-view skel-block" aria-busy="true"><span className="sr-only">{T('正在显示 PDF…','Rendering the PDF…')}</span></div>)
+               : <div className="drop">{T('还没有 PDF——上传 Claude 做好的那个文件。','No PDF yet — upload the file Claude made.')}</div>}
+      <p className="hint">{T('保存在你仓库的 data/files/ 里，并缓存在这个浏览器中。','Saved to data/files/ in your repo and cached in this browser.')}</p>
+    </section>
   );
 }
 
@@ -2530,114 +2502,96 @@ function PdfUploadField({ label, pdfKey, icon='📄' }) {
 // JOB DETAIL
 // ════════════════════════════════════════════════════════════════
 
-function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs, setJobs, onBack }) {
+function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs, setJobs, onBack, onOpenProfile }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm]       = useState({...job});
   const [saving, setSaving]   = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
+  const h1 = useRef(null);
 
-  useEffect(() => { setForm({...job}); }, [job.id]);
+  useEffect(() => { setForm({...job}); setEditing(false); }, [job.id]);
+  useEffect(() => { if (h1.current) h1.current.focus(); }, [job.id]);   // opening a job lands on its name
 
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
-
   const updateJob = async patch => {
     const updated = jobs.map(j=>j.id===job.id?{...j,...patch}:j); setJobs(updated); await saveJson(`${region}:jobs`, updated);
   };
-
-  const handleSaveAll = async () => {
-    setSaving(true); await updateJob(form); setSaving(false); setEditing(false);
-  };
-
+  const handleSaveAll = async () => { setSaving(true); await updateJob(form); setSaving(false); setEditing(false); };
+  const cancelEdit = () => { setForm(f => ({ ...job, notes: f.notes })); setEditing(false); };
   const handleSaveNotes = async () => {
     await updateJob({ notes: form.notes });
     setNotesSaved(true); setTimeout(()=>setNotesSaved(false),1500);
   };
 
-  return (
-    <div className="space-y-4">
-      <button onClick={onBack} className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900">{T('← 返回追踪','← Back to tracker')}</button>
+  const t = tierMeta(form.priority);
+  const dash = '—';
+  const kv = [
+    [T('添加于','Added'), fmtDate(form.dateAdded) || dash],
+    [T('薪资','Salary'), form.salaryRange || dash],
+    [T('截止','Deadline'), form.applicationDeadline ? fmtDate(form.applicationDeadline) : dash],
+    [T('投递方式','Apply method'), form.applyMethod || dash],
+    ['NOC', form.noc ? form.noc + (teerOf(form.noc) ? ` (TEER ${teerOf(form.noc)})` : '') : dash],
+    [T('雇佣类型','Employment type'), form.empType || dash],
+    [T('每周工时','Weekly hours'), form.weeklyHours || dash],
+    [T('入职 · 离职','Start · End'), `${form.startDate ? fmtDate(form.startDate) : dash} · ${form.endDate ? fmtDate(form.endDate) : dash}`],
+  ];
 
-      {/* Header card */}
-      <Card className="p-4">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">{form.role||T('（无职位名）','(no title)')}</h2>
-            <div className="text-sm text-gray-600">{form.company||T('（无公司）','(no company)')}{form.location?` · ${form.location}`:''}</div>
-            <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-gray-500">
-              <span>{T('添加于 ','Added ')}{fmtDate(form.dateAdded)}</span>
-              {form.salaryRange && <span>💰 {form.salaryRange}</span>}
-              {form.applicationDeadline && <span>📅 {T('截止：','Deadline: ')}{fmtDate(form.applicationDeadline)}</span>}
+  return (
+    <>
+      <button type="button" className="back-link" onClick={onBack}>← {T('追踪','Tracker')}</button>
+      <div className="page-head">
+        <div className="titles">
+          <p className="eyebrow">{rName(REGION_BY[region])}{t ? ` · ${T(t.zh, t.en)}` : ''}</p>
+          <h1 ref={h1} tabIndex={-1}>{form.role || T('（无职位名）','(no title)')}</h1>
+          <p className="sub">{form.company || T('（无公司）','(no company)')}{form.location ? ` · ${form.location}` : ''}</p>
+        </div>
+        <div className="acts">
+          <StatusField value={form.status} onChange={val => { set('status', val); updateJob({ status: val }); }} name={T('状态','Status')} />
+          {!editing && <Btn onClick={() => setEditing(true)}>{T('编辑详情','Edit details')}</Btn>}
+        </div>
+      </div>
+      <div className="stack">
+        {!editing ? (
+          <section className="card" aria-labelledby="det-h">
+            <div className="card-head"><h2 id="det-h">{T('详情','Details')}</h2></div>
+            <dl className="kv4">{kv.map(([k, val]) => <div key={k}><dt>{k}</dt><dd>{val}</dd></div>)}</dl>
+          </section>
+        ) : (
+          <section className="card" aria-labelledby="edit-h">
+            <div className="card-head"><h2 id="edit-h">{T('编辑详情','Edit details')}</h2></div>
+            <JobFields form={form} set={set} idPrefix="ed" />
+            <Fld id="ed-jd" label={T('职位描述','Job description')}>
+              <textarea id="ed-jd" className="jd-box mono" value={form.jdText || ''} onChange={e => set('jdText', e.target.value)} />
+            </Fld>
+            <div className="form-acts">
+              <Btn onClick={cancelEdit}>{T('取消','Cancel')}</Btn>
+              <Btn variant="primary" onClick={handleSaveAll} disabled={saving}>{saving ? T('保存中…','Saving…') : T('保存更改','Save changes')}</Btn>
             </div>
-          </div>
-          <div className="flex gap-2 items-center">
-            <StatusSelect value={form.status} onChange={v=>{set('status',v); updateJob({status:v});}} />
-            <Btn onClick={()=>setEditing(e=>!e)}>{editing?T('取消编辑','Cancel editing'):T('✏️ 编辑详情','✏️ Edit details')}</Btn>
+          </section>
+        )}
+        <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} glossary={glossary} tailoredResume={form.tailoredResume||''} library={library} region={region} onOpenProfile={onOpenProfile} />
+        <div className="slots-wrap">
+          <p className="hint">{T('从 Claude 拿 PDF：打开 Analysis 工具，粘贴提示词，下载生成的文件，再上传到这里。多数投递系统要分开上传简历和求职信；只要一个文件时（比如用邮件投递），求职信提示词已经让 Claude 做成两页：第一页简历，第二页求职信。',
+            'Get the PDF from Claude: turn on the Analysis tool, paste the prompt, download the file, upload it here. Most application portals take the resume and the cover letter as separate files; when one file is wanted (an email application, say), the cover-letter prompt already asks Claude for two pages, the resume first.')}</p>
+          <div className="slots">
+            <PdfUploadField label={T('定制简历 · PDF','Tailored resume · PDF')} pdfKey={`${region}:${job.id}:resume`} />
+            <PdfUploadField label={T('求职信 · PDF','Cover letter · PDF')} pdfKey={`${region}:${job.id}:cover`} />
           </div>
         </div>
-
-        {editing && (
-          <div className="mt-4 border-t border-gray-100 pt-4 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {[['company',T('公司','Company')],['role',T('职位','Role')],['location',T('地点','Location')],['salaryRange',T('薪资范围','Salary Range')],['noc',T('NOC 编码','NOC')],['weeklyHours',T('周工时','Weekly hrs')],['empType',T('雇佣类型','Emp type')],['applyMethod',T('投递方式','Apply via')],['startDate',T('入职日期','Start')],['endDate',T('离职日期','End')],['priority',T('梯队','Tier')]].map(([k,lbl])=>(
-                <div key={k}>
-                  <label className="text-xs text-gray-600 mb-1 block">{lbl}</label>
-                  <input value={form[k]||''} onChange={e=>set(k,e.target.value)}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              ))}
-              <div>
-                <label className="text-xs text-gray-600 mb-1 block">{T('截止日期','Deadline')}</label>
-                <input type="date" value={form.applicationDeadline||''} onChange={e=>set('applicationDeadline',e.target.value)}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-gray-600 mb-1 block">{T('职位描述','Job Description')}</label>
-              <textarea value={form.jdText||''} onChange={e=>set('jdText',e.target.value)}
-                className="w-full h-32 p-3 text-sm font-mono border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
-            </div>
-            <div className="flex justify-end">
-              <Btn variant="primary" onClick={handleSaveAll} disabled={saving}>
-                {saving?T('保存中…','Saving…'):T('💾 保存更改','💾 Save changes')}
-              </Btn>
-            </div>
-          </div>
+        <section className="card" aria-labelledby="notes-h">
+          <div className="card-head"><h2 id="notes-h">{T('我的备注','My notes')}</h2></div>
+          <textarea id="det-notes" aria-labelledby="notes-h" rows={5} value={form.notes||''} onChange={e=>set('notes',e.target.value)}
+            placeholder={T('招聘者名字、问了什么、跟进、被拒原因、整体感受…','Recruiter names, what they asked, follow-ups, why rejected, general vibes…')} />
+          <div className="form-acts"><Btn onClick={handleSaveNotes}>{notesSaved ? T('已保存','Saved') : T('保存备注','Save notes')}</Btn></div>
+        </section>
+        {form.jdText && (
+          <details className="card jd-orig">
+            <summary>{T('原始职位描述','Original job description')}</summary>
+            <pre className="sunken">{form.jdText}</pre>
+          </details>
         )}
-      </Card>
-
-      {/* AI prompts */}
-      <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} glossary={glossary} tailoredResume={form.tailoredResume||''} library={library} region={region} />
-
-      {/* How-to tip */}
-      <Card className="p-3 bg-blue-50 border-blue-200">
-        <p className="text-xs text-blue-900 leading-relaxed">
-          <strong>{T('如何从 Claude 获取 PDF：','How to get the PDF from Claude:')}</strong>{' '}
-          {T('在 Claude.ai 中启用 ','Enable the ')}<strong>{T('Analysis 工具','Analysis tool')}</strong>{T(' → 复制提示词 → 粘贴 → Claude 通过 Python (reportlab) 生成 PDF → 下载 → 在下方上传。',' in Claude.ai → copy prompt → paste → Claude generates a PDF via Python (reportlab) → download → upload below.')}
-          {' '}<strong>{T('分开还是合并：','Separate vs combined:')}</strong>{T(' 大多数在线门户（LinkedIn、Workday、Greenhouse）有独立的上传栏 — 分别上传简历和求职信。',' most online portals (LinkedIn, Workday, Greenhouse) have separate fields — upload resume and cover letter individually.')}
-          {T("如果通过邮件申请或职位要求单个文件，让 Claude 把它们合并成 2 页 PDF（第 1 页简历，第 2 页求职信）— 这已经写在求职信提示词的说明里了。","If applying by email or the posting asks for one file, tell Claude to combine them into a 2-page PDF (resume page 1, cover letter page 2) — it's already in the cover letter prompt instructions.")}
-        </p>
-      </Card>
-
-      {/* PDF upload fields */}
-      <PdfUploadField icon="📝" label={T('定制简历','Tailored resume')} pdfKey={`${region}:${job.id}:resume`} />
-      <PdfUploadField icon="✉️" label={T('求职信（或简历+求职信合并 PDF）','Cover letter (or combined resume+cover PDF)')} pdfKey={`${region}:${job.id}:cover`} />
-
-      <Card className="p-4">
-        <SectionHdr icon="🗒" title={T('我的备注','My notes')}
-          action={<Btn variant="primary" onClick={handleSaveNotes}>{notesSaved?T('✅ 已保存','✅ Saved'):T('💾 保存','💾 Save')}</Btn>}
-        />
-        <textarea value={form.notes||''} onChange={e=>set('notes',e.target.value)}
-          placeholder={T('招聘者姓名、他们问了什么、跟进、被拒原因、总体感受…','Recruiter names, what they asked, follow-ups, why rejected, general vibes…')}
-          className="w-full h-32 p-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
-      </Card>
-
-      {form.jdText && (
-        <details className="bg-white border border-gray-200 rounded-lg">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">{T('原始职位描述','Original job description')}</summary>
-          <div className="px-4 pb-4 text-xs text-gray-700 whitespace-pre-wrap font-mono max-h-80 overflow-y-auto">{form.jdText}</div>
-        </details>
-      )}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -3463,6 +3417,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
   const regionLabel = rName(regionMeta);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [focusJob, setFocusJob] = useState(null);   // back from a job: its row takes focus again
 
   useEffect(() => {
     let cancelled = false;
@@ -3493,9 +3448,9 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
 
   return (
     <>
-      {tab==='addjob'  && legacy(<AddJobTab resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>go('tracker', { openJobId:id })} />)}
-      {tab==='tracker' && !openJob && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} formatting={formatting} initialStatus={trackerStatus} onAdd={()=>go('addjob')} onOpen={id=>setOpenJobId(id)} />}
-      {tab==='tracker' && openJob  && <><PageHead eyebrow={regionLabel} title={openJob.role || T('（无职位名）','(no title)')} /><div className="legacy"><JobDetail region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>setOpenJobId(null)} /></div></>}
+      {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>go('tracker', { openJobId:id })} onOpenProfile={()=>go('profile')} />}
+      {tab==='tracker' && !openJob && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} formatting={formatting} initialStatus={trackerStatus} onAdd={()=>go('addjob')} onOpen={id=>setOpenJobId(id)} focusJobId={focusJob} onFocused={()=>setFocusJob(null)} />}
+      {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>{ setFocusJob(openJob.id); setOpenJobId(null); }} onOpenProfile={()=>go('profile')} />}
       {tab==='profile' && legacy(<ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} glossary={glossary} setGlossary={setGlossary} region={region} resumeDb={resumeDb} />)}
       {tab==='diagnosis' && legacy(<DiagnosisTab diagnosis={diagnosis} setDiagnosis={setDiagnosis} />)}
       {tab==='library' && legacy(<LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />)}
@@ -3528,6 +3483,7 @@ function App() {
   const [loaded, setLoaded]         = useState(false);
   const [ghOk, setGhOk]             = useState(false);
   const [saveErr, setSaveErr]       = useState('');
+  const [info, setInfo]             = useState('');
   const themeRef = useRef(null), gearRef = useRef(null);
   const latest = useRef({});
 
@@ -3567,6 +3523,14 @@ function App() {
     const h = e => setSaveErr(e.detail?.message || 'Save to GitHub failed');
     window.addEventListener('jobapp:saveerror', h);
     return () => window.removeEventListener('jobapp:saveerror', h);
+  }, []);
+
+  // information that needs no action ("Added — demo data, not saved") shows for a few seconds and goes
+  useEffect(() => {
+    let timer = null;
+    const h = e => { setInfo(String(e.detail || '')); clearTimeout(timer); timer = setTimeout(() => setInfo(''), 4000); };
+    window.addEventListener('jobapp:toast', h);
+    return () => { window.removeEventListener('jobapp:toast', h); clearTimeout(timer); };
   }, []);
 
   // views are addresses (?tab=…): the browser's back and forward move between them
@@ -3736,6 +3700,7 @@ function App() {
         </div>
       </footer>
 
+      {info && !saveErr && <div className="toasts"><div className="toast" role="status"><p>{info}</p></div></div>}
       {saveErr && (
         <div className="toasts">
           <div className="toast" role="alert">
