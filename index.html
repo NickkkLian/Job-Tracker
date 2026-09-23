@@ -395,6 +395,7 @@ const TIERS = [
   { id: "T4", zh: "第四梯队 · 备选", en: "Tier 4 — backup", cls: "bg-gray-100 text-gray-700 border-gray-200" }
 ];
 const tierMeta = (id) => TIERS.find((t) => t.id === id) || null;
+const tierKey = (j) => TIERS.some((t) => t.id === j.priority) ? j.priority : "";
 const teerOf = (noc) => noc && /^\d{5}$/.test(noc.trim()) ? noc.trim()[1] : "";
 const teerOk = (noc) => ["1", "2", "3"].includes(teerOf(noc));
 function cecHours(jobs) {
@@ -1976,7 +1977,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initi
   const regionLabel = rName(REGION_BY[region]);
   const filtered = useMemo(() => jobs.filter((j) => {
     if (filter !== "all" && j.status !== filter) return false;
-    if (tierFilter !== "all" && (j.priority || "") !== tierFilter) return false;
+    if (tierFilter !== "all" && tierKey(j) !== tierFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!`${j.company} ${j.role} ${j.location}`.toLowerCase().includes(q)) return false;
@@ -2019,8 +2020,8 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initi
   };
   const title = T("追踪", "Tracker");
   if (!jobs.length) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow: regionLabel, title }), /* @__PURE__ */ React.createElement("div", { className: "empty" }, /* @__PURE__ */ React.createElement("h2", null, T(`${regionLabel}还没有投递`, `No applications in ${regionLabel} yet`)), /* @__PURE__ */ React.createElement("p", null, T("从「添加职位」贴一段职位描述开始。", "Start from a job description in Add job.")), /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: onAdd }, T("添加职位", "Add job"))));
-  const groups = [...TIERS.map((t) => t.id), ""].map((id) => ({ id, items: filtered.filter((j) => (j.priority || "") === id) })).filter((g) => g.items.length);
-  const tierCount = (id) => jobs.filter((j) => (j.priority || "") === id).length;
+  const groups = [...TIERS.map((t) => t.id), ""].map((id) => ({ id, items: filtered.filter((j) => tierKey(j) === id) })).filter((g) => g.items.length);
+  const tierCount = (id) => jobs.filter((j) => tierKey(j) === id).length;
   const now = /* @__PURE__ */ new Date();
   return /* @__PURE__ */ React.createElement(React.Fragment, null, showBatch && /* @__PURE__ */ React.createElement(BatchTailorModal, { region, jobs, setJobs, resumeDb, formatting, onClose: () => setShowBatch(false) }), /* @__PURE__ */ React.createElement(PageHead, { eyebrow: regionLabel, title, action: /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: onAdd }, T("添加职位", "Add job")) }), /* @__PURE__ */ React.createElement("div", { className: "toolbar" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "trk-search", className: "sr-only" }, T("搜索投递", "Search applications")), /* @__PURE__ */ React.createElement("input", { id: "trk-search", type: "search", value: search, onChange: (e) => setSearch(e.target.value), placeholder: T("搜索公司、职位或地点", "Search company, role or location") }), /* @__PURE__ */ React.createElement("label", { htmlFor: "trk-tier", className: "sr-only" }, T("按梯队筛选", "Filter by tier")), /* @__PURE__ */ React.createElement("select", { id: "trk-tier", value: tierFilter, onChange: (e) => setTierFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, T("全部梯队", "All tiers"), " (", jobs.length, ")"), TIERS.map((t) => /* @__PURE__ */ React.createElement("option", { key: t.id, value: t.id }, T(t.zh, t.en), " (", tierCount(t.id), ")")), /* @__PURE__ */ React.createElement("option", { value: "" }, T("未分级", "Unranked"), " (", tierCount(""), ")")), lsGet("anthropicKey") && /* @__PURE__ */ React.createElement(Btn, { onClick: () => setShowBatch(true) }, T("批量定制…", "Batch tailor…")), /* @__PURE__ */ React.createElement("span", { className: "showing", role: "status" }, T(`显示 ${filtered.length} / ${jobs.length}`, `${filtered.length} of ${jobs.length}`))), /* @__PURE__ */ React.createElement("div", { className: "filters", role: "group", "aria-label": T("按状态筛选", "Filter by status") }, /* @__PURE__ */ React.createElement("button", { type: "button", "aria-pressed": filter === "all", onClick: () => setFilter("all") }, T("全部", "All"), " ", /* @__PURE__ */ React.createElement("b", null, jobs.length)), STATUSES.filter((s) => counts[s.id] || filter === s.id).map((s) => /* @__PURE__ */ React.createElement("button", { key: s.id, type: "button", "aria-pressed": filter === s.id, onClick: () => setFilter(s.id) }, stName(s), " ", /* @__PURE__ */ React.createElement("b", null, counts[s.id] || 0)))), groups.map((g) => {
     const t = tierMeta(g.id);

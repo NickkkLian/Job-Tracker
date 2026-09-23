@@ -351,6 +351,10 @@ const TIERS = [
   { id:'T4', zh:'第四梯队 · 备选',   en:'Tier 4 — backup',      cls:'bg-gray-100 text-gray-700 border-gray-200' },
 ];
 const tierMeta = id => TIERS.find(t => t.id === id) || null;
+// The group a job sits in on the Tracker: its tier, or Unranked when it has none or one this version does not know
+// (P9, an old value). Display only — the stored value stays as it is. Without this a job with an unknown tier was in no
+// group and did not appear on the Tracker at all (fixture check 2026-09-23: 29 of 30 shown).
+const tierKey = j => TIERS.some(t => t.id === j.priority) ? j.priority : '';
 const teerOf = noc => (noc && /^\d{5}$/.test(noc.trim())) ? noc.trim()[1] : '';
 const teerOk  = noc => ['1','2','3'].includes(teerOf(noc));
 function cecHours(jobs){
@@ -2244,7 +2248,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initi
 
   const filtered = useMemo(() => jobs.filter(j => {
     if (filter!=='all' && j.status!==filter) return false;
-    if (tierFilter!=='all' && (j.priority||'') !== tierFilter) return false;
+    if (tierFilter!=='all' && tierKey(j) !== tierFilter) return false;
     if (search) { const q=search.toLowerCase(); if (!`${j.company} ${j.role} ${j.location}`.toLowerCase().includes(q)) return false; }
     return true;
   }).sort((a,b)=>{
@@ -2287,8 +2291,8 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initi
   );
 
   // one group per tier, in tier order; the list inside a group is already sorted by company
-  const groups = [...TIERS.map(t => t.id), ''].map(id => ({ id, items: filtered.filter(j => (j.priority || '') === id) })).filter(g => g.items.length);
-  const tierCount = id => jobs.filter(j => (j.priority || '') === id).length;
+  const groups = [...TIERS.map(t => t.id), ''].map(id => ({ id, items: filtered.filter(j => tierKey(j) === id) })).filter(g => g.items.length);
+  const tierCount = id => jobs.filter(j => tierKey(j) === id).length;
   const now = new Date();
 
   return (
