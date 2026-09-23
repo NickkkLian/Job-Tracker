@@ -25,7 +25,7 @@ sample data, nothing is saved. English by default, 中文 toggle in the header.
 
 ![Insights](docs/screenshot-insights.png)
 
-### The CEC hours ledger (Canada only)
+### Canada: the CEC hours ledger
 
 Canadian Experience Class counts skilled work hours toward 1,560, and IRCC's 30-hours-per-week cap
 applies **across all jobs combined**, not per job. The ledger therefore slices time by week, sums
@@ -33,7 +33,7 @@ every active job's hours for that week, caps the total at 30, and attributes the
 proportionally — so two 25-hour jobs count as 30, not 50. It leaves out jobs whose NOC code isn't
 TEER 1–3 (a job with no NOC code yet is treated as TEER 2), warns about working jobs with no employment
 type recorded, since contractor hours don't count, and shows an ETA to the target at the current
-weekly rate. The ledger, its fields and the "(CEC hours)" in the status name appear only in the Canada region.
+weekly rate.
 
 ### Batch tailoring (optional, needs an Anthropic key)
 
