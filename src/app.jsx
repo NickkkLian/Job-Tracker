@@ -341,7 +341,14 @@ function cecHours(jobs){
   const eta = weeklyRate > 0 ? new Date(Date.now() + remain/weeklyRate*7*24*3600*1000) : null;
   return { total, per, weeklyRate, remain, eta, capped };
 }
-const statusLabel = id => { const s = STATUSES.find(x => x.id === id) || STATUSES[0]; return T(s.zh, s.label); };
+// CEC hours (the Canadian Experience Class) exist only in Canada. The region on screen is set by App on every render;
+// elsewhere the status is plain "Working", and the hours ledger and the five fields it reads are not shown (stored
+// values are never touched).
+let regionNow = 'canada';
+const inCanada = () => regionNow === 'canada';
+const CEC_FIELDS = ['noc', 'weeklyHours', 'empType', 'startDate', 'endDate'];
+const stName = s => s.id === 'working' && !inCanada() ? T('在职', 'Working') : T(s.zh, s.label);
+const statusLabel = id => stName(STATUSES.find(x => x.id === id) || STATUSES[0]);
 
 const TABS = [
   { id:'addjob',   label:'Add Job',    zh:'添加职位',   icon:'➕' },
@@ -804,7 +811,7 @@ function Btn({ children, onClick, variant='secondary', disabled=false, className
 
 function StatusPill({ status }) {
   const s = STATUSES.find(x => x.id === status) || STATUSES[0];
-  return <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full border ${s.cls}`}>{T(s.zh,s.label)}</span>;
+  return <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full border ${s.cls}`}>{stName(s)}</span>;
 }
 
 function TierPill({ tier }) {
@@ -817,7 +824,7 @@ function StatusSelect({ value, onChange }) {
   return (
     <select value={value} onChange={e => onChange(e.target.value)}
       className="text-xs px-2 py-1 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-      {STATUSES.map(s => <option key={s.id} value={s.id}>{T(s.zh,s.label)}</option>)}
+      {STATUSES.map(s => <option key={s.id} value={s.id}>{stName(s)}</option>)}
     </select>
   );
 }
@@ -1827,7 +1834,7 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
             ['applyMethod',T('投递方式','Apply method'),T('Easy Apply / 站内直投 / ATS','Easy Apply / direct / ATS')],
             ['startDate',T('入职日期（算工时用）','Start date'),'YYYY-MM-DD'],
             ['endDate',T('离职日期（空＝在职）','End date'),''],
-            ['priority',T('投递梯队（T1–T4）','Tier'),'T1']].map(([k,lbl,ph]) => (
+            ['priority',T('投递梯队（T1–T4）','Tier'),'T1']].filter(([k]) => inCanada() || !CEC_FIELDS.includes(k)).map(([k,lbl,ph]) => (
             <div key={k}>
               <label className="text-xs font-medium text-gray-700 mb-1 block">{lbl}</label>
               <input value={form[k]} onChange={e=>set(k,e.target.value)} placeholder={ph}
@@ -1843,7 +1850,7 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
             <label className="text-xs font-medium text-gray-700 mb-1 block">{T('状态','Status')}</label>
             <select value={form.status} onChange={e=>set('status',e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {STATUSES.map(s=><option key={s.id} value={s.id}>{T(s.zh,s.label)}</option>)}
+              {STATUSES.map(s=><option key={s.id} value={s.id}>{stName(s)}</option>)}
             </select>
           </div>
         </div>
@@ -2231,7 +2238,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting }) {
           <select value={filter} onChange={e=>setFilter(e.target.value)}
             className="text-sm px-2 py-1.5 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="all">{T('全部','All')} ({jobs.length})</option>
-            {STATUSES.map(s=><option key={s.id} value={s.id}>{T(s.zh,s.label)} ({jobs.filter(j=>j.status===s.id).length})</option>)}
+            {STATUSES.map(s=><option key={s.id} value={s.id}>{stName(s)} ({jobs.filter(j=>j.status===s.id).length})</option>)}
           </select>
           <select value={tierFilter} onChange={e=>setTierFilter(e.target.value)}
             className="text-sm px-2 py-1.5 border border-gray-300 rounded-md bg-white">
@@ -2452,7 +2459,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
         {editing && (
           <div className="mt-4 border-t border-gray-100 pt-4 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {[['company',T('公司','Company')],['role',T('职位','Role')],['location',T('地点','Location')],['salaryRange',T('薪资范围','Salary Range')],['noc',T('NOC 编码','NOC')],['weeklyHours',T('周工时','Weekly hrs')],['empType',T('雇佣类型','Emp type')],['applyMethod',T('投递方式','Apply via')],['startDate',T('入职日期','Start')],['endDate',T('离职日期','End')],['priority',T('梯队','Tier')]].map(([k,lbl])=>(
+              {[['company',T('公司','Company')],['role',T('职位','Role')],['location',T('地点','Location')],['salaryRange',T('薪资范围','Salary Range')],['noc',T('NOC 编码','NOC')],['weeklyHours',T('周工时','Weekly hrs')],['empType',T('雇佣类型','Emp type')],['applyMethod',T('投递方式','Apply via')],['startDate',T('入职日期','Start')],['endDate',T('离职日期','End')],['priority',T('梯队','Tier')]].filter(([k]) => inCanada() || !CEC_FIELDS.includes(k)).map(([k,lbl])=>(
                 <div key={k}>
                   <label className="text-xs text-gray-600 mb-1 block">{lbl}</label>
                   <input value={form[k]||''} onChange={e=>set(k,e.target.value)}
@@ -2939,7 +2946,7 @@ function InsightsTab({ jobs, regionName }) {
           );
         })()}
   </>);
-  if (!jobs.length) return <div className="space-y-4">{cecPanel}<Card className="p-8 text-center text-sm text-gray-500">{T('暂无申请数据 — 先添加职位。','No applications yet — add some jobs first.')}</Card></div>;
+  if (!jobs.length) return <div className="space-y-4">{inCanada() && cecPanel}<Card className="p-8 text-center text-sm text-gray-500">{T('暂无申请数据 — 先添加职位。','No applications yet — add some jobs first.')}</Card></div>;
 
   // ── Sankey data ──────────────────────────────────────────
   const c = {};
@@ -3055,7 +3062,7 @@ function InsightsTab({ jobs, regionName }) {
 
       {/* Sankey flow chart */}
       <Card className="p-4">
-        {cecPanel}
+        {inCanada() && cecPanel}
         <SectionHdr icon="📊" title={T(`${regionName} 流程`,`${regionName} pipeline`)} />
         <div className="mt-2">
           <SankeyChart />
@@ -3351,6 +3358,7 @@ function RegionApp({ region, resumeDb, sections, updateSections, formatting, set
 function App() {
   useLangToggle();
   const [region, setRegion] = useState('canada');
+  regionNow = region;
   const [sections, setSections]     = useState([]);
   const [resumeDb, setResumeDb]     = useState('');
   const [formatting, setFormatting] = useState('');
