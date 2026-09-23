@@ -2567,7 +2567,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
 // WATCHDOG TAB  (LinkedIn email scanner — requires Anthropic API key)
 // ════════════════════════════════════════════════════════════════
 
-function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey }) {
+function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings }) {
   const [step, setStep]           = useState('setup');
   const [profile, setProfile]     = useState('');
   const [pastedText, setPastedText] = useState('');
@@ -2579,11 +2579,19 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey }) {
 
   const DEFAULT_PROFILE = 'Edit this profile to describe yourself in 2-3 sentences. Include: degree, key skills, relevant experience, target roles, and languages. This is used to score and match jobs — the more specific, the better the results.';
 
+  // The profile is saved only after a read that worked. While the read is pending, or after it failed, leaving the field
+  // or "Reset to default" writes nothing: a failed read used to show the default text (and a pending one an empty box),
+  // and one click in and out of the field then replaced the saved profile with it (2026-09-23). A missing file (404) still
+  // reads as empty, so the default text shows and saving works as before.
+  const [profileOk, setProfileOk]   = useState(false);
+  const [profileErr, setProfileErr] = useState(null);
+  const [profileTry, setProfileTry] = useState(0);
   useEffect(() => {
-    if (!ghConfigured()) { setProfile(DEFAULT_PROFILE); return; }
-    loadText('watchdogProfile').then(t => setProfile(t || DEFAULT_PROFILE));
-  }, []);
-  const saveProfile = (val) => { setProfile(val); saveText('watchdogProfile', val); };
+    if (!ghConfigured()) { setProfile(DEFAULT_PROFILE); setProfileOk(true); return; }
+    setProfileOk(false); setProfileErr(null);
+    loadTextStrict('watchdogProfile').then(t => { setProfile(t || DEFAULT_PROFILE); setProfileOk(true); }, e => setProfileErr(e));
+  }, [profileTry]);
+  const saveProfile = (val) => { if (!profileOk) return; setProfile(val); saveText('watchdogProfile', val); };
 
   const anthropicKey = () => lsGet('anthropicKey');
 
@@ -2780,11 +2788,13 @@ Return JSON only:
           <>
             <section className="card" aria-labelledby="al-h1">
               <div className="card-head"><h2 id="al-h1">{T('扫描一封提醒邮件','Scan an alert email')}</h2></div>
+              {profileErr ? <ErrorCard title={T('没能从 GitHub 读到你的提醒资料','Couldn’t read your alert profile from GitHub')} error={profileErr} onRetry={() => setProfileTry(n => n + 1)} openSettings={openSettings} /> : <>
               <Fld id="al-profile" label={T('你的资料（用来匹配和打分）','Your profile, for matching')} hint={T('离开这个框时保存到你的仓库。','Saved to your repo when you leave the field.')}>
-                <textarea id="al-profile" rows={3} value={profile} onChange={e=>setProfile(e.target.value)} onBlur={e=>saveText('watchdogProfile', e.target.value)}
+                <textarea id="al-profile" rows={3} value={profile} onChange={e=>setProfile(e.target.value)} onBlur={e=>{ if (profileOk) saveText('watchdogProfile', e.target.value); }}
                   aria-describedby="al-profile-hint" placeholder={T('用 2–3 句话介绍你自己，用来匹配职位…','Describe yourself in 2–3 sentences for job matching…')} />
               </Fld>
               <p className="al-reset"><button type="button" className="btn-link" onClick={()=>saveProfile(DEFAULT_PROFILE)}>{T('恢复默认','Reset to default')}</button></p>
+              </>}
               <Fld id="al-email" label={T('LinkedIn 职位提醒邮件','LinkedIn job-alert email')}>
                 <textarea id="al-email" rows={8} value={pastedText} onChange={e=>setPastedText(e.target.value)}
                   placeholder={T("打开一封 LinkedIn 职位提醒邮件 → Ctrl+A → Ctrl+C → 粘贴到这里。\n邮件里有职位名称和公司名——Claude 找完整职位只需要这些。","Open a LinkedIn job alert email → Ctrl+A → Ctrl+C → paste here.\nThe email has job titles and company names — that's all Claude needs to search for the full listings.")} />
@@ -3393,7 +3403,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
       {tab==='diagnosis' && <DiagnosisTab diagnosis={diagnosis} setDiagnosis={setDiagnosis} />}
       {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}
       {tab==='insights'&& <InsightsTab jobs={jobs} regionName={regionLabel} onWorking={()=>go('tracker', { status: jobs.some(j => j.status === 'working') ? 'working' : null })} onAdd={()=>go('addjob')} />}
-      {tab==='watchdog'&& <WatchdogTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} onOpenKey={opener => openSettings(opener, '#set-key')} />}
+      {tab==='watchdog'&& <WatchdogTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} onOpenKey={opener => openSettings(opener, '#set-key')} openSettings={openSettings} />}
     </>
   );
 }
@@ -3500,18 +3510,12 @@ function App() {
     }
   };
 
+  // Reconnecting in Settings reads the shared files again exactly as the first load does (loadJsonStrict / loadTextStrict,
+  // diagnosis included): a failed read shows the error card on the shared views, where every save of shared data lives,
+  // instead of empty data that the next save would write over the repo (2026-09-23). A missing file (404) is still empty.
   const handleGhChange = async ok => {
     setGhOk(ok);
-    if (ok) {
-      const [rawSecs, oldDb, fmt, gls, lib] = await Promise.all([
-        loadJson('resumeSections'), loadText('resumeDb'), loadText('formatting'), loadText('glossary'), loadJson('library'),
-      ]).catch(() => [[], '', '', '', library]);
-      let secs = rawSecs;
-      if ((!secs || secs.length === 0) && oldDb.trim()) {
-        secs = [{ id: newId(), name: 'My Profile', content: oldDb, source: 'manual', addedAt: new Date().toISOString() }];
-      }
-      setSections(secs); setResumeDb(combineSections(secs)); setFormatting(fmt); setGlossary(gls); setLibrary(lib);
-    }
+    if (ok) setSharedTry(t => t + 1);
   };
   latest.current = { ghOk, handleGhChange };
 

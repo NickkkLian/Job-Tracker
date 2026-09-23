@@ -2190,7 +2190,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
     }
   ), /* @__PURE__ */ React.createElement("div", { className: "form-acts" }, /* @__PURE__ */ React.createElement(Btn, { onClick: handleSaveNotes }, notesSaved ? T("已保存", "Saved") : T("保存备注", "Save notes")))), form.jdText && /* @__PURE__ */ React.createElement("details", { className: "card jd-orig" }, /* @__PURE__ */ React.createElement("summary", null, T("原始职位描述", "Original job description")), /* @__PURE__ */ React.createElement("pre", { className: "sunken" }, form.jdText))));
 }
-function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey }) {
+function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings }) {
   const [step, setStep] = useState("setup");
   const [profile, setProfile] = useState("");
   const [pastedText, setPastedText] = useState("");
@@ -2200,14 +2200,24 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey }) {
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState([]);
   const DEFAULT_PROFILE = "Edit this profile to describe yourself in 2-3 sentences. Include: degree, key skills, relevant experience, target roles, and languages. This is used to score and match jobs — the more specific, the better the results.";
+  const [profileOk, setProfileOk] = useState(false);
+  const [profileErr, setProfileErr] = useState(null);
+  const [profileTry, setProfileTry] = useState(0);
   useEffect(() => {
     if (!ghConfigured()) {
       setProfile(DEFAULT_PROFILE);
+      setProfileOk(true);
       return;
     }
-    loadText("watchdogProfile").then((t) => setProfile(t || DEFAULT_PROFILE));
-  }, []);
+    setProfileOk(false);
+    setProfileErr(null);
+    loadTextStrict("watchdogProfile").then((t) => {
+      setProfile(t || DEFAULT_PROFILE);
+      setProfileOk(true);
+    }, (e) => setProfileErr(e));
+  }, [profileTry]);
   const saveProfile = (val) => {
+    if (!profileOk) return;
     setProfile(val);
     saveText("watchdogProfile", val);
   };
@@ -2429,18 +2439,20 @@ Return JSON only:
         "Paste a LinkedIn job-alert email; Claude looks up each posting on the company’s careers page and scores it against your profile, and you add the good ones to the tracker in one go."
       )
     }
-  ), /* @__PURE__ */ React.createElement("div", { className: "stack" }, !hasKey && /* @__PURE__ */ React.createElement("div", { className: "status-bar warn al-key", id: "al-need" }, /* @__PURE__ */ React.createElement("p", null, T("「提醒」要用 Anthropic API 密钥（每次扫描约 $0.01–0.05），密钥只存在这个浏览器里。", "Alerts need an Anthropic API key (about $0.01–0.05 per scan). It stays in this browser.")), onOpenKey && /* @__PURE__ */ React.createElement(Btn, { className: "btn-sm", onClick: (e) => onOpenKey(e.currentTarget) }, T("去「设置」里添加", "Add a key in Settings"))), step === "setup" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("section", { className: "card", "aria-labelledby": "al-h1" }, /* @__PURE__ */ React.createElement("div", { className: "card-head" }, /* @__PURE__ */ React.createElement("h2", { id: "al-h1" }, T("扫描一封提醒邮件", "Scan an alert email"))), /* @__PURE__ */ React.createElement(Fld, { id: "al-profile", label: T("你的资料（用来匹配和打分）", "Your profile, for matching"), hint: T("离开这个框时保存到你的仓库。", "Saved to your repo when you leave the field.") }, /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("div", { className: "stack" }, !hasKey && /* @__PURE__ */ React.createElement("div", { className: "status-bar warn al-key", id: "al-need" }, /* @__PURE__ */ React.createElement("p", null, T("「提醒」要用 Anthropic API 密钥（每次扫描约 $0.01–0.05），密钥只存在这个浏览器里。", "Alerts need an Anthropic API key (about $0.01–0.05 per scan). It stays in this browser.")), onOpenKey && /* @__PURE__ */ React.createElement(Btn, { className: "btn-sm", onClick: (e) => onOpenKey(e.currentTarget) }, T("去「设置」里添加", "Add a key in Settings"))), step === "setup" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("section", { className: "card", "aria-labelledby": "al-h1" }, /* @__PURE__ */ React.createElement("div", { className: "card-head" }, /* @__PURE__ */ React.createElement("h2", { id: "al-h1" }, T("扫描一封提醒邮件", "Scan an alert email"))), profileErr ? /* @__PURE__ */ React.createElement(ErrorCard, { title: T("没能从 GitHub 读到你的提醒资料", "Couldn’t read your alert profile from GitHub"), error: profileErr, onRetry: () => setProfileTry((n) => n + 1), openSettings }) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Fld, { id: "al-profile", label: T("你的资料（用来匹配和打分）", "Your profile, for matching"), hint: T("离开这个框时保存到你的仓库。", "Saved to your repo when you leave the field.") }, /* @__PURE__ */ React.createElement(
     "textarea",
     {
       id: "al-profile",
       rows: 3,
       value: profile,
       onChange: (e) => setProfile(e.target.value),
-      onBlur: (e) => saveText("watchdogProfile", e.target.value),
+      onBlur: (e) => {
+        if (profileOk) saveText("watchdogProfile", e.target.value);
+      },
       "aria-describedby": "al-profile-hint",
       placeholder: T("用 2–3 句话介绍你自己，用来匹配职位…", "Describe yourself in 2–3 sentences for job matching…")
     }
-  )), /* @__PURE__ */ React.createElement("p", { className: "al-reset" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn-link", onClick: () => saveProfile(DEFAULT_PROFILE) }, T("恢复默认", "Reset to default"))), /* @__PURE__ */ React.createElement(Fld, { id: "al-email", label: T("LinkedIn 职位提醒邮件", "LinkedIn job-alert email") }, /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("p", { className: "al-reset" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn-link", onClick: () => saveProfile(DEFAULT_PROFILE) }, T("恢复默认", "Reset to default")))), /* @__PURE__ */ React.createElement(Fld, { id: "al-email", label: T("LinkedIn 职位提醒邮件", "LinkedIn job-alert email") }, /* @__PURE__ */ React.createElement(
     "textarea",
     {
       id: "al-email",
@@ -2756,7 +2768,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
   return /* @__PURE__ */ React.createElement(React.Fragment, null, tab === "addjob" && /* @__PURE__ */ React.createElement(AddJobTab, { resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved: (id) => go("tracker", { openJobId: id }), onOpenProfile: () => go("profile") }), tab === "tracker" && !openJob && /* @__PURE__ */ React.createElement(TrackerTab, { region, jobs, setJobs, resumeDb, formatting, initialStatus: trackerStatus, onAdd: () => go("addjob"), onOpen: (id) => setOpenJobId(id), focusJobId: focusJob, onFocused: () => setFocusJob(null) }), tab === "tracker" && openJob && /* @__PURE__ */ React.createElement(JobDetail, { region, job: openJob, resumeDb, formatting, glossary, library, jobs, setJobs, onBack: () => {
     setFocusJob(openJob.id);
     setOpenJobId(null);
-  }, onOpenProfile: () => go("profile") }), tab === "profile" && /* @__PURE__ */ React.createElement(ProfileTab, { sections, updateSections, formatting, setFormatting, glossary, setGlossary, region, resumeDb }), tab === "diagnosis" && /* @__PURE__ */ React.createElement(DiagnosisTab, { diagnosis, setDiagnosis }), tab === "library" && /* @__PURE__ */ React.createElement(LibraryTab, { library, setLibrary, updateSections }), tab === "insights" && /* @__PURE__ */ React.createElement(InsightsTab, { jobs, regionName: regionLabel, onWorking: () => go("tracker", { status: jobs.some((j) => j.status === "working") ? "working" : null }), onAdd: () => go("addjob") }), tab === "watchdog" && /* @__PURE__ */ React.createElement(WatchdogTab, { region, jobs, setJobs, resumeDb, onOpenKey: (opener) => openSettings(opener, "#set-key") }));
+  }, onOpenProfile: () => go("profile") }), tab === "profile" && /* @__PURE__ */ React.createElement(ProfileTab, { sections, updateSections, formatting, setFormatting, glossary, setGlossary, region, resumeDb }), tab === "diagnosis" && /* @__PURE__ */ React.createElement(DiagnosisTab, { diagnosis, setDiagnosis }), tab === "library" && /* @__PURE__ */ React.createElement(LibraryTab, { library, setLibrary, updateSections }), tab === "insights" && /* @__PURE__ */ React.createElement(InsightsTab, { jobs, regionName: regionLabel, onWorking: () => go("tracker", { status: jobs.some((j) => j.status === "working") ? "working" : null }), onAdd: () => go("addjob") }), tab === "watchdog" && /* @__PURE__ */ React.createElement(WatchdogTab, { region, jobs, setJobs, resumeDb, onOpenKey: (opener) => openSettings(opener, "#set-key"), openSettings }));
 }
 const HALF_CIRCLE = /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "18", height: "18", fill: "none", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "8", stroke: "currentColor", strokeWidth: "2" }), /* @__PURE__ */ React.createElement("path", { d: "M12 4a8 8 0 0 1 0 16z", fill: "currentColor" }));
 const GEAR = /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "18", height: "18", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinejoin: "round", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("path", { d: "M10.34 5.10L10.58 2.51L13.42 2.51L13.66 5.10A7.1 7.1 0 0 1 15.71 5.95L17.71 4.28L19.72 6.29L18.05 8.29A7.1 7.1 0 0 1 18.90 10.34L21.49 10.58L21.49 13.42L18.90 13.66A7.1 7.1 0 0 1 18.05 15.71L19.72 17.71L17.71 19.72L15.71 18.05A7.1 7.1 0 0 1 13.66 18.90L13.42 21.49L10.58 21.49L10.34 18.90A7.1 7.1 0 0 1 8.29 18.05L6.29 19.72L4.28 17.71L5.95 15.71A7.1 7.1 0 0 1 5.10 13.66L2.51 13.42L2.51 10.58L5.10 10.34A7.1 7.1 0 0 1 5.95 8.29L4.28 6.29L6.29 4.28L8.29 5.95A7.1 7.1 0 0 1 10.34 5.10Z" }), /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "3" }));
@@ -2869,24 +2881,7 @@ function App() {
   };
   const handleGhChange = async (ok) => {
     setGhOk(ok);
-    if (ok) {
-      const [rawSecs, oldDb, fmt, gls, lib] = await Promise.all([
-        loadJson("resumeSections"),
-        loadText("resumeDb"),
-        loadText("formatting"),
-        loadText("glossary"),
-        loadJson("library")
-      ]).catch(() => [[], "", "", "", library]);
-      let secs = rawSecs;
-      if ((!secs || secs.length === 0) && oldDb.trim()) {
-        secs = [{ id: newId(), name: "My Profile", content: oldDb, source: "manual", addedAt: (/* @__PURE__ */ new Date()).toISOString() }];
-      }
-      setSections(secs);
-      setResumeDb(combineSections(secs));
-      setFormatting(fmt);
-      setGlossary(gls);
-      setLibrary(lib);
-    }
+    if (ok) setSharedTry((t) => t + 1);
   };
   latest.current = { ghOk, handleGhChange };
   const settingsOpts = (focus) => {
