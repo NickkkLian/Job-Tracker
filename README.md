@@ -55,7 +55,9 @@ to the repo.
 
 ## Running it
 
-Open `index.html` from any static server — every script it loads is in this repository:
+Open `index.html` from any static server — every script the page needs to start is in this repository. The one
+exception is reading a `.pdf` job description: that loads pdf.js from cdnjs the first time, so offline only `.txt`,
+`.md` and `.docx` files can be read. To serve it locally:
 
 ```bash
 python3 -m http.server 8732        # then http://localhost:8732/?demo=1&tab=tracker

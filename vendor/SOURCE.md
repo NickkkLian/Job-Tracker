@@ -13,3 +13,6 @@ file's sha256 was checked against that mirror's manifest when it was copied in.
 | `tailwind-cdn-3.x.js` | https://cdn.tailwindcss.com (the Tailwind 3 Play CDN script: it builds the page's CSS in the browser) | `176e894661aa9cdc9a5cba6c720044cbbf7b8bd80d1c9a142a7c24b1b6c50d15` | MIT |
 
 Babel is no longer loaded at all: src/app.jsx is compiled ahead of time by build.mjs.
+
+Not here yet: pdf.js 3.11.174, which the page still loads from cdnjs the first time a `.pdf` job description is read
+(`loadPdfJs` in src/app.jsx). Reading `.txt`, `.md` and `.docx` needs no network.
