@@ -1,5 +1,7 @@
 # ApplyLedger
 
+![ApplyLedger](.github/header.png)
+
 A job-application tracker for people applying in several countries at once. Every region (Canada, US, UK,
 Hong Kong, Mainland China, …) keeps its own pipeline and its own tailored documents; your profile, resume library
 and glossary are shared. The app is one HTML file — React 18, compiled ahead of time, with every library served from
