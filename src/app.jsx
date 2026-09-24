@@ -184,7 +184,15 @@ async function ghFetchFile(path) {
   if (res.status === 404) return null;
   if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`GitHub ${res.status}: ${e.message||'error'}`); }
   const d = await res.json();
-  return { text: frB64(d.content), sha: d.sha };
+  let b64 = d.content;
+  // Over 1 MiB the Contents API answers encoding "none" with no content. Read as an empty file, the next save replaced
+  // the whole file with the few rows on the page. Read the same blob through the Git Blobs API instead (up to 100 MB).
+  if (!b64 && d.sha && d.size > 0) {
+    const br = await fetch(`https://api.github.com/repos/${o}/${r}/git/blobs/${d.sha}`, { headers: ghHdrs(token), cache: 'no-store' });
+    if (!br.ok) { const e = await br.json().catch(()=>({})); throw new Error(`GitHub ${br.status}: ${e.message||'error'}`); }
+    b64 = (await br.json()).content;
+  }
+  return { text: frB64(b64), sha: d.sha };
 }
 
 async function ghRead(path) {
