@@ -32,6 +32,178 @@
 <script>try{if(localStorage.getItem('pha-lang')==='zh'){document.documentElement.lang='zh';document.getElementById('loading-text').textContent='正在加载 ApplyLedger…';}}catch(e){}</script>
 
 <script>
+/* safe-merge v1 — source of truth: the safe-merge library, kept outside this app. This block, from this comment to the
+   closing "})();", was copied from it; change the library and copy it again rather than editing a copy here.
+   The library has its own tests.
+   Why (2026-09-23): GitHub rejects a save whose sha is out of date (409).
+   The apps used to fetch the new sha and send the same stale data again, which silently erased whatever had been written
+   elsewhere since the page loaded (another tab, another device, a script). Now a stale save
+   re-reads the file, merges three ways, and asks only when both sides changed the same thing:
+     base   = the file as this page last read or saved it
+     theirs = the file as it is now
+     ours   = this page's data now
+   A value changed on one side only takes that side's change. Objects merge key by key; arrays whose items all carry a
+   unique `id` merge item by item. Timestamp fields (updatedAt and the like) changed on both sides take the later one.
+   Anything else changed on both sides, to different values, is a conflict that the owner resolves in a dialog. */
+const SafeMerge = (() => {
+  const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+  /** JSON with sorted keys: the same data in another key order counts as unchanged */
+  const canon = (v) => JSON.stringify(v, (k, x) => (isObj(x)
+    ? Object.keys(x).sort().reduce((o, key) => { o[key] = x[key]; return o; }, {})
+    : x));
+  const same = (a, b) => canon(a) === canon(b);
+  const TIME_KEY = /^(updated_?at|modified_?at|date_?modified|last_?modified|last_?update(d|_?time)?|saved_?at|synced_?at|generated_?at|updated|modified)$/i;
+  const idOf = (x) => (isObj(x) && (typeof x.id === 'string' || typeof x.id === 'number') && x.id !== '' ? String(x.id) : null);
+  const byIdArray = (a) => Array.isArray(a) && a.every((x) => idOf(x) !== null) && new Set(a.map(idOf)).size === a.length;
+  const labelOf = (x) => (isObj(x) ? String(x.title || x.name || x.label || x.id) : '');
+
+  /** Three-way merge. opt.pick: 'mine' | 'theirs' decides conflicts; without it conflicts are collected into
+   *  opt.conflicts ({ path, theirs, ours }) and theirs is kept for now. Returns the merged value (undefined = removed). */
+  function merge3(base, theirs, ours, opt = {}, path = []) {
+    if (same(ours, base)) return theirs;                       // this page did not change it
+    if (same(theirs, base) || same(ours, theirs)) return ours; // only this page changed it, or both made the same change
+    if (isObj(base) && isObj(theirs) && isObj(ours)) {
+      const out = {};
+      for (const k of new Set([...Object.keys(theirs), ...Object.keys(ours), ...Object.keys(base)])) {
+        const v = merge3(base[k], theirs[k], ours[k], opt, [...path, k]);
+        if (v !== undefined) out[k] = v;
+      }
+      return out;
+    }
+    if (byIdArray(base) && byIdArray(theirs) && byIdArray(ours)) return mergeById(base, theirs, ours, opt, path);
+    const key = path[path.length - 1];
+    if (typeof key === 'string' && TIME_KEY.test(key) && typeof theirs === 'string' && typeof ours === 'string') {
+      return ours > theirs ? ours : theirs;                    // both sides touched a timestamp: keep the later one
+    }
+    if (opt.pick === 'mine') return ours;
+    if (opt.pick === 'theirs') return theirs;
+    if (opt.conflicts) opt.conflicts.push({ path, theirs, ours });
+    return theirs;
+  }
+
+  function mergeById(base, theirs, ours, opt, path) {
+    const B = new Map(base.map((x) => [idOf(x), x]));
+    const T = new Map(theirs.map((x) => [idOf(x), x]));
+    const O = new Map(ours.map((x) => [idOf(x), x]));
+    const merged = new Map();
+    for (const id of new Set([...T.keys(), ...O.keys(), ...B.keys()])) {
+      const label = labelOf(T.get(id) || O.get(id) || B.get(id));
+      merged.set(id, merge3(B.get(id), T.get(id), O.get(id), opt, [...path, { id, label }]));
+    }
+    // the file's order; items that exist only on this page go right after their neighbour on this page
+    const out = theirs.map(idOf).filter((id) => merged.get(id) !== undefined).map((id) => merged.get(id));
+    const placed = new Set(out.map(idOf));
+    ours.forEach((x, i) => {
+      const id = idOf(x);
+      if (placed.has(id) || merged.get(id) === undefined) return;
+      let j = i - 1;
+      while (j >= 0 && !placed.has(idOf(ours[j]))) j--;
+      const at = j < 0 ? 0 : out.findIndex((y) => idOf(y) === idOf(ours[j])) + 1;
+      out.splice(at, 0, merged.get(id));
+      placed.add(id);
+    });
+    return out;
+  }
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const show = (v, T) => {
+    if (v === undefined) return T('（没有／已删除）', '(absent / deleted)');
+    const s = typeof v === 'string' ? v : JSON.stringify(v, null, 2);
+    return s.length > 600 ? s.slice(0, 600) + ' …' : s;
+  };
+  const where = (path) => path.map((p) => (typeof p === 'object' ? `「${p.label}」` : p)).join(' › ') || '（整个文件）';
+
+  /** The conflict dialog. It must be answered: Esc is swallowed and clicking outside does nothing. */
+  function ask(conflicts, T) {
+    return new Promise((resolve) => {
+      const ov = document.createElement('div');
+      ov.setAttribute('data-no-esc', '');
+      ov.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(20,28,24,.5);display:flex;align-items:center;justify-content:center;padding:16px;';
+      const box = document.createElement('div');
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      box.style.cssText = 'background:#fff;color:#1f2a24;width:100%;max-width:720px;max-height:90vh;overflow:auto;border-radius:12px;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.28);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans SC",sans-serif;';
+      const pre = 'white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0 0;padding:8px 10px;border-radius:8px;border:1px solid #d9e2dc;background:#f4f7f5;font:12.5px/1.55 ui-monospace,Menlo,monospace;max-height:30vh;overflow:auto;';
+      const items = conflicts.slice(0, 20).map((c) => `<li style="margin:0 0 14px;">
+        <div style="font-weight:600;">${esc(where(c.path))}</div>
+        <div style="margin-top:6px;color:#55655b;">${esc(T('别处存下的', 'Saved elsewhere'))}</div><pre style="${pre}">${esc(show(c.theirs, T))}</pre>
+        <div style="margin-top:6px;color:#55655b;">${esc(T('这个页面的', 'On this page'))}</div><pre style="${pre}">${esc(show(c.ours, T))}</pre></li>`).join('');
+      const more = conflicts.length > 20 ? `<p style="color:#55655b;">${esc(T(`还有 ${conflicts.length - 20} 处没列出，按同一个选择处理。`, `${conflicts.length - 20} more not listed; the same choice applies.`))}</p>` : '';
+      const btn = 'font:inherit;padding:8px 14px;border-radius:8px;cursor:pointer;margin-left:8px;';
+      box.innerHTML = `<h3 style="margin:0 0 8px;font-size:17px;">${esc(T('这个文件在别处也改过', 'This file was also changed elsewhere'))}</h3>
+        <p style="margin:0 0 14px;color:#3f5047;">${esc(T(
+          '这个页面打开之后，文件在别处（别的页面、别的设备，或直接写进仓库）也改过。没撞上的改动两边都已保留；下面这几处两边改得不一样，请选一边保留，另一边的会被丢掉（需要的话先把文字复制出来）。',
+          'After this page loaded, the file was also changed elsewhere (another page, another device, or a direct write to the repo). Changes that don’t collide are kept from both sides. The places below were changed differently on each side: choose which side to keep; the other side’s version is discarded, so copy any text you need first.'))}</p>
+        <ol style="padding-left:20px;margin:0;">${items}</ol>${more}
+        <div style="text-align:right;margin-top:10px;">
+          <button type="button" data-choice="theirs" style="${btn}border:1px solid #b9c8be;background:#fff;color:#1f2a24;">${esc(T('保留别处的', 'Keep the saved version'))}</button>
+          <button type="button" data-choice="mine" style="${btn}border:1px solid #2f6f4a;background:#2f6f4a;color:#fff;">${esc(T('用这个页面的', 'Use this page’s version'))}</button>
+        </div>`;
+      const swallowEsc = (e) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); e.preventDefault(); } };
+      document.addEventListener('keydown', swallowEsc, true);
+      box.querySelectorAll('button[data-choice]').forEach((b) => b.addEventListener('click', () => {
+        document.removeEventListener('keydown', swallowEsc, true);
+        ov.remove();
+        resolve(b.getAttribute('data-choice'));
+      }));
+      ov.appendChild(box);
+      document.body.appendChild(ov);
+    });
+  }
+
+  /** Save with conflict handling.
+   *  put(data, sha) → fetch Response of the PUT; get() → { json, sha } of the file now (must bypass the browser cache);
+   *  base: the file as this page last read or saved it (null when this page never read it); T(zh, en) for text.
+   *  Resolves { sha, data, merged, wrote }: the file's new sha, the data now in the file, whether a merge happened, and
+   *  whether anything was written. Throws on other HTTP errors, or when the page never read the file. */
+  async function save({ data, sha, base, put, get, T, tries = 4, askFn = ask }) {
+    let merged = false;
+    for (let i = 0; i < tries; i++) {
+      const r = await put(data, sha);
+      if (r.ok) {
+        const j = await r.json().catch(() => ({}));
+        return { sha: (j.content && j.content.sha) || null, data, merged, wrote: true };
+      }
+      if (!(r.status === 409 || (r.status === 422 && !sha))) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error(e.message || 'HTTP ' + r.status);
+      }
+      if (base == null) {
+        throw new Error(T('这个页面没能读到仓库里的版本；为免覆盖别处的内容，这次没有保存。请刷新页面后再改。',
+          'This page never read the file from the repo, so it did not save, to avoid overwriting changes made elsewhere. Reload the page and make the change again.'));
+      }
+      const remote = await get();
+      const conflicts = [];
+      let next = merge3(base, remote.json, data, { conflicts });
+      if (conflicts.length) next = merge3(base, remote.json, data, { pick: await askFn(conflicts, T) });
+      merged = true;
+      base = remote.json;
+      sha = remote.sha;
+      data = next;
+      if (same(next, remote.json)) return { sha, data, merged, wrote: false };
+    }
+    throw new Error(T('文件在别处一直在变，请刷新页面后再试。', 'The file keeps changing elsewhere. Reload the page and try again.'));
+  }
+
+  /** Changes made on this page while a save was in flight: put them on top of what the save left in the file.
+   *  sent = the data the save started with; saved = save().data; now = this page's data now. */
+  const rebase = (sent, saved, now) => merge3(sent, saved, now, { pick: 'mine' });
+
+  /** Run an async function one call at a time: two saves in flight would carry the same sha and one would get 409. */
+  function serial(fn) {
+    let chain = Promise.resolve();
+    return (...args) => {
+      const run = chain.then(() => fn(...args));
+      chain = run.catch(() => {});
+      return run;
+    };
+  }
+
+  /** A deep copy for `base` (structuredClone is not in every browser this runs in) */
+  const snapshot = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
+
+  return { merge3, same, canon, ask, save, rebase, serial, snapshot };
+})();
 /*__APP_JS__*/
 
 </script>

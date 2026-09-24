@@ -139,6 +139,19 @@ function keyToPath(key){
 }
 
 const shaCache = {};
+// Saving a data file (2026-09-23). A save used to fetch the sha right before its PUT when none was cached, and on 409 fetch
+// the new sha and send the same content again: whatever had been written since this page read the file (another tab,
+// another device, a script) was erased, and the page said nothing. Now SafeMerge (pasted verbatim into the page's
+// script by src/index.template.html, from the safe-merge library) does the save: on 409/422 it reads the file again
+// and merges three ways (the file as this page last read or wrote it / the file now / this page's copy), and asks only
+// when both sides changed the same value. A page that never read a file does not write over it.
+//   baseCache[path]    the file as this page last read or wrote it: parsed JSON for .json, the text for .txt. Absent until
+//                      a read of that file has worked (shaCache is kept with it: both come from the same read or write).
+//   fileHolders[path]  how the page's own copy of the file is read and replaced after a merge (holdFile, called by views)
+//   saveQueues[path]   one save at a time per file: two in flight would carry the same sha
+const baseCache = {};
+const fileHolders = {};
+const saveQueues = {};
 
 function ghCfg() {
   return {
@@ -159,48 +172,95 @@ function ghConfigured() {
   return !!(token && repo && repo.includes('/'));
 }
 
-async function ghRead(path) {
+// A data file's content as the page holds it; a missing file reads as what the loaders give for it: [] or ''
+const isJsonPath = path => /\.json$/i.test(path);
+function parseFile(path, text) { return isJsonPath(path) ? (text ? JSON.parse(text) : []) : (text || ''); }
+
+// One read of a file, past the browser cache (a save merges against it): { text, sha }, or null when it does not exist
+async function ghFetchFile(path) {
   const { token, repo } = ghCfg();
-  if (!token || !repo) return null;
   const [o, r] = repo.split('/');
-  const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { headers: ghHdrs(token) });
+  const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}?t=${Date.now()}`, { headers: ghHdrs(token), cache: 'no-store' });
   if (res.status === 404) return null;
   if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`GitHub ${res.status}: ${e.message||'error'}`); }
   const d = await res.json();
-  shaCache[path] = d.sha;
-  return frB64(d.content);
+  return { text: frB64(d.content), sha: d.sha };
 }
 
-async function ghWrite(path, content) {
+async function ghRead(path) {
+  const { token, repo } = ghCfg();
+  if (!token || !repo) return null;
+  const f = await ghFetchFile(path);
+  const text = f ? f.text : null;
+  baseCache[path] = parseFile(path, text);   // a .json file that does not parse throws here: not a read that worked
+  if (f) shaCache[path] = f.sha; else delete shaCache[path];
+  return text;
+}
+
+function ghPut(path, text, sha) {
+  const { token, repo } = ghCfg();
+  const [o, r] = repo.split('/');
+  const body = { message: `jobapp: update ${path}`, content: toB64(text), ...(sha ? { sha } : {}) };
+  return fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { method:'PUT', headers: ghHdrs(token), body: JSON.stringify(body) });
+}
+
+// A view that holds a file's content registers here while it is mounted: get() gives its copy now, set(v) replaces it.
+// After a merge, the save puts the merge result (with this page's newer changes on top) into that copy; without it, the
+// next save would take what the merge brought in for something this page deleted. Returns the unregister function.
+function holdFile(key, get, set) {
+  const path = keyToPath(key), h = { get, set };
+  fileHolders[path] = h;
+  return () => { if (fileHolders[path] === h) delete fileHolders[path]; };
+}
+
+// The conflict dialog names the file, and an item by what the page shows for it: a job by company and role, a
+// diagnosis line by its text (the library would show a job's id)
+function itemAt(root, path, i) {
+  let v = root;
+  for (const p of path.slice(0, i + 1)) {
+    if (v == null) return null;
+    v = typeof p === 'object' ? (Array.isArray(v) ? v.find(x => x && String(x.id) === p.id) : null) : v[p];
+  }
+  return v;
+}
+function itemLabel(x) { return x && typeof x === 'object' ? ([x.company, x.role].filter(Boolean).join(' — ') || x.name || x.title || x.text || '') : ''; }
+
+// Save a file's whole content (parsed JSON for .json, the text for .txt). One save runs at a time per file; while it runs,
+// only the newest request waits (each carries the whole file), and when the running save has merged, the waiting one is
+// rebased onto what it left in the file (that request was made before the merge reached the page).
+// opts.derived: the content is rebuilt from another file (resumeDb.txt from the sections): a conflict keeps this page's.
+function ghWrite(path, value, opts = {}) {
+  const q = saveQueues[path] || (saveQueues[path] = { chain: Promise.resolve(), waiting: null });
+  if (q.waiting) { q.waiting.value = value; q.waiting.opts = opts; return q.waiting.done; }
+  const w = { value, opts };
+  q.waiting = w;
+  w.done = q.chain.then(() => { if (q.waiting === w) q.waiting = null; return ghWriteNow(path, w.value, w.opts, q); });
+  q.chain = w.done.catch(() => {});
+  return w.done;
+}
+
+async function ghWriteNow(path, value, opts, q) {
   const { token, repo } = ghCfg();
   if (!token || !repo) throw new Error('GitHub not configured');
-  const [o, r] = repo.split('/');
-  const url = `https://api.github.com/repos/${o}/${r}/contents/${path}`;
-
-  // Fetch current SHA if not cached
-  if (!shaCache[path]) {
-    const c = await fetch(url, { headers: ghHdrs(token) });
-    if (c.ok) { const d = await c.json(); shaCache[path] = d.sha; }
+  const json = isJsonPath(path);
+  const sent = SafeMerge.snapshot(value);
+  let remoteNow = null;
+  const r = await SafeMerge.save({
+    data: sent, sha: shaCache[path] || null, base: path in baseCache ? baseCache[path] : null, T,
+    put: (d, sha) => ghPut(path, json ? JSON.stringify(d) : d, sha),
+    get: async () => { const f = await ghFetchFile(path); remoteNow = parseFile(path, f && f.text); return { json: remoteNow, sha: f ? f.sha : null }; },
+    askFn: opts.derived ? async () => 'mine'
+      : (conflicts, t) => SafeMerge.ask(conflicts.map(c => ({ ...c, path: [path, ...c.path.map((p, i) => typeof p === 'object'
+        ? { ...p, label: itemLabel(itemAt(remoteNow, c.path, i) || itemAt(sent, c.path, i)) || p.label } : p)] })), t),
+  });
+  if (r.sha) shaCache[path] = r.sha; else delete shaCache[path];
+  baseCache[path] = SafeMerge.snapshot(r.data);
+  if (r.merged) {
+    if (q.waiting) q.waiting.value = SafeMerge.rebase(sent, r.data, q.waiting.value);
+    const h = fileHolders[path];
+    if (h) { const next = SafeMerge.rebase(sent, r.data, h.get()); ReactDOM.flushSync(() => h.set(next)); }
   }
-
-  const doWrite = async () => {
-    const body = { message: `jobapp: update ${path}`, content: toB64(content), ...(shaCache[path] ? {sha: shaCache[path]} : {}) };
-    return fetch(url, { method:'PUT', headers: ghHdrs(token), body: JSON.stringify(body) });
-  };
-
-  let res = await doWrite();
-
-  // 409 = SHA mismatch (file changed on GitHub since last read) — re-fetch SHA and retry once
-  if (res.status === 409) {
-    const fresh = await fetch(url, { headers: ghHdrs(token) });
-    if (fresh.ok) { const d = await fresh.json(); shaCache[path] = d.sha; }
-    else delete shaCache[path];
-    res = await doWrite();
-  }
-
-  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`GitHub ${res.status}: ${e.message||'error'}`); }
-  const d = await res.json();
-  shaCache[path] = d.content.sha;
+  return r;
 }
 
 async function testGhConnection() {
@@ -282,14 +342,14 @@ async function ghDeleteFile(path) {
 
 // Storage helpers
 async function loadText(key)  { try { return await ghRead(keyToPath(key)) || ''; } catch { return ''; } }
-async function saveText(key, v){ if (DEMO && !ghConfigured()) return; try { await ghWrite(keyToPath(key), v); } catch(e){ console.error(e); dispatchSaveErr(e); } }
+async function saveText(key, v, opts){ if (DEMO && !ghConfigured()) return; try { return await ghWrite(keyToPath(key), v, opts); } catch(e){ console.error(e); dispatchSaveErr(e); } }
 async function loadJson(key)  { try { const t = await ghRead(keyToPath(key)); return t ? JSON.parse(t) : []; } catch { return []; } }
 // Reads that must not fail quietly: a missing file (404) is empty, anything else is an error the view shows. loadJson and
 // loadText turn every error into "empty", so a bad token looked exactly like "no applications yet" — and the next save
 // could then overwrite the real file with a nearly empty one.
 async function loadJsonStrict(key) { const t = await ghRead(keyToPath(key)); return t ? JSON.parse(t) : []; }
 async function loadTextStrict(key) { return (await ghRead(keyToPath(key))) || ''; }
-async function saveJson(key, v){ if (DEMO && !ghConfigured()) return; try { await ghWrite(keyToPath(key), JSON.stringify(v)); } catch(e){ console.error(e); dispatchSaveErr(e); } }
+async function saveJson(key, v){ if (DEMO && !ghConfigured()) return; try { return await ghWrite(keyToPath(key), v); } catch(e){ console.error(e); dispatchSaveErr(e); } }
 
 function dispatchSaveErr(e) { window.dispatchEvent(new CustomEvent('jobapp:saveerror', {detail: e})); }
 
@@ -2592,6 +2652,9 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
     loadTextStrict('watchdogProfile').then(t => { setProfile(t || DEFAULT_PROFILE); setProfileOk(true); }, e => setProfileErr(e));
   }, [profileTry]);
   const saveProfile = (val) => { if (!profileOk) return; setProfile(val); saveText('watchdogProfile', val); };
+  // after a save of the profile merges, the field shows the merge result (holdFile)
+  const profileNow = useRef(profile); profileNow.current = profile;
+  useEffect(() => holdFile('watchdogProfile', () => profileNow.current, setProfile), []);
 
   const anthropicKey = () => lsGet('anthropicKey');
 
@@ -3365,6 +3428,9 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
     return () => { cancelled=true; };
   }, [region, attempt]);
   useEffect(() => { onCount(loading ? null : jobs.length); }, [loading, jobs.length]);
+  // after a save of this region's applications merges, the list becomes the merge result (holdFile)
+  const jobsNow = useRef(jobs); jobsNow.current = jobs;
+  useEffect(() => holdFile(`${region}:jobs`, () => jobsNow.current, setJobs), [region]);
 
   const tabMeta = TABS.find(t => t.id === tab) || TABS[0];
   const shared = T('所有地区共用','Shared by all regions');
@@ -3493,10 +3559,25 @@ function App() {
   }, [sharedTry]);
 
   // a failed save stays on screen until dismissed: the change is on this page only and is lost on reload
+  // (the message's own full stop is dropped: the toast adds one)
   useEffect(() => {
-    const h = e => setSaveErr(e.detail?.message || 'Save to GitHub failed');
+    const h = e => setSaveErr(String(e.detail?.message || 'Save to GitHub failed').replace(/[.。]\s*$/, ''));
     window.addEventListener('jobapp:saveerror', h);
     return () => window.removeEventListener('jobapp:saveerror', h);
+  }, []);
+
+  // after a save of a shared file merges, the page's copy becomes the merge result (holdFile)
+  const sharedNow = useRef({});
+  sharedNow.current = { sections, library, diagnosis, formatting, glossary };
+  useEffect(() => {
+    const off = [
+      holdFile('resumeSections', () => sharedNow.current.sections, v => { setSections(v); setResumeDb(combineSections(v)); }),
+      holdFile('library', () => sharedNow.current.library, setLibrary),
+      holdFile('diagnosis', () => sharedNow.current.diagnosis, setDiagnosis),
+      holdFile('formatting', () => sharedNow.current.formatting, setFormatting),
+      holdFile('glossary', () => sharedNow.current.glossary, setGlossary),
+    ];
+    return () => off.forEach(f => f());
   }, []);
 
   // information that needs no action ("Added — demo data, not saved") shows for a few seconds and goes
@@ -3519,10 +3600,11 @@ function App() {
     const combined = combineSections(newSecs);
     setResumeDb(combined);
     if (persist) {
-      await Promise.all([
-        saveJson('resumeSections', newSecs),
-        saveText('resumeDb', combined),
-      ]);
+      // resumeDb.txt is the sections joined into one text. It is written after them, from the sections now in the file, so
+      // sections merged in from elsewhere reach it too; a conflict on it keeps this page's text, which is rebuilt from those
+      // merged sections (a dialog there could only ask which side's sections to leave out of the text).
+      const r = await saveJson('resumeSections', newSecs);
+      if (r) await saveText('resumeDb', combineSections(r.data), { derived: true });
     }
   };
 
