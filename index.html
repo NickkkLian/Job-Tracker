@@ -2725,7 +2725,7 @@ function DiagnosisTab({ diagnosis, setDiagnosis }) {
     /* @__PURE__ */ React.createElement(DiagList, { items: d.decisions, ...listOps("decisions"), label: T("新的一条决策", "A new decision"), placeholder: T("例：若 X 月前拿不到 Y，则转 Z", "e.g. If no Y by month X, switch to Z") })
   )));
 }
-function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, onCount, openSettings, sharedErr, onRetryShared, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary, diagnosis, setDiagnosis }) {
+function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, onCount, openSettings, sharedErr, sharedLoading, onRetryShared, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary, diagnosis, setDiagnosis }) {
   const regionMeta = REGIONS.find((r) => r.id === region);
   const regionLabel = rName(regionMeta);
   const [jobs, setJobs] = useState([]);
@@ -2763,6 +2763,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
   const eyebrow = tabMeta.scope === "region" ? regionLabel : shared;
   if (loading) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow, title: T(tabMeta.zh, tabMeta.label) }), /* @__PURE__ */ React.createElement("div", { className: "card loading", "aria-busy": "true" }, /* @__PURE__ */ React.createElement("span", { className: "sr-only" }, T(`正在加载${regionLabel}的投递…`, `Loading ${regionLabel} applications…`)), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "40%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "85%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "70%" } })));
   if (tabMeta.scope === "region" && loadErr) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow, title: T(tabMeta.zh, tabMeta.label) }), /* @__PURE__ */ React.createElement(ErrorCard, { title: T(`没能从 GitHub 读到${regionLabel}的投递`, `Couldn’t read your ${regionLabel} applications from GitHub`), error: loadErr, onRetry: () => setAttempt((a) => a + 1), openSettings }));
+  if (tabMeta.scope === "shared" && sharedLoading) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow, title: T(tabMeta.zh, tabMeta.label) }), /* @__PURE__ */ React.createElement("div", { className: "card loading", "aria-busy": "true" }, /* @__PURE__ */ React.createElement("span", { className: "sr-only" }, T("正在读取你的资料…", "Loading your profile…")), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "40%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "85%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "70%" } })));
   if (tabMeta.scope === "shared" && sharedErr) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow, title: T(tabMeta.zh, tabMeta.label) }), /* @__PURE__ */ React.createElement(ErrorCard, { title: T("没能从 GitHub 读到你的资料", "Couldn’t read your profile from GitHub"), error: sharedErr, onRetry: onRetryShared, openSettings }));
   const openJob = tab === "tracker" ? jobs.find((j) => j.id === openJobId) : null;
   return /* @__PURE__ */ React.createElement(React.Fragment, null, tab === "addjob" && /* @__PURE__ */ React.createElement(AddJobTab, { resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved: (id) => go("tracker", { openJobId: id }), onOpenProfile: () => go("profile") }), tab === "tracker" && !openJob && /* @__PURE__ */ React.createElement(TrackerTab, { region, jobs, setJobs, resumeDb, formatting, initialStatus: trackerStatus, onAdd: () => go("addjob"), onOpen: (id) => setOpenJobId(id), focusJobId: focusJob, onFocused: () => setFocusJob(null) }), tab === "tracker" && openJob && /* @__PURE__ */ React.createElement(JobDetail, { region, job: openJob, resumeDb, formatting, glossary, library, jobs, setJobs, onBack: () => {
@@ -2799,6 +2800,7 @@ function App() {
   const [sharedErr, setSharedErr] = useState(null);
   const [sharedTry, setSharedTry] = useState(0);
   const [connGen, setConnGen] = useState(0);
+  const [sharedLoading, setSharedLoading] = useState(false);
   useEffect(() => {
     const ok = ghConfigured();
     setGhOk(ok);
@@ -2814,8 +2816,8 @@ function App() {
     }
     (async () => {
       let rawSecs, oldDb, fmt, gls, lib, diag;
+      setSharedLoading(true);
       try {
-        setSharedErr(null);
         [rawSecs, oldDb, fmt, gls, lib, diag] = await Promise.all([
           loadJsonStrict("resumeSections"),
           loadTextStrict("resumeDb"),
@@ -2826,9 +2828,11 @@ function App() {
         ]);
       } catch (e) {
         setSharedErr(e);
+        setSharedLoading(false);
         setLoaded(true);
         return;
       }
+      setSharedErr(null);
       setDiagnosis(diag && !Array.isArray(diag) ? diag : null);
       let secs = rawSecs;
       if ((!secs || secs.length === 0) && oldDb.trim()) {
@@ -2839,6 +2843,7 @@ function App() {
       setFormatting(fmt);
       setGlossary(gls);
       setLibrary(lib);
+      setSharedLoading(false);
       setLoaded(true);
     })();
   }, [sharedTry]);
@@ -2954,6 +2959,7 @@ function App() {
       onCount: setJobCount,
       openSettings,
       sharedErr,
+      sharedLoading,
       onRetryShared: () => setSharedTry((n) => n + 1),
       resumeDb,
       sections,

@@ -3344,7 +3344,7 @@ function DiagnosisTab({ diagnosis, setDiagnosis }) {
 // REGION APP
 // ════════════════════════════════════════════════════════════════
 
-function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, onCount, openSettings, sharedErr, onRetryShared, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary, diagnosis, setDiagnosis }) {
+function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, onCount, openSettings, sharedErr, sharedLoading, onRetryShared, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary, diagnosis, setDiagnosis }) {
   const regionMeta = REGIONS.find(r=>r.id===region);
   const regionLabel = rName(regionMeta);
   const [jobs, setJobs] = useState([]);
@@ -3383,6 +3383,15 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
     <>
       <PageHead eyebrow={eyebrow} title={T(tabMeta.zh, tabMeta.label)} />
       <ErrorCard title={T(`没能从 GitHub 读到${regionLabel}的投递`, `Couldn’t read your ${regionLabel} applications from GitHub`)} error={loadErr} onRetry={() => setAttempt(a => a + 1)} openSettings={openSettings} />
+    </>
+  );
+  if (tabMeta.scope === 'shared' && sharedLoading) return (
+    <>
+      <PageHead eyebrow={eyebrow} title={T(tabMeta.zh, tabMeta.label)} />
+      <div className="card loading" aria-busy="true">
+        <span className="sr-only">{T('正在读取你的资料…', 'Loading your profile…')}</span>
+        <span className="skel" style={{width:'40%'}}></span><span className="skel" style={{width:'85%'}}></span><span className="skel" style={{width:'70%'}}></span>
+      </div>
     </>
   );
   if (tabMeta.scope === 'shared' && sharedErr) return (
@@ -3444,6 +3453,10 @@ function App() {
   const [sharedErr, setSharedErr] = useState(null);
   const [sharedTry, setSharedTry] = useState(0);
   const [connGen, setConnGen] = useState(0);   // bumped by every reconnect: the region part mounts again and reads its file
+  // true while the shared files are being read again (Try again, a reconnect): the shared views show a loading state,
+  // not what is still in memory — empty after a failed read, the other repository's after switching — which a save in
+  // that window used to write back (2026-09-23 audit, P1 and P2). The error stays until a new read has worked.
+  const [sharedLoading, setSharedLoading] = useState(false);
   useEffect(() => {
     const ok = ghConfigured(); setGhOk(ok);
     if (!ok) {   // no dialog on arrival: the connect card on every view opens Settings
@@ -3452,8 +3465,8 @@ function App() {
     }
     (async () => {
       let rawSecs, oldDb, fmt, gls, lib, diag;
+      setSharedLoading(true);
       try {
-        setSharedErr(null);
         [rawSecs, oldDb, fmt, gls, lib, diag] = await Promise.all([
           loadJsonStrict('resumeSections'),
           loadTextStrict('resumeDb'),
@@ -3462,7 +3475,8 @@ function App() {
           loadJsonStrict('library'),
           loadJsonStrict('diagnosis'),
         ]);
-      } catch (e) { setSharedErr(e); setLoaded(true); return; }
+      } catch (e) { setSharedErr(e); setSharedLoading(false); setLoaded(true); return; }
+      setSharedErr(null);
       setDiagnosis(diag && !Array.isArray(diag) ? diag : null);
       let secs = rawSecs;
       if ((!secs || secs.length === 0) && oldDb.trim()) {
@@ -3473,6 +3487,7 @@ function App() {
       setFormatting(fmt);
       setGlossary(gls);
       setLibrary(lib);
+      setSharedLoading(false);
       setLoaded(true);
     })();
   }, [sharedTry]);
@@ -3618,6 +3633,7 @@ function App() {
                 onCount={setJobCount}
                 openSettings={openSettings}
                 sharedErr={sharedErr}
+                sharedLoading={sharedLoading}
                 onRetryShared={() => setSharedTry(n => n + 1)}
                 resumeDb={resumeDb}
                 sections={sections}
