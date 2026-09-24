@@ -43,7 +43,8 @@
      theirs = the file as it is now
      ours   = this page's data now
    A value changed on one side only takes that side's change. Objects merge key by key; arrays whose items all carry a
-   unique `id` merge item by item. Timestamp fields (updatedAt and the like) changed on both sides take the later one.
+   unique `id` merge item by item, in the file's order, or in this page's order when only this page reordered them.
+   Timestamp fields (updatedAt and the like) changed on both sides take the later one.
    Anything else changed on both sides, to different values, is a conflict that the owner resolves in a dialog. */
 const SafeMerge = (() => {
   const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -55,7 +56,14 @@ const SafeMerge = (() => {
   const TIME_KEY = /^(updated_?at|modified_?at|date_?modified|last_?modified|last_?update(d|_?time)?|saved_?at|synced_?at|generated_?at|updated|modified)$/i;
   const idOf = (x) => (isObj(x) && (typeof x.id === 'string' || typeof x.id === 'number') && x.id !== '' ? String(x.id) : null);
   const byIdArray = (a) => Array.isArray(a) && a.every((x) => idOf(x) !== null) && new Set(a.map(idOf)).size === a.length;
-  const labelOf = (x) => (isObj(x) ? String(x.title || x.name || x.label || x.id) : '');
+  // what the conflict dialog calls an item: its first short text field, else its id
+  const LABEL_KEYS = ['title', 'name', 'label', 'zh', 'en', 'book', 'merchant', 'payee', 'company', 'desc', 'note', 'text', 'content'];
+  const labelOf = (x) => {
+    if (!isObj(x)) return '';
+    const k = LABEL_KEYS.find((key) => (typeof x[key] === 'string' && x[key].trim()) || typeof x[key] === 'number');
+    const s = String(k ? x[k] : x.id).trim().replace(/\s+/g, ' ');
+    return s.length > 40 ? s.slice(0, 40) + '…' : s;
+  };
 
   /** Three-way merge. opt.pick: 'mine' | 'theirs' decides conflicts; without it conflicts are collected into
    *  opt.conflicts ({ path, theirs, ours }) and theirs is kept for now. Returns the merged value (undefined = removed). */
@@ -90,15 +98,19 @@ const SafeMerge = (() => {
       const label = labelOf(T.get(id) || O.get(id) || B.get(id));
       merged.set(id, merge3(B.get(id), T.get(id), O.get(id), opt, [...path, { id, label }]));
     }
-    // the file's order; items that exist only on this page go right after their neighbour on this page
-    const out = theirs.map(idOf).filter((id) => merged.get(id) !== undefined).map((id) => merged.get(id));
+    // Order: the file's, unless only this page reordered the items it shares with the base. Items missing from the
+    // side whose order wins go right after their neighbour on the other side.
+    const shared = (a, b) => { const inB = new Set(b.map(idOf)); return a.map(idOf).filter((id) => inB.has(id)); };
+    const reordered = (side) => canon(shared(base, side)) !== canon(shared(side, base));
+    const [first, second] = reordered(ours) && !reordered(theirs) ? [ours, theirs] : [theirs, ours];
+    const out = first.map(idOf).filter((id) => merged.get(id) !== undefined).map((id) => merged.get(id));
     const placed = new Set(out.map(idOf));
-    ours.forEach((x, i) => {
+    second.forEach((x, i) => {
       const id = idOf(x);
       if (placed.has(id) || merged.get(id) === undefined) return;
       let j = i - 1;
-      while (j >= 0 && !placed.has(idOf(ours[j]))) j--;
-      const at = j < 0 ? 0 : out.findIndex((y) => idOf(y) === idOf(ours[j])) + 1;
+      while (j >= 0 && !placed.has(idOf(second[j]))) j--;
+      const at = j < 0 ? 0 : out.findIndex((y) => idOf(y) === idOf(second[j])) + 1;
       out.splice(at, 0, merged.get(id));
       placed.add(id);
     });
