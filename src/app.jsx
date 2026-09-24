@@ -3529,7 +3529,7 @@ function App() {
   const [connGen, setConnGen] = useState(0);   // bumped by every reconnect: the region part mounts again and reads its file
   // true while the shared files are being read again (Try again, a reconnect): the shared views show a loading state,
   // not what is still in memory — empty after a failed read, the other repository's after switching — which a save in
-  // that window used to write back (2026-09-23 audit, P1 and P2). The error stays until a new read has worked.
+  // that window used to write back (fixed 2026-09-23). The error stays until a new read has worked.
   const [sharedLoading, setSharedLoading] = useState(false);
   useEffect(() => {
     const ok = ghConfigured(); setGhOk(ok);
