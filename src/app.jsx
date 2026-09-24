@@ -421,7 +421,7 @@ const TIERS = [
 ];
 const tierMeta = id => TIERS.find(t => t.id === id) || null;
 // The group a job sits in on the Tracker: its tier, or Unranked when it has none or one this version does not know
-// (P9, an old value). Display only — the stored value stays as it is. Without this a job with an unknown tier was in no
+// (an old value). Display only — the stored value stays as it is. Without this a job with an unknown tier was in no
 // group and did not appear on the Tracker at all (fixture check 2026-09-23: 29 of 30 shown).
 const tierKey = j => TIERS.some(t => t.id === j.priority) ? j.priority : '';
 const teerOf = noc => (noc && /^\d{5}$/.test(noc.trim())) ? noc.trim()[1] : '';

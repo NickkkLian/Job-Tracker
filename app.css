@@ -396,7 +396,7 @@ table.data td.sub{padding-left:var(--space-8);color:var(--text-2)}
 .boot-main{padding:var(--space-8) var(--gutter);display:grid;gap:var(--space-3);max-width:40rem}
 .boot-main .skel:nth-child(1){width:40%}.boot-main .skel:nth-child(2){width:85%}.boot-main .skel:nth-child(3){width:70%}
 
-/* ===== the views not redrawn yet (round 1 covers the shell, Tracker and Insights): plain but readable ===== */
+/* ===== the views not redrawn yet: plain but readable ===== */
 .legacy{display:grid;gap:var(--space-4)}
 .legacy h3{font-size:var(--text-md);font-family:var(--font-sans);font-weight:var(--weight-semibold);letter-spacing:0}
 .legacy .card{display:grid;gap:var(--space-3)}
@@ -411,7 +411,7 @@ table.data td.sub{padding-left:var(--space-8);color:var(--text-2)}
 .sankey .hatch-bar{fill:var(--border-strong)}
 table.data td.sub2{padding-left:var(--space-12)}
 
-/* ===== round 2: Add job, the job detail and its dialogs ===== */
+/* ===== Add job, the job detail and its dialogs ===== */
 .stack{display:grid;gap:var(--space-4);grid-template-columns:minmax(0,1fr)}
 .stack > .card{margin-top:0}
 /* dialogs on the native <dialog> (Dialog in src/app.jsx): the family shape, the --overlay backdrop */
@@ -496,7 +496,7 @@ details.preview[open] summary,details.jd-orig[open] summary{margin-bottom:var(--
 .drop{border:1px dashed var(--border-input);border-radius:var(--radius-md);padding:var(--space-6) var(--space-4);text-align:center;color:var(--text-2);font-size:var(--text-sm)}
 .page-head .acts{flex-wrap:wrap}
 
-/* ===== round 3: My profile, Resumes, Diagnosis ===== */
+/* ===== My profile, Resumes, Diagnosis ===== */
 .card-head .num{font-size:var(--text-xs)}
 .btn-row{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:flex-start}
 textarea.mono,.mono textarea{font-family:var(--font-mono);font-size:var(--text-xs);line-height:1.6}
@@ -575,7 +575,7 @@ textarea.lined{width:100%;margin-top:var(--space-3)}
 .form-grid.two{grid-template-columns:minmax(0,1fr)}
 @media (min-width:640px){.form-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
-/* ===== round 4: Alerts, Batch tailor, read errors ===== */
+/* ===== Alerts, Batch tailor, read errors ===== */
 .bt-head,.al-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-2);margin:var(--space-3) 0 var(--space-2)}
 .bt-count{font-size:var(--text-sm);font-weight:var(--weight-medium)}
 .bt-list{border:1px solid var(--border);border-radius:var(--radius-md);max-height:14rem;overflow:auto;background:var(--paper);margin-bottom:var(--space-3)}
