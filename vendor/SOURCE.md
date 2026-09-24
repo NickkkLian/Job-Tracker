@@ -1,8 +1,8 @@
 # vendor/ — the libraries this page loads, served from this repository
 
 The page used to load these from other hosts at run time; if a host went down or changed a file, the page broke. They are
-copied here unchanged. The first four come from a private mirror that fetched them on 2026-07-25 from the URLs below; each
-file's sha256 was checked against that mirror's manifest when it was copied in. The two pdf.js files were fetched from
+copied here unchanged. The first four were fetched on 2026-07-25 from the URLs below; the table gives each file's
+sha256. The two pdf.js files were fetched from
 cdnjs on 2026-09-23; each one's SHA-512 matched the SRI hash cdnjs lists for it
 (`https://api.cdnjs.com/libraries/pdf.js/3.11.174?fields=sri`).
 

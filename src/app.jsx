@@ -1101,7 +1101,7 @@ function initTips(){
     if (pressShown && tipFor(e.target)) { e.preventDefault(); e.stopPropagation(); pressShown = false; clearTimeout(pressClear); return; }
     hide();
   }, true);
-  window.__docketTips = { show: show, hide: hide, el: tip };   // for the evidence probes
+  window.__docketTips = { show: show, hide: hide, el: tip };   // exposed for UI checks
 }
 
 // ════════════════════════════════════════════════════════════════
