@@ -29,9 +29,15 @@
 //      call with 'script' as its first argument (a helper that makes elements, an unnamed createElement) is a finding;
 //   9. HTML that runs the scripts in it: document.write / writeln, createContextualFragment, setHTMLUnsafe /
 //      parseHTMLUnsafe, and an iframe's srcdoc set in code.
+//  10. the page's Content-Security-Policy (build.mjs writes it): exactly one <meta http-equiv>, before the first
+//      <script>, that is exactly script-src 'self' followed by sha256 hashes of the page's own inline scripts. No host,
+//      scheme or wildcard, no 'unsafe-inline', no 'unsafe-eval', no other directive. (node build.mjs --check makes sure
+//      the hashes are those of the page's scripts.)
 // A plain path is letters, digits and . _ ~ - / only, not starting with //: no scheme, no host. It must also stay inside
 // this repository and name a file in it; the page's own scripts named this way are read in turn.
-// Not checked — a static check cannot be complete, and these still get past it: a string held in a variable and given
+// Not checked here — a static check cannot be complete, and these get past it. Since 2026-09-25 the browser blocks them
+// while the page runs, through the policy in check 10 (no 'unsafe-eval', no inline script without its hash, no other
+// host): a string held in a variable and given
 // to setTimeout / setInterval (setTimeout(code)); names built while the page runs (window['ev' + 'al'],
 // document['create' + 'Element']('scr' + 'ipt')); a script loaded through a library in vendor/ (those are trusted by
 // their sha256); frames, objects and embeds from another host (their code runs in that host's origin, not in this
@@ -179,6 +185,25 @@ export function scan(read) {
   return { findings, files: [...seen] };
 }
 
+// 10. The page's Content-Security-Policy. Returns findings like scan()'s.
+export const CSP_META = /<meta\s+http-equiv\s*=\s*["']?Content-Security-Policy["']?\s+content\s*=\s*"([^"]*)"\s*\/?>/gi;
+export function checkCsp(page) {
+  const metas = [...page.matchAll(CSP_META)];
+  if (metas.length !== 1) {
+    return [{ file: 'index.html', line: 0, form: `the page needs exactly one Content-Security-Policy <meta> (found ${metas.length})`, text: '' }];
+  }
+  const m = metas[0], line = page.slice(0, m.index).split('\n').length, found = [];
+  const firstScript = page.search(/<script\b/i);
+  if (firstScript !== -1 && m.index > firstScript) {
+    found.push({ file: 'index.html', line, form: 'the Content-Security-Policy comes after a <script>, which runs without it', text: m[0] });
+  }
+  const t = m[1].trim().split(/\s+/);
+  if (t[0] !== 'script-src' || t[1] !== "'self'" || t.length < 3 || !t.slice(2).every((x) => /^'sha256-[A-Za-z0-9+\/]{43}='$/.test(x))) {
+    found.push({ file: 'index.html', line, form: "the Content-Security-Policy is not exactly script-src 'self' plus sha256 hashes", text: m[1] });
+  }
+  return found;
+}
+
 const readRepo = (p) => { const f = join(ROOT, p); return existsSync(f) ? readFileSync(f, 'utf8') : null; };
 
 // One sample per form above; each goes into the real page (head: before </head>; code: in a <script> there) or into
@@ -274,6 +299,22 @@ export const KNOWN_MISSED = [
   ['a script element under a name built while the page runs', 'code', "document['create' + 'Element']('scr' + 'ipt').text = code;"],
 ];
 
+// Changes to the real page's policy; check 10 must catch each one
+const ADD = (src) => (p) => p.replace("script-src 'self' ", `script-src 'self' ${src} `);
+export const CSP_BROKEN = [
+  ['no policy', (p) => p.replace(CSP_META, '')],
+  ["'unsafe-eval' added", ADD("'unsafe-eval'")],
+  ["'unsafe-inline' added", ADD("'unsafe-inline'")],
+  ['another host added', ADD('https://cdn.example.com')],
+  ['any https host', ADD('https:')],
+  ['a wildcard', ADD('*')],
+  ['another directive added', (p) => p.replace(/(content="script-src[^"]*)"/, '$1; object-src *"')],
+  ["'self' taken out", (p) => p.replace("script-src 'self' ", 'script-src ')],
+  ['no hash left', (p) => p.replace(/(content="script-src 'self')[^"]*"/, '$1"')],
+  ['the policy moved after the first script', (p) => { const m = p.match(CSP_META)[0]; const q = p.replace(m, ''); return q.replace('</head>', `${m}\n</head>`); }],
+  ['two policies', (p) => p.replace(CSP_META, (m) => `${m}\n${m}`)],
+];
+
 // The repository's files with one sample applied
 export function withSample(read, [, where, snippet, files = {}]) {
   return (p) => {
@@ -302,12 +343,23 @@ function selfTest() {
     console.log(`${f.length ? 'WRONGLY CAUGHT' : 'allowed'} ${sample[0]}${f.length ? ': ' + f[0].form : ''}`);
     if (f.length) ok = false;
   }
+  const page = readRepo('index.html');
+  const own = checkCsp(page);
+  console.log(own.length ? `REAL PAGE POLICY FAILS: ${own[0].form}` : "real page policy: script-src 'self' + hashes, before the first script");
+  if (own.length) ok = false;
+  for (const [name, change] of CSP_BROKEN) {
+    const changed = change(page);
+    const n = changed === page ? 0 : checkCsp(changed).length;
+    console.log(`${n ? 'caught ' : 'MISSED '} policy: ${name}${changed === page ? ' (the change did not apply)' : ''}`);
+    if (!n) ok = false;
+  }
   for (const sample of KNOWN_MISSED) {
     const n = scan(withSample(readRepo, sample)).findings.length;
     console.log(`${n ? 'now caught (known gap closed)' : 'not caught (known gap)'} ${sample[0]}`);
   }
   console.log(ok ? `SELF-TEST PASS: ${SAMPLES.length} forms caught, ${ALLOWED.length} allowed forms passed, the real page passed`
-    + ` (${KNOWN_MISSED.length} known gaps listed above)` : 'SELF-TEST FAIL');
+    + `, ${CSP_BROKEN.length} broken policies caught (${KNOWN_MISSED.length} known gaps of the static check listed above;`
+    + ' the policy blocks them at run time)' : 'SELF-TEST FAIL');
   return ok;
 }
 
@@ -315,7 +367,8 @@ function selfTest() {
 if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   if (process.argv.includes('--self-test')) process.exit(selfTest() ? 0 : 1);
   const { findings, files } = scan(readRepo);
+  findings.push(...checkCsp(readRepo('index.html')));
   for (const f of findings) console.log(`${f.file}:${f.line}: ${f.form}: ${f.text}`);
   if (findings.length) { console.log(`a script may be loaded from another host (${findings.length} findings)`); process.exit(1); }
-  console.log(`0 scripts from other hosts (checked ${files.join(', ')})`);
+  console.log(`0 scripts from other hosts (checked ${files.join(', ')}); the Content-Security-Policy allows only this site and the page's own scripts`);
 }

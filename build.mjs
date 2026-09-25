@@ -46,7 +46,21 @@ if (template.split(MARK).length !== 2) {
   console.error(`src/index.template.html must contain ${MARK} exactly once`);
   process.exit(2);
 }
-const page = template.replace(MARK, () => code.trimEnd());
+const built = template.replace(MARK, () => code.trimEnd());
+
+// The page's Content-Security-Policy (2026-09-25, #59). Scripts may come only from this site's own files ('self') and
+// from the page's own inline scripts, each pinned by its sha256; there is no 'unsafe-inline' and no 'unsafe-eval'. So
+// the browser itself refuses, while the page runs, what check-scripts.mjs cannot see in the source: a script from
+// another host however its address was put together, and text run as code (eval, Function, a string given to
+// setTimeout, a script element given text). It goes right after <meta charset>, before the first script.
+const INLINE_SCRIPT = /<script>([\s\S]*?)<\/script>/g;
+const hashes = [...built.matchAll(INLINE_SCRIPT)].map((m) => `'sha256-${createHash('sha256').update(m[1], 'utf8').digest('base64')}'`);
+const CHARSET = '<meta charset="utf-8">\n';
+if (!hashes.length || built.split(CHARSET).length !== 2) {
+  console.error(`src/index.template.html needs ${JSON.stringify(CHARSET)} exactly once and at least one inline <script>`);
+  process.exit(2);
+}
+const page = built.replace(CHARSET, `${CHARSET}<meta http-equiv="Content-Security-Policy" content="script-src 'self' ${hashes.join(' ')}">\n`);
 
 // The page runs the files in vendor/ as they are, so each one must be the copy vendor/SOURCE.md describes: its table pins
 // a sha256 per file. A file whose bytes differ (one byte is enough), a listed file that is missing, and a file the table
