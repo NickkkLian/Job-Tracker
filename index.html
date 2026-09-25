@@ -527,6 +527,38 @@ async function ghWriteDataUrl(path, dataUrl) {
   const d = await res.json();
   shaCache[path] = d.content.sha;
 }
+async function ghCreateDataUrl(path, dataUrl) {
+  const base64 = (dataUrl || "").split(",")[1];
+  if (!base64) throw new Error("Invalid data URL");
+  const { token, repo } = ghCfg();
+  if (!token || !repo) throw new Error("GitHub not configured");
+  const [o, r] = repo.split("/");
+  const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, {
+    method: "PUT",
+    headers: ghHdrs(token),
+    body: JSON.stringify({ message: `jobapp: add ${path}`, content: base64 })
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    if (res.status === 422 && /sha/i.test(e.message || "")) throw new Error(T("仓库里已经有这个文件，没有覆盖它", "Your repo already has this file; it was not replaced"));
+    throw new Error(`GitHub ${res.status}: ${e.message || "error"}`);
+  }
+  shaCache[path] = (await res.json()).content.sha;
+}
+async function ghFindDataUrl(path, mimeType) {
+  const { token, repo } = ghCfg();
+  if (!token || !repo) throw new Error("GitHub not configured");
+  const [o, r] = repo.split("/");
+  const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}?t=${Date.now()}`, { headers: ghHdrs(token), cache: "no-store" });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(`GitHub ${res.status}: ${e.message || "error"}`);
+  }
+  const d = await res.json();
+  shaCache[path] = d.sha;
+  return d.content ? `data:${mimeType};base64,${d.content.replace(/\n/g, "")}` : "";
+}
 async function ghReadDataUrl(path, mimeType) {
   const { token, repo } = ghCfg();
   if (!token || !repo) return null;
@@ -2159,9 +2191,22 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
     let updatedJobs = [...jobs];
     for (let i = 0; i < toProcess.length; i++) {
       const job = toProcess[i];
+      const pdfKey = `${region}:${job.id}:resume`, pdfPath = pdfGhPath(pdfKey);
       addLog(`[${i + 1}/${toProcess.length}] ${job.company} — ${job.role} …`);
       setProgress((p) => ({ ...p, [job.id]: "running" }));
       try {
+        if (ghConfigured()) {
+          const inRepo = await ghFindDataUrl(pdfPath, "application/pdf");
+          if (inRepo !== null) {
+            if (inRepo) savePdfLocal(pdfKey, inRepo);
+            setProgress((p) => ({ ...p, [job.id]: "skip" }));
+            addLog(T(
+              "  跳过：仓库里已经有这个职位的定制简历，没有动它。要重新定制，先在职位里删掉它。",
+              "  Skipped: your repo already has a tailored resume for this job, left as it is. To tailor it again, delete that one in the job first."
+            ));
+            continue;
+          }
+        }
         const prompt = promptBatchTailor(resumeDb, job, formatting, region);
         const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
@@ -2188,9 +2233,13 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
         const resumeJson = JSON.parse(clean);
         const doc = renderResumePDF(resumeJson);
         const dataUrl = doc.output("datauristring");
-        const pdfKey = `${region}:${job.id}:resume`;
-        savePdfLocal(pdfKey, dataUrl);
-        await ghWriteDataUrl(pdfGhPath(pdfKey), dataUrl);
+        if (ghConfigured()) {
+          await ghCreateDataUrl(pdfPath, dataUrl);
+          savePdfLocal(pdfKey, dataUrl);
+        } else {
+          savePdfLocal(pdfKey, dataUrl);
+          await ghWriteDataUrl(pdfPath, dataUrl);
+        }
         setProgress((p) => ({ ...p, [job.id]: "done" }));
         addLog(T("  已保存", "  Saved"));
         if (i < toProcess.length - 1) await new Promise((r) => setTimeout(r, 2e3));
@@ -2210,7 +2259,7 @@ Done. Tailored resumes saved — open each job to view.`));
   }
   const TAG = { queued: ["tag-neutral", T("排队", "Queued")], running: ["tag-info", T("进行中", "Running")], done: ["tag-success", T("完成", "Done")], error: ["tag-danger", T("失败", "Failed")], skip: ["tag-neutral", T("跳过", "Skipped")] };
   const total = Object.keys(progress).length;
-  const finished = Object.values(progress).filter((s) => s === "done" || s === "error").length;
+  const finished = Object.values(progress).filter((s) => s === "done" || s === "error" || s === "skip").length;
   const plural = (n, one, many) => n === 1 ? one : many;
   return /* @__PURE__ */ React.createElement(Dialog, { labelId: "bt-h", onClose: running ? () => {
   } : onClose, wide: true }, /* @__PURE__ */ React.createElement("h2", { id: "bt-h" }, T("批量定制简历", "Batch tailor resumes")), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T("每个职位调用一次 API，每份约 $0.02–0.04；结果是一页 PDF，存到这个职位下。", "One API call per job, about $0.02–0.04 each; each result is a one-page PDF saved to the job.")), /* @__PURE__ */ React.createElement("div", { className: "bt-head" }, /* @__PURE__ */ React.createElement("p", { className: "bt-count" }, T(`${eligible.length} 个「感兴趣」的职位可以定制`, `${eligible.length} Interested ${plural(eligible.length, "job", "jobs")} to tailor`)), /* @__PURE__ */ React.createElement("span", { className: "btn-row" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn-link", onClick: () => setSelected(new Set(eligible.map((j) => j.id))), disabled: running }, T("全选", "Select all")), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn-link", onClick: () => setSelected(/* @__PURE__ */ new Set()), disabled: running }, T("清除", "Clear")))), eligible.length ? /* @__PURE__ */ React.createElement("ul", { className: "bt-list" }, eligible.map((j) => /* @__PURE__ */ React.createElement("li", { key: j.id }, /* @__PURE__ */ React.createElement("label", null, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: selected.has(j.id), disabled: running, onChange: () => {

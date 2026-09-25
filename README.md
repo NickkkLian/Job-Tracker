@@ -41,8 +41,9 @@ the date you reach 1,560 at the current weekly rate.
 
 For every "Interested" job with a JD, one API call returns the tailored resume as **structured
 JSON** (sections → entries → bullets); a small jsPDF renderer lays it out as a one-page Letter PDF
-with the same column geometry the Claude.ai prompts specify. Results are cached locally and pushed
-to the repo.
+with the same column geometry the Claude.ai prompts specify. Results are pushed to the repo and
+cached locally. A job whose resume is already in the repo is skipped before any API call, so a run in
+another browser never replaces it; to tailor that job again, delete its resume first.
 
 ## How it's built
 

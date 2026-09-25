@@ -334,6 +334,38 @@ async function ghWriteDataUrl(path, dataUrl) {
   shaCache[path] = d.content.sha;
 }
 
+// Write a binary file only if the repo does not have it yet. No sha is sent, so GitHub refuses (422) a file that exists
+// by then, and nothing is replaced.
+async function ghCreateDataUrl(path, dataUrl) {
+  const base64 = (dataUrl||'').split(',')[1];
+  if (!base64) throw new Error('Invalid data URL');
+  const { token, repo } = ghCfg();
+  if (!token || !repo) throw new Error('GitHub not configured');
+  const [o, r] = repo.split('/');
+  const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { method:'PUT', headers: ghHdrs(token),
+    body: JSON.stringify({ message: `jobapp: add ${path}`, content: base64 }) });
+  if (!res.ok) {
+    const e = await res.json().catch(()=>({}));
+    if (res.status === 422 && /sha/i.test(e.message||'')) throw new Error(T('仓库里已经有这个文件，没有覆盖它','Your repo already has this file; it was not replaced'));
+    throw new Error(`GitHub ${res.status}: ${e.message||'error'}`);
+  }
+  shaCache[path] = (await res.json()).content.sha;
+}
+
+// Whether a binary file is in the repo: its data URL when it is ('' when it is too big for the Contents API to send its
+// content), null when GitHub answers 404. Any other answer throws: "not in the repo" is never concluded from a failed read.
+async function ghFindDataUrl(path, mimeType) {
+  const { token, repo } = ghCfg();
+  if (!token || !repo) throw new Error('GitHub not configured');
+  const [o, r] = repo.split('/');
+  const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}?t=${Date.now()}`, { headers: ghHdrs(token), cache: 'no-store' });
+  if (res.status === 404) return null;
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`GitHub ${res.status}: ${e.message||'error'}`); }
+  const d = await res.json();
+  shaCache[path] = d.sha;
+  return d.content ? `data:${mimeType};base64,${d.content.replace(/\n/g,'')}` : '';
+}
+
 // Read a binary file from GitHub and return as a data URL
 async function ghReadDataUrl(path, mimeType) {
   const { token, repo } = ghCfg();
@@ -2211,10 +2243,25 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
 
     for (let i=0; i<toProcess.length; i++) {
       const job = toProcess[i];
+      const pdfKey = `${region}:${job.id}:resume`, pdfPath = pdfGhPath(pdfKey);
       addLog(`[${i+1}/${toProcess.length}] ${job.company} — ${job.role} …`);
       setProgress(p=>({...p,[job.id]:'running'}));
 
       try {
+        // Whether a job already has a tailored resume is decided by the repo, not only by this browser's copies. In
+        // another browser those copies are missing, and a run used to tailor the job again and write over the PDF in the
+        // repo. A resume found there is kept (and copied into this browser); to tailor again, delete it in the job first.
+        if (ghConfigured()) {
+          const inRepo = await ghFindDataUrl(pdfPath, 'application/pdf');
+          if (inRepo !== null) {
+            if (inRepo) savePdfLocal(pdfKey, inRepo);
+            setProgress(p=>({...p,[job.id]:'skip'}));
+            addLog(T('  跳过：仓库里已经有这个职位的定制简历，没有动它。要重新定制，先在职位里删掉它。',
+              '  Skipped: your repo already has a tailored resume for this job, left as it is. To tailor it again, delete that one in the job first.'));
+            continue;
+          }
+        }
+
         const prompt = promptBatchTailor(resumeDb, job, formatting, region);
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method:'POST',
@@ -2246,10 +2293,15 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
         const doc = renderResumePDF(resumeJson);
         const dataUrl = doc.output('datauristring');
 
-        // Save to localStorage + GitHub
-        const pdfKey = `${region}:${job.id}:resume`;
-        savePdfLocal(pdfKey, dataUrl);
-        await ghWriteDataUrl(pdfGhPath(pdfKey), dataUrl);
+        // Save to GitHub + localStorage. The repo gets it only as a new file: a resume that reached the repo from
+        // elsewhere while this one was being made is kept, and then this browser keeps no copy of the new one either.
+        if (ghConfigured()) {
+          await ghCreateDataUrl(pdfPath, dataUrl);
+          savePdfLocal(pdfKey, dataUrl);
+        } else {
+          savePdfLocal(pdfKey, dataUrl);
+          await ghWriteDataUrl(pdfPath, dataUrl);   // not connected: fails with "GitHub not configured", as before
+        }
 
         setProgress(p=>({...p,[job.id]:'done'}));
         addLog(T('  已保存','  Saved'));
@@ -2273,7 +2325,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
 
   const TAG = { queued:['tag-neutral', T('排队','Queued')], running:['tag-info', T('进行中','Running')], done:['tag-success', T('完成','Done')], error:['tag-danger', T('失败','Failed')], skip:['tag-neutral', T('跳过','Skipped')] };
   const total = Object.keys(progress).length;
-  const finished = Object.values(progress).filter(s => s === 'done' || s === 'error').length;
+  const finished = Object.values(progress).filter(s => s === 'done' || s === 'error' || s === 'skip').length;
   const plural = (n, one, many) => n === 1 ? one : many;
 
   // while a run is going the dialog cannot be closed (Esc and the backdrop do nothing, Cancel is disabled), as before
