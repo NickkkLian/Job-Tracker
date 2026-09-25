@@ -803,7 +803,7 @@ LAYOUT:
 CONTENT (300–380 words, 3–4 paragraphs):
 - Para 1: Open with something specific to ${job.company || "this firm"} — their strategy, investment philosophy, track record, firm size, or a recent initiative. Connect it directly and concretely to why my background fits. No generic openers. Never "I am writing to express my interest..."
 - Para 2: Pick 2 achievements that specifically match THIS role type (discretionary vs. quant, finance vs. engineering, client-facing vs. analytical). For each, explain the "so what" — not just the number but what it shows about my judgment, capability, or work style. Real numbers only — never invent.
-- Para 3: Acknowledge briefly that I'm early-career, then redirect to what I bring — specific preparation (CFA, relevant coursework, hands-on projects), directly applicable skills, and genuine interest in this firm's specific approach. Don't apologize; reframe.
+- Para 3: Acknowledge briefly that I'm early-career, then redirect to what I bring — specific preparation (a professional qualification, relevant coursework, hands-on projects), directly applicable skills, and genuine interest in this firm's specific approach. Don't apologize; reframe.
 - Para 4 (only if Para 3 feels overloaded): short, direct call to action. Otherwise fold it into Para 3.
 
 COMBINED PDF (only if explicitly needed):
@@ -928,7 +928,7 @@ HONG KONG PROFESSIONAL CV FORMAT REQUIREMENTS (apply after translating):
 - 工作經驗: company | location | date range → job title → 3–4 bullet points with quantified achievements
 - 項目經驗: project name → date → brief description → bullet points on contribution and outcome
 - 技能: grouped by category, e.g. 程式語言：Python、R、SQL
-- 語言能力: list each language with proficiency, e.g. 英語（雅思8.0）、廣東話（母語）、普通話（流利）
+- 語言能力: list each language with proficiency, e.g. 英語（流利）、法語（基礎）
 - Dates: Month YYYY format or YYYY年MM月 in Chinese
 - Bullet points: use •, open with strong action verb in Traditional Chinese, quantify outcomes
 - Output clean Markdown — no commentary before or after`;
@@ -1791,7 +1791,7 @@ CRITICAL RULES:
 2. Line breaks in bullet text: set wordWrap='CJK' on all paragraph styles for page 1. This prevents reportlab from inserting line breaks at every English word or number that appears inside Chinese sentences. Without this, "DCF" or "20+" causes an unwanted newline.
 3. Spacing: use generous spacing — spaceBefore/spaceAfter on section headers at least 10pt, between entries at least 8pt. If page has blank space at the bottom, increase spacing further to fill naturally.
 4. Page 1 uses fontName='CJK' for all text. Page 2 uses fontName='Helvetica'.
-5. No AI Workflows as a separate skill section — include relevant items in Technical.
+5. Do not give AI tools a skill section of their own — list them under Technical.
 6. Order projects by relevance to the target role, strongest first.
 7. Both pages must fill a full A4 page. Use 3 bullets for experience, 2 per project, include all courses.
 8. Separate pages with PageBreak(). Verify page count = 2 with PdfReader.`.trim();
@@ -1996,7 +1996,7 @@ Return this exact JSON structure:
     },
     {
       "title": "CERTIFICATIONS",
-      "entries": [{"date":"Feb 2026","org":"CFA Institute","role":"Passed Level I of the CFA Program","bullets":[]}]
+      "entries": [{"date":"2025","org":"Issuing Body","role":"Certification Name","bullets":[]}]
     },
     {
       "title": "EXPERIENCE",
