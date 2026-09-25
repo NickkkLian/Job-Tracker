@@ -2,7 +2,8 @@
 
 The page used to load these from other hosts at run time; if a host went down or changed a file, the page broke. They are
 copied here unchanged. The first four were fetched on 2026-07-25 from the URLs below; the table gives each file's
-sha256. The two pdf.js files were fetched from
+sha256, and `node build.mjs --check` (which CI runs) fails when a file in vendor/ does not match its row, when a row's
+file is missing, or when a file has no row. The two pdf.js files were fetched from
 cdnjs on 2026-09-23; each one's SHA-512 matched the SRI hash cdnjs lists for it
 (`https://api.cdnjs.com/libraries/pdf.js/3.11.174?fields=sri`).
 

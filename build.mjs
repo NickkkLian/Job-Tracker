@@ -2,7 +2,8 @@
 //
 //   node build.mjs           write index.html
 //   node build.mjs --check   build in memory and compare with the committed index.html (CI runs this, so a change to the
-//                            source that was never built, or a built page edited by hand, turns red)
+//                            source that was never built, or a built page edited by hand, turns red); and check every
+//                            file in vendor/ against the sha256 that vendor/SOURCE.md pins for it (checkVendor below)
 //
 // Why: the page used to ship its JSX to the browser together with Babel (2.7 MB) and compile it on every visit, and it
 // loaded React, ReactDOM, Tailwind, mammoth and jsPDF from two other hosts (cdn.tailwindcss.com, cdnjs.cloudflare.com).
@@ -11,8 +12,10 @@
 //
 // esbuild is the only dependency, pinned: the same input must give the same page byte for byte on every machine.
 // Set ESBUILD_MODULE to the path of an installed esbuild's lib/main.js to use one that is not in node_modules.
-import { readFileSync, writeFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ESBUILD_VERSION = '0.27.7';
 const esbuild = await import(process.env.ESBUILD_MODULE ? pathToFileURL(process.env.ESBUILD_MODULE).href : 'esbuild');
@@ -45,15 +48,48 @@ if (template.split(MARK).length !== 2) {
 }
 const page = template.replace(MARK, () => code.trimEnd());
 
+// The page runs the files in vendor/ as they are, so each one must be the copy vendor/SOURCE.md describes: its table pins
+// a sha256 per file. A file whose bytes differ (one byte is enough), a listed file that is missing, and a file the table
+// does not list all fail. Returns the problems found, and how many files matched.
+function checkVendor() {
+  const dir = fileURLToPath(new URL('./vendor/', import.meta.url));
+  const pinned = new Map();
+  for (const m of readFileSync(join(dir, 'SOURCE.md'), 'utf8').matchAll(/^\|\s*`([^`]+)`\s*\|[^|\n]*\|\s*`([0-9a-f]{64})`\s*\|/gm)) {
+    pinned.set(m[1], m[2]);
+  }
+  const present = readdirSync(dir).filter((f) => f !== 'SOURCE.md');
+  const problems = [];
+  if (!pinned.size) problems.push('vendor/SOURCE.md pins no sha256 at all (its table could not be read)');
+  let matched = 0;
+  for (const f of present) {
+    if (!pinned.has(f)) { problems.push(`vendor/${f} is not in the table in vendor/SOURCE.md`); continue; }
+    const got = createHash('sha256').update(readFileSync(join(dir, f))).digest('hex');
+    if (got === pinned.get(f)) matched++;
+    else problems.push(`vendor/${f} has sha256 ${got}; vendor/SOURCE.md pins ${pinned.get(f)}`);
+  }
+  for (const f of pinned.keys()) if (!present.includes(f)) problems.push(`vendor/${f} is in vendor/SOURCE.md but not in vendor/`);
+  return { problems, matched };
+}
+
 const out = new URL('./index.html', import.meta.url);
 if (process.argv.includes('--check')) {
+  let failed = false;
   const committed = readFileSync(out, 'utf8');
   if (committed !== page) {
     const at = [...committed].findIndex((ch, i) => ch !== page[i]);
     console.error(`index.html is not what src/ builds to (first difference at character ${at}). Run: node build.mjs`);
-    process.exit(1);
+    failed = true;
+  } else {
+    console.log(`BUILD CHECK PASS: index.html is exactly what src/ builds to (${page.length} characters, esbuild ${esbuild.version})`);
   }
-  console.log(`BUILD CHECK PASS: index.html is exactly what src/ builds to (${page.length} characters, esbuild ${esbuild.version})`);
+  const vendor = checkVendor();
+  if (vendor.problems.length) {
+    for (const p of vendor.problems) console.error(`VENDOR CHECK FAIL: ${p}`);
+    failed = true;
+  } else {
+    console.log(`VENDOR CHECK PASS: all ${vendor.matched} files in vendor/ match the sha256 in vendor/SOURCE.md`);
+  }
+  if (failed) process.exit(1);
 } else {
   writeFileSync(out, page);
   console.log(`wrote index.html (${page.length} characters) from src/app.jsx (${source.length}) with esbuild ${esbuild.version}`);

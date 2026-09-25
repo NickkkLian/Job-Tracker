@@ -15,7 +15,7 @@ jobs:
           node-version: "22"
       # the one pinned build dependency, without writing a lock file into the checkout
       - run: npm install --no-save --no-package-lock esbuild@0.27.7
-      # index.html must be exactly what src/ builds to
+      # index.html must be exactly what src/ builds to, and every file in vendor/ must match the sha256 in vendor/SOURCE.md
       - run: node build.mjs --check
       # every script the page loads comes from this repository: none in a tag, and none built as a URL in the
       # code (pdf.js is loaded that way, on demand, from vendor/)
