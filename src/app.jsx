@@ -346,7 +346,11 @@ async function ghCreateDataUrl(path, dataUrl) {
     body: JSON.stringify({ message: `jobapp: add ${path}`, content: base64 }) });
   if (!res.ok) {
     const e = await res.json().catch(()=>({}));
-    if (res.status === 422 && /sha/i.test(e.message||'')) throw new Error(T('仓库里已经有这个文件，没有覆盖它','Your repo already has this file; it was not replaced'));
+    if (res.status === 422 && /sha/i.test(e.message||'')) {
+      const err = new Error(T('仓库里已经有这个文件，没有覆盖它','Your repo already has this file; it was not replaced'));
+      err.exists = true;
+      throw err;
+    }
     throw new Error(`GitHub ${res.status}: ${e.message||'error'}`);
   }
   shaCache[path] = (await res.json()).content.sha;
@@ -2295,8 +2299,15 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
 
         // Save to GitHub + localStorage. The repo gets it only as a new file: a resume that reached the repo from
         // elsewhere while this one was being made is kept, and then this browser keeps no copy of the new one either.
+        // When the write fails for any other reason, the new resume stays in this browser, as it always did: the API
+        // call is paid for, and the job shows it.
         if (ghConfigured()) {
-          await ghCreateDataUrl(pdfPath, dataUrl);
+          try { await ghCreateDataUrl(pdfPath, dataUrl); }
+          catch (e) {
+            if (e.exists) throw e;
+            savePdfLocal(pdfKey, dataUrl);
+            throw new Error(`${e.message} — ${T('这份简历留在了这个浏览器里，还没存进仓库','the resume is kept in this browser but is not in your repo')}`);
+          }
           savePdfLocal(pdfKey, dataUrl);
         } else {
           savePdfLocal(pdfKey, dataUrl);
