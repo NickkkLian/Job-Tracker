@@ -17,10 +17,10 @@ jobs:
       - run: npm install --no-save --no-package-lock esbuild@0.27.7
       # index.html must be exactly what src/ builds to, and every file in vendor/ must match the sha256 in vendor/SOURCE.md
       - run: node build.mjs --check
-      # every script the page loads comes from this repository: none in a tag, and none built as a URL in the
-      # code (pdf.js is loaded that way, on demand, from vendor/)
+      # every script the page runs comes from this repository (vendor/ is pinned by the step above): check-scripts.mjs
+      # lists the forms of loading one that it looks for; its self-test first shows that each form is caught and that
+      # the real page passes
       - name: no script from another host
         run: |
-          if grep -nE '<script[^>]+src="(https?:)?//' index.html; then echo "a script is loaded from another host"; exit 1; fi
-          if grep -nE "https?://[^\"' )]+\.m?js([^a-zA-Z0-9_]|$)" index.html; then echo "the code builds a script URL on another host"; exit 1; fi
-          echo "0 scripts from other hosts"
+          node check-scripts.mjs --self-test
+          node check-scripts.mjs
