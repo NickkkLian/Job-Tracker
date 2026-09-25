@@ -2789,11 +2789,15 @@ ${trimmedText}` }], true);
     setMsg(T(`正在搜索 ${loc} 的职位…`,`Searching for jobs in ${loc}…`));
     try {
       const trimmedProfile = profile.slice(0, 500);
+      // The button says "last 24 h", so the prompt asks for exactly that window, with both ends written out
+      const utc = d => d.toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+      const now = new Date(), since = new Date(now.getTime() - 24 * 3600 * 1000);
       const resultText = await callClaude([{ role:'user', content:
-        `Find real job postings for this person. You have 5 web searches. ONLY return jobs located in ${loc} — skip any US, UK, or other country results.
+        `Find real job postings for this person that were posted in the last 24 hours. You have 5 web searches. ONLY return jobs located in ${loc} — skip any US, UK, or other country results.
 
 Person: ${trimmedProfile}
 Location: MUST be in ${loc} only. ${loc === 'Canada' ? 'PRIORITY: the city named in the profile first, then Toronto and Vancouver. Other Canadian cities only if very strong fit.' : loc === 'Hong Kong' ? 'Cities: Hong Kong, Central, Kowloon' : 'Cities: Shanghai, Beijing, Shenzhen, Guangzhou, Nanjing'}.
+Posted: ONLY postings published in the last 24 hours, between ${utc(since)} and ${utc(now)}. Skip anything older, and skip any posting whose date you cannot find.
 
 STRATEGY:
 
@@ -2801,7 +2805,7 @@ Phase 1 (search 1): Search "${loc} companies hiring 2025" plus the role type fro
 
 Phase 2 (searches 2-5): For each company found, search "[company name] careers [role] ${loc}" to find their career page. Company career pages (Workday, Greenhouse, Lever) have real job details.
 
-CRITICAL: Every job you return MUST have a ${loc} location. Do NOT include US jobs, remote-US jobs, or jobs from any other country.
+CRITICAL: Every job you return MUST have a ${loc} location and MUST have been posted in the last 24 hours. Do NOT include US jobs, remote-US jobs, or jobs from any other country.
 
 Return JSON only:
 [{"company":"...","role":"...","location":"Toronto, ON","description":"...","url":"https://...","salary":"","score":7,"reason":"..."}]` }], true);
