@@ -204,6 +204,9 @@ async function ghFetchFile(path) {
     const br = await fetch(`https://api.github.com/repos/${o}/${r}/git/blobs/${d.sha}`, { headers: ghHdrs(token), cache: 'no-store' });
     if (!br.ok) { const e = await br.json().catch(()=>({})); throw new Error(`GitHub ${br.status}: ${e.message||'error'}`); }
     b64 = (await br.json()).content;
+    // An answer without the text is a read that failed, not an empty file: taken as empty, the next save would again
+    // replace the whole file with the few rows on the page.
+    if (!b64) throw new Error(`GitHub sent no content for ${path} (${d.size} bytes)`);
   }
   return { text: frB64(b64), sha: d.sha };
 }
