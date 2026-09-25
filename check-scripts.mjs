@@ -16,15 +16,26 @@
 //   4. an import map, or an iframe's srcdoc (its scripts run as this page);
 //   5. code that loads a script by address — import(), import … from, export … from, importScripts(), new Worker,
 //      new SharedWorker, serviceWorker.register(), a worklet's addModule(), a src set in code (x.src =, x['src'] =,
-//      setAttribute('src', …)) or pdf.js's workerSrc — unless the address is a string that starts as a plain path (a
-//      template with ${…} in it only inside vendor/, since the file it names cannot be told);
-//   6. code that runs text or bytes as code, which could have come from anywhere: eval(), Function() or new Function(),
-//      a string given to setTimeout or setInterval, WebAssembly.instantiate / compile;
-//   7. any http(s) or protocol-relative address that ends in .js or .mjs.
+//      setAttribute('src', …) in any case, setAttributeNS(…, 'src', …)) or pdf.js's workerSrc — unless the address is
+//      a string that starts as a plain path (a template with ${…} in it only inside vendor/, since the file it names
+//      cannot be told);
+//      and a src set through Object.assign(x, { src: … }) or Reflect.set(x, 'src', …), whatever its value;
+//   6. code that runs text or bytes as code, which could have come from anywhere: eval and Function named in any way
+//      (eval(), (0, eval)(), window['eval'], new Function(), Function(), (0, Function)()), a function's .constructor(),
+//      a string given to setTimeout or setInterval, WebAssembly.instantiate / compile, a javascript: URL;
+//   7. any http(s) or protocol-relative address that ends in .js or .mjs;
+//   8. a script element made in code: it must be `const|let|var x = document.createElement('script')` (any case, any
+//      quote), and x may then get no text, no children and no Object.assign (that would run text as code); any other
+//      call with 'script' as its first argument (a helper that makes elements, an unnamed createElement) is a finding;
+//   9. HTML that runs the scripts in it: document.write / writeln, createContextualFragment, setHTMLUnsafe /
+//      parseHTMLUnsafe, and an iframe's srcdoc set in code.
 // A plain path is letters, digits and . _ ~ - / only, not starting with //: no scheme, no host. It must also stay inside
 // this repository and name a file in it; the page's own scripts named this way are read in turn.
-// Not checked: frames, objects and embeds from another host (their code runs in that host's origin, not in this page),
-// and a way of running code that is not in this list.
+// Not checked — a static check cannot be complete, and these still get past it: a string held in a variable and given
+// to setTimeout / setInterval (setTimeout(code)); names built while the page runs (window['ev' + 'al'],
+// document['create' + 'Element']('scr' + 'ipt')); a script loaded through a library in vendor/ (those are trusted by
+// their sha256); frames, objects and embeds from another host (their code runs in that host's origin, not in this
+// page); and any other way that is not in this list.
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -66,16 +77,39 @@ const LOADERS = [
   ['a worklet addModule()', /\.\s*addModule\s*\(/g],
   ['a src set in code', /\.\s*src\s*=(?![=>])/g],
   ["a src set in code (['src'])", /\[\s*(['"`])src\1\s*\]\s*=(?![=>])/g],
-  ["setAttribute('src', …)", /\bsetAttribute\s*\(\s*(['"`])src\1\s*,/g],
+  ["setAttribute('src', …) in any case", /\bsetAttribute\s*\(\s*(['"`])src\1\s*,/gi],
+  // setAttributeNS keeps the case of the name, and 'SRC' is not the src attribute, so only 'src' loads anything
   ["setAttributeNS(…, 'src', …)", /\bsetAttributeNS\s*\([^,]*,\s*(['"`])src\1\s*,/g],
   ['workerSrc', /\bworkerSrc\s*=(?![=>])/g],
 ];
 const RUNS_TEXT = [
-  ['eval()', /\beval\s*\(/g],
-  ['Function() / new Function()', /(?<![\w$.])(?:new\s+)?Function\s*\(/g],
+  ['eval, named in any way', /\beval\b/g],
+  ['Function, named in any way', /(?<![\w$.])Function\b/g],
+  ["a function's constructor called (Function by another name)", /\.\s*constructor\s*\(/g],
   ['a string given to setTimeout / setInterval', /\bset(?:Timeout|Interval)\s*\(\s*['"`]/g],
   ['WebAssembly.instantiate / compile', /\bWebAssembly\s*\.\s*(?:instantiate|compile)(?:Streaming)?\s*\(/g],
+  ['a javascript: URL', /\bjavascript\s*:/gi],
 ];
+// Found wherever they are, whatever their arguments
+const ALWAYS = [
+  ['Object.assign() that sets a src', /\bObject\s*\.\s*assign\s*\([^;]{0,300}?[{,]\s*['"]?src['"]?\s*:/g],
+  ["Reflect.set(…, 'src', …)", /\bReflect\s*\.\s*set\s*\([^,;]*,\s*(['"`])src\1/gi],
+  ['document.write / writeln: runs the scripts in what it writes', /\bdocument\s*\.\s*write(?:ln)?\b/g],
+  ['createContextualFragment: runs the scripts in its HTML', /\bcreateContextualFragment\b/g],
+  ['setHTMLUnsafe / parseHTMLUnsafe', /\b(?:set|parse)HTMLUnsafe\b/g],
+  ['an iframe srcdoc set in code', /\.\s*srcdoc\s*=(?![=>])/g],
+  ["setAttribute('srcdoc', …)", /\bsetAttribute\s*\(\s*(['"`])srcdoc\1/gi],
+];
+// 'script' as the first argument of a call, and the one form of it this check can follow
+const SCRIPT_CALL = /\(\s*(['"`])script\1\s*[,)]/gi;
+const NAMED_SCRIPT = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*document\s*\.\s*createElement\s*$/;
+// what would put code into the script element held in `name`
+const scriptFill = (name) => {
+  const v = name.replace(/\$/g, '\\$');
+  return new RegExp(`(?<![\\w$.])${v}\\s*\\.\\s*(?:(?:text|textContent|innerText|innerHTML|outerHTML)\\s*=(?![=>])`
+    + `|(?:append|appendChild|prepend|insertBefore|replaceChildren|insertAdjacent\\w*)\\s*\\()`
+    + `|\\bObject\\s*\\.\\s*assign\\s*\\(\\s*${v}(?![\\w$])`, 'g');
+};
 const JS_ADDRESS = [/\bhttps?:\/\/[^\s"'`<>()\\]+?\.m?js(?![\w$])/gi, /(?<=['"`(=]\s*)\/\/[^\s"'`<>()\\]+?\.m?js(?![\w$])/gi];
 const SCRIPT_AS = new Set(['script', 'worker', 'sharedworker', 'serviceworker', 'audioworklet', 'paintworklet']);
 
@@ -115,6 +149,12 @@ function scanText(s, local) {
     }
   }
   for (const [form, re] of RUNS_TEXT) for (const m of s.matchAll(re)) add(m.index, `${form}: runs text or bytes as code`);
+  for (const [form, re] of ALWAYS) for (const m of s.matchAll(re)) add(m.index, form);
+  for (const m of s.matchAll(SCRIPT_CALL)) {
+    const named = NAMED_SCRIPT.exec(s.slice(Math.max(0, m.index - 160), m.index));
+    if (!named) { add(Math.max(0, m.index - 40), "a script element made in a way this check cannot follow (not const x = document.createElement('script'))"); continue; }
+    for (const k of s.matchAll(scriptFill(named[1]))) add(k.index, `code put into the script element ${named[1]}: runs text as code`);
+  }
   for (const re of JS_ADDRESS) for (const m of s.matchAll(re)) add(m.index, 'an address that ends in .js or .mjs', m[0].length);
   return found;
 }
@@ -192,6 +232,24 @@ export const SAMPLES = [
   ['a local script that is not in the repository', 'head', '<script src="missing-file.js"></script>'],
   // the file outside is there, and harmless: caught for leaving the repository, not for being missing
   ['a local path that leaves the repository', 'head', '<script src="../other/lib.js"></script>', { '../other/lib.js': '/* outside */\n' }],
+  ["code: setAttribute('SRC') in upper case", 'code', "s.setAttribute('SRC', 'https://cdn.example.com/lib');"],
+  ['code: Object.assign(el, { src })', 'code', "Object.assign(el, { async: true, src: 'https://cdn.example.com/lib' });"],
+  ["code: Reflect.set(el, 'src', …)", 'code', "Reflect.set(el, 'src', u);"],
+  ['code: indirect eval', 'code', '(0, eval)(code);'],
+  ['code: eval by name', 'code', "window['eval'](code);"],
+  ['code: Function by another name', 'code', 'const F = Function; F(code)();'],
+  ["code: a function's constructor", 'code', '(() => {}).constructor(code)();'],
+  ['code: a javascript: URL', 'code', "location.href = 'javascript:' + code;"],
+  ['code: code put into a script element (.text)', 'code', "const s = document.createElement('script'); s.text = code; document.head.appendChild(s);"],
+  ['code: code put into a script element (a child)', 'code', "const n = document.createElement('SCRIPT'); n.appendChild(document.createTextNode(code)); document.body.append(n);"],
+  ['code: Object.assign on a script element', 'code', "const s2 = document.createElement('script'); Object.assign(s2, { text: code }); document.head.appendChild(s2);"],
+  ['code: a script element not kept in a variable', 'code', "document.head.appendChild(document.createElement('script')).text = code;"],
+  ['code: a helper that makes a script element', 'code', "el('script', { src: u });"],
+  ['code: a split tag written by document.write', 'code', "document.write('<scr' + 'ipt src=\"' + u + '\"></scr' + 'ipt>');"],
+  ['code: createContextualFragment', 'code', 'document.body.append(document.createRange().createContextualFragment(html));'],
+  ['code: setHTMLUnsafe', 'code', 'box.setHTMLUnsafe(html);'],
+  ['code: an iframe srcdoc set in code', 'code', 'frame.srcdoc = html;'],
+  ["code: setAttribute('srcdoc')", 'code', "frame.setAttribute('srcdoc', html);"],
 ];
 // Forms the page may use; none may be caught
 export const ALLOWED = [
@@ -202,6 +260,18 @@ export const ALLOWED = [
   ['a stylesheet from another host', 'head', '<link rel="stylesheet" href="https://fonts.example.com/css2?family=Inter">'],
   ['preconnect', 'head', '<link rel="preconnect" href="https://fonts.example.com">'],
   ['a link and an API call', 'code', "a.href = 'https://github.com/example'; fetch('https://api.example.com/v1/items');"],
+  ['code: the pdf.js loader as the page has it', 'code', 'const s = document.createElement("script"); s.src = `vendor/pdf-${V}.min.js`; s.onload = () => res(); document.head.appendChild(s);'],
+  ['code: a src in element props (an iframe, not a script)', 'code', 'React.createElement("iframe", { className: "pdf-view", src: blobUrl, title: label });'],
+  ['code: text and children on other elements', 'code', "box.setAttribute('data-src', u); tip.textContent = t; ov.appendChild(box); document.body.appendChild(ov);"],
+  ['words that only contain eval or Function', 'code', 'const retrieval = evaluate(interval); // a function that returns'],
+];
+
+// Ways this check does not catch (the "Not checked" list at the top), printed by the self-test so that CI output says
+// so too. They do not change its result; one that starts being caught is printed as such.
+export const KNOWN_MISSED = [
+  ['code text in a variable given to setTimeout', 'code', 'setTimeout(code, 0);'],
+  ['eval under a name built while the page runs', 'code', "window['ev' + 'al'](code);"],
+  ['a script element under a name built while the page runs', 'code', "document['create' + 'Element']('scr' + 'ipt').text = code;"],
 ];
 
 // The repository's files with one sample applied
@@ -232,8 +302,12 @@ function selfTest() {
     console.log(`${f.length ? 'WRONGLY CAUGHT' : 'allowed'} ${sample[0]}${f.length ? ': ' + f[0].form : ''}`);
     if (f.length) ok = false;
   }
+  for (const sample of KNOWN_MISSED) {
+    const n = scan(withSample(readRepo, sample)).findings.length;
+    console.log(`${n ? 'now caught (known gap closed)' : 'not caught (known gap)'} ${sample[0]}`);
+  }
   console.log(ok ? `SELF-TEST PASS: ${SAMPLES.length} forms caught, ${ALLOWED.length} allowed forms passed, the real page passed`
-    : 'SELF-TEST FAIL');
+    + ` (${KNOWN_MISSED.length} known gaps listed above)` : 'SELF-TEST FAIL');
   return ok;
 }
 
