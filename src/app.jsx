@@ -2528,6 +2528,10 @@ function PdfUploadField({ label, pdfKey }) {
   const [err, setErr]           = useState(null);   // { kind: 'error' | 'warn', msg }
   const ref = useRef(null);
   const headId = `slot-${pdfKey.replace(/[^a-zA-Z0-9]/g, '-')}`;
+  // An older attachment can be an .html file. It is shown in a sandbox with nothing allowed (no scripts, no forms, its own
+  // origin), so a page saved from the web cannot run code next to the token and key kept in this browser. A PDF is not
+  // sandboxed: Chrome will not open its PDF viewer in a sandboxed frame.
+  const isHtml = /^data:text\/html[;,]/i.test(dataUrl || '');
 
   // data URL → blob URL for the iframe (works in Safari, Chrome, Firefox)
   useEffect(() => {
@@ -2606,7 +2610,7 @@ function PdfUploadField({ label, pdfKey }) {
       </div>
       {ghSaving && <p className="status-bar" role="status">{T('正在保存到你的仓库…','Saving to your repo…')}</p>}
       {err && <p className={`status-bar ${err.kind}`} role="alert">{err.msg}</p>}
-      {dataUrl ? (blobUrl ? <iframe className="pdf-view" src={blobUrl} title={label} />
+      {dataUrl ? (blobUrl ? <iframe className="pdf-view" src={blobUrl} title={label} {...(isHtml ? { sandbox: '' } : {})} />
                          : <div className="pdf-view skel-block" aria-busy="true"><span className="sr-only">{T('正在显示 PDF…','Rendering the PDF…')}</span></div>)
                : <div className="drop">{T('还没有 PDF——上传 Claude 做好的那个文件。','No PDF yet — upload the file Claude made.')}</div>}
       <p className="hint">{T('保存在你仓库的 data/files/ 里，并缓存在这个浏览器中。','Saved to data/files/ in your repo and cached in this browser.')}</p>
