@@ -2840,7 +2840,29 @@ ${trimmedText}` }], true);
     } catch(e) { setMsg(T(`错误：${e.message}`,`Error: ${e.message}`)); setStep('review'); }
   }
 
-  const REGION_LABELS = { canada:'Canada', hongkong:'Hong Kong', china:'Mainland China' };
+  // Where "Discover new jobs" searches, for every region in REGIONS: the place named in the prompt and a short hint of
+  // its cities. `skip` and `none` are the prompt's two "not elsewhere" lines; the default names the US and the UK, which
+  // the United States, United Kingdom and Remote regions cannot use, so they have their own.
+  const SEARCH_SKIP = 'skip any US, UK, or other country results';
+  const SEARCH_NONE = 'Do NOT include US jobs, remote-US jobs, or jobs from any other country.';
+  const REGION_SEARCH = {
+    canada:      { label:'Canada',         hint:'PRIORITY: the city named in the profile first, then Toronto and Vancouver. Other Canadian cities only if very strong fit.' },
+    usa:         { label:'United States',  hint:'Cities: New York, San Francisco, Seattle, Boston, Chicago, Austin',
+                   skip:'skip any Canadian, UK, or other country results', none:'Do NOT include Canadian jobs, UK jobs, or jobs from any other country.' },
+    uk:          { label:'United Kingdom', hint:'Cities: London, Manchester, Edinburgh, Cambridge, Bristol',
+                   skip:'skip any US, Canadian, or other country results', none:'Do NOT include US jobs, remote-US jobs, or jobs from any other country.' },
+    australia:   { label:'Australia',      hint:'Cities: Sydney, Melbourne, Brisbane, Perth' },
+    singapore:   { label:'Singapore',      hint:'Cities: Singapore (Central, one-north, Jurong)' },
+    hongkong:    { label:'Hong Kong',      hint:'Cities: Hong Kong, Central, Kowloon' },
+    china:       { label:'Mainland China', hint:'Cities: Shanghai, Beijing, Shenzhen, Guangzhou, Nanjing' },
+    germany:     { label:'Germany',        hint:'Cities: Berlin, Munich, Hamburg, Frankfurt' },
+    netherlands: { label:'Netherlands',    hint:'Cities: Amsterdam, Rotterdam, The Hague, Utrecht, Eindhoven' },
+    japan:       { label:'Japan',          hint:'Cities: Tokyo, Osaka, Yokohama, Fukuoka' },
+    uae:         { label:'UAE',            hint:'Cities: Dubai, Abu Dhabi' },
+    remote:      { label:'Remote',         hint:'Fully remote roles that hire from any country; the company can be based anywhere',
+                   skip:'skip on-site and hybrid roles', none:'Do NOT include on-site or hybrid jobs, or remote jobs open only to residents of one country.' },
+  };
+  const regionSearch = REGION_SEARCH[region] || REGION_SEARCH.canada;
 
   async function manualSearch() {
     if (!profile || profile.startsWith('Edit this profile')) {
@@ -2848,7 +2870,7 @@ ${trimmedText}` }], true);
       return;
     }
     setStep('scanning'); setFound([]); setSelected(new Set());
-    const loc = REGION_LABELS[region] || 'Canada';
+    const { label: loc, hint, skip = SEARCH_SKIP, none = SEARCH_NONE } = regionSearch;
     setMsg(T(`正在搜索 ${loc} 的职位…`,`Searching for jobs in ${loc}…`));
     try {
       const trimmedProfile = profile.slice(0, 500);
@@ -2856,10 +2878,10 @@ ${trimmedText}` }], true);
       const utc = d => d.toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
       const now = new Date(), since = new Date(now.getTime() - 24 * 3600 * 1000);
       const resultText = await callClaude([{ role:'user', content:
-        `Find real job postings for this person that were posted in the last 24 hours. You have 5 web searches. ONLY return jobs located in ${loc} — skip any US, UK, or other country results.
+        `Find real job postings for this person that were posted in the last 24 hours. You have 5 web searches. ONLY return jobs located in ${loc} — ${skip}.
 
 Person: ${trimmedProfile}
-Location: MUST be in ${loc} only. ${loc === 'Canada' ? 'PRIORITY: the city named in the profile first, then Toronto and Vancouver. Other Canadian cities only if very strong fit.' : loc === 'Hong Kong' ? 'Cities: Hong Kong, Central, Kowloon' : 'Cities: Shanghai, Beijing, Shenzhen, Guangzhou, Nanjing'}.
+Location: MUST be in ${loc} only. ${hint}.
 Posted: ONLY postings published in the last 24 hours, between ${utc(since)} and ${utc(now)}. Skip anything older, and skip any posting whose date you cannot find.
 
 STRATEGY:
@@ -2868,7 +2890,7 @@ Phase 1 (search 1): Search "${loc} companies hiring 2025" plus the role type fro
 
 Phase 2 (searches 2-5): For each company found, search "[company name] careers [role] ${loc}" to find their career page. Company career pages (Workday, Greenhouse, Lever) have real job details.
 
-CRITICAL: Every job you return MUST have a ${loc} location and MUST have been posted in the last 24 hours. Do NOT include US jobs, remote-US jobs, or jobs from any other country.
+CRITICAL: Every job you return MUST have a ${loc} location and MUST have been posted in the last 24 hours. ${none}
 
 Return JSON only:
 [{"company":"...","role":"...","location":"Toronto, ON","description":"...","url":"https://...","salary":"","score":7,"reason":"..."}]` }], true);
@@ -2919,11 +2941,9 @@ Return JSON only:
   const toggle = id => { const s = new Set(selected); s.has(id)?s.delete(id):s.add(id); setSelected(s); };
   const [editingId, setEditingId] = useState(null);
   const updateJob = (id, field, value) => setFound(f => f.map(j => j._id===id ? {...j, [field]:value} : j));
-  // What "Discover new jobs" really searches: the region's own place for Canada, Hong Kong and Mainland China, and
-  // Canada for every other region (the search prompt knows those three only). Said on the page rather than hidden.
-  const loc = REGION_LABELS[region] || 'Canada';
+  // What "Discover new jobs" searches: the region's own place (REGION_SEARCH above)
+  const loc = regionSearch.label;
   const regionLabel = rName(REGION_BY[region]);
-  const searchesElsewhere = !REGION_LABELS[region];
   const msgKind = /^(Error|错误)/.test(msg) ? 'error' : (step === 'review' && !found.length && msg) ? 'warn' : '';
   const reset = () => { setStep('setup'); setFound([]); setAdded([]); setMsg(''); setSelected(new Set()); };
   const plural = (n, one, many) => n === 1 ? one : many;
@@ -2963,8 +2983,7 @@ Return JSON only:
             <p className="or" aria-hidden="true"><span>{T('或','or')}</span></p>
             <section className="card al-discover" aria-labelledby="al-h2">
               <div className="card-head"><h2 id="al-h2">{T('发现新职位','Discover new jobs')}</h2></div>
-              <p className="hint">{T(`Claude 在网上找「${loc}」里符合你资料的新职位，不需要邮件。`, `Claude searches the web for fresh postings in ${loc} that match your profile. No email needed.`)}
-                {searchesElsewhere && ' ' + T(`这项搜索只认识加拿大、香港和中国大陆；在「${regionLabel}」下它搜的是加拿大。`, `The search knows Canada, Hong Kong and Mainland China only; under ${regionLabel} it searches Canada.`)}</p>
+              <p className="hint">{T(`Claude 在网上找「${loc}」里符合你资料的新职位，不需要邮件。`, `Claude searches the web for fresh postings in ${loc} that match your profile. No email needed.`)}</p>
               <div className="btn-row"><Btn onClick={manualSearch} disabled={!profile.trim()||!hasKey} aria-describedby={!hasKey ? 'al-need' : undefined}>{T('搜索新职位（近 24 小时）','Search new jobs (last 24 h)')}</Btn></div>
             </section>
           </>
