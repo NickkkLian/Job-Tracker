@@ -94,8 +94,10 @@ function sampleProfile() {
   return { sections, library };
 }
 
-// If token/repo are empty, pre-fill them from a `pha-config` entry in localStorage when one exists; never overwrites values already set
-try {
+// If token/repo are empty, pre-fill them from a `pha-config` entry in localStorage when one exists; never overwrites values already set.
+// Not on GitHub Pages: every public demo shares the origin nickkklian.github.io, and a connection saved in another demo
+// must not connect this one. (On the hub the product family shares one connection on purpose.)
+if (!/\.github\.io$/.test(location.hostname)) try {
   const _pha = JSON.parse(localStorage.getItem('pha-config') || 'null');
   if (_pha && _pha.token) {
     if (!localStorage.getItem('jobapp:githubRepo') && _pha.owner && _pha.repo)

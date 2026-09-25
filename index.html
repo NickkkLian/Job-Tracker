@@ -303,7 +303,7 @@ function sampleProfile() {
   ];
   return { sections, library };
 }
-try {
+if (!/\.github\.io$/.test(location.hostname)) try {
   const _pha = JSON.parse(localStorage.getItem("pha-config") || "null");
   if (_pha && _pha.token) {
     if (!localStorage.getItem("jobapp:githubRepo") && _pha.owner && _pha.repo)
