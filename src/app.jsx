@@ -287,8 +287,8 @@ async function ghWriteNow(path, value, opts, q) {
   return r;
 }
 
-async function testGhConnection() {
-  const { token, repo } = ghCfg();
+// Tests the given token and repository (by default the saved ones) without saving anything
+async function testGhConnection(token = ghCfg().token, repo = ghCfg().repo) {
   if (!token || !repo) throw new Error('Not configured');
   const [o, r] = repo.split('/');
   const res = await fetch(`https://api.github.com/repos/${o}/${r}`, { headers: ghHdrs(token) });
@@ -1401,15 +1401,18 @@ function SettingsSections({ ghOk, onGhChange }) {
     const ok = ghConfigured(); setConnected(ok); onGhChange?.(ok);
     setStatus({ ok:true, msg: T('已保存。','Saved.') });
   };
+  // The repository and token typed here are saved only when the test works. They used to be saved before the test, so
+  // after a failed one the page still showed the first repository's data while every save went to the new repository.
   const test = async () => {
-    lsSet('githubToken', tok.trim()); lsSet('githubRepo', repo.trim());
+    const t = tok.trim(), rp = repo.trim();
     setTesting(true); setStatus(null);
     try {
-      const d = await testGhConnection();
+      const d = await testGhConnection(t, rp);
+      lsSet('githubToken', t); lsSet('githubRepo', rp);
       setStatus({ ok:true, msg: `✓ ${T('已连接','Connected')} — ${d.full_name} (${d.private ? T('私有','private') : T('公开','public')})` });
       setConnected(true); onGhChange?.(true);
     } catch(e) {
-      setStatus({ ok:false, msg: `✗ ${T('连接失败','Couldn’t connect')} — ${e.message}. ${T('请确认令牌勾选了 repo 权限。','Check that the token has the repo scope.')}` });
+      setStatus({ ok:false, msg: `✗ ${T('连接失败','Couldn’t connect')} — ${e.message}. ${T('请确认令牌勾选了 repo 权限。没有保存。','Check that the token has the repo scope. Nothing was saved.')}` });
     } finally { setTesting(false); }
   };
   const clear = () => {
