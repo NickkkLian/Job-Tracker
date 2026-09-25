@@ -96,10 +96,21 @@ function sampleProfile() {
 
 // If token/repo are empty, pre-fill them from a `pha-config` entry in localStorage when one exists; never overwrites values already set.
 // Not on GitHub Pages: every public demo shares the origin nickkklian.github.io, and a connection saved in another demo
-// must not connect this one. (On the hub the product family shares one connection on purpose.)
-if (!/\.github\.io$/.test(location.hostname)) try {
+// must not connect this one (a trailing dot in the host name is the same site). Elsewhere the product family shares one
+// connection on purpose.
+try {
   const _pha = JSON.parse(localStorage.getItem('pha-config') || 'null');
-  if (_pha && _pha.token) {
+  if (/\.github\.io\.?$/.test(location.hostname)) {
+    // Until 2026-09-24 the copy below ran on GitHub Pages too. Undo it where it happened: a copy equals the shared entry
+    // (token and repo), and then the copy and the leftover shared entry both go. A connection made in this app itself is
+    // left alone.
+    if (_pha && _pha.token && localStorage.getItem('jobapp:githubToken') === _pha.token
+        && localStorage.getItem('jobapp:githubRepo') === _pha.owner + '/' + _pha.repo) {
+      localStorage.removeItem('jobapp:githubToken');
+      localStorage.removeItem('jobapp:githubRepo');
+      localStorage.removeItem('pha-config');
+    }
+  } else if (_pha && _pha.token) {
     if (!localStorage.getItem('jobapp:githubRepo') && _pha.owner && _pha.repo)
       localStorage.setItem('jobapp:githubRepo', _pha.owner + '/' + _pha.repo);
     if (!localStorage.getItem('jobapp:githubToken'))
@@ -1719,7 +1730,7 @@ CRITICAL RULES:
 2. Line breaks in bullet text: set wordWrap='CJK' on all paragraph styles for page 1. This prevents reportlab from inserting line breaks at every English word or number that appears inside Chinese sentences. Without this, "DCF" or "20+" causes an unwanted newline.
 3. Spacing: use generous spacing — spaceBefore/spaceAfter on section headers at least 10pt, between entries at least 8pt. If page has blank space at the bottom, increase spacing further to fill naturally.
 4. Page 1 uses fontName='CJK' for all text. Page 2 uses fontName='Helvetica'.
-5. Do not give AI tools a skill section of their own — list them under Technical.
+5. No AI Workflows as a separate skill section — include relevant items in Technical.
 6. Order projects by relevance to the target role, strongest first.
 7. Both pages must fill a full A4 page. Use 3 bullets for experience, 2 per project, include all courses.
 8. Separate pages with PageBreak(). Verify page count = 2 with PdfReader.`.trim();
