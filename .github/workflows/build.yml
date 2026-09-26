@@ -9,8 +9,8 @@ jobs:
   page-is-built-from-source:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       # the one pinned build dependency, without writing a lock file into the checkout
