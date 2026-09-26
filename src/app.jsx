@@ -2277,7 +2277,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
           },
           body: JSON.stringify({
             model:'claude-sonnet-5',
-            max_tokens:4000,
+            max_tokens:16000,   // Sonnet 5 thinks on every request and the thinking counts toward this
             system:'Return ONLY valid JSON. No markdown fences, no explanation.',
             messages:[{role:'user',content:prompt}],
           }),
@@ -2289,7 +2289,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
         }
 
         const apiData = await res.json();
-        const text = (apiData.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+        const text = anthropicText(apiData);
         const clean = text.replace(/```json|```/g,'').trim();
         const resumeJson = JSON.parse(clean);
 
@@ -2717,6 +2717,14 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
   );
 }
 
+// The text of a Messages API reply, read by block type: thinking and web-search blocks come before and between the
+// text blocks. A refusal, or a reply cut off at max_tokens, is an error rather than half an answer.
+function anthropicText(data) {
+  if (data && data.stop_reason === 'refusal') throw new Error(T('模型拒绝了这个请求。','The model refused this request.'));
+  if (data && data.stop_reason === 'max_tokens') throw new Error(T('回复太长被截断了——请减少一次处理的内容。','The reply was too long and was cut off — send less at once.'));
+  return ((data && data.content) || []).filter(b => b.type === 'text').map(b => b.text).join('');
+}
+
 // ════════════════════════════════════════════════════════════════
 // WATCHDOG TAB  (LinkedIn email scanner — requires Anthropic API key)
 // ════════════════════════════════════════════════════════════════
@@ -2756,8 +2764,8 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
     const key = anthropicKey();
     if (!key) throw new Error(T('没有 Anthropic API 密钥——请在「设置」里添加。','No Anthropic API key — add one in Settings.'));
     const body = {
-      model:'claude-haiku-4-5-20251001',
-      max_tokens:8192,
+      model:'claude-sonnet-5',
+      max_tokens:16000,   // Sonnet 5 thinks on every request and the thinking counts toward this
       system: 'You are a job search API. Return ONLY a JSON array. No narration, no explanation, no preamble. Start your response with [ and end with ].',
       messages,
     };
@@ -2781,12 +2789,10 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
         body: JSON.stringify(body),
       });
       if (!retry.ok) { const e = await retry.json().catch(()=>({})); throw new Error(`API ${retry.status}: ${e.error?.message||T('触发限流 — 请等待一分钟后再试。','Rate limit — wait a minute and try again.')}`); }
-      const data = await retry.json();
-      return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+      return anthropicText(await retry.json());
     }
     if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`API ${res.status}: ${e.error?.message||'error'}`); }
-    const data = await res.json();
-    return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+    return anthropicText(await res.json());
   }
 
   function parseArr(text) {

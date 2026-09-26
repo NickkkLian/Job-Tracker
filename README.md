@@ -73,6 +73,7 @@ build dependency with `npm install` (esbuild 0.27.7), then:
 node build.mjs            # writes index.html
 node build.mjs --check    # what CI runs: index.html must be exactly what src/ builds to, and vendor/ match its hashes
 node check-scripts.mjs    # CI too: no script from another host, and the page's script policy intact (--self-test: each form and each loosened policy is caught)
+node check-models.mjs     # CI too: the page asks for Claude Opus 5.5 or Sonnet 5 only, with max_tokens >= 16000, and reads replies by block type (--self-test: each rule is caught)
 ```
 
 A link can open a region: `?region=usa` (the ids are the `REGIONS` list in `src/app.jsx`); the region picker still

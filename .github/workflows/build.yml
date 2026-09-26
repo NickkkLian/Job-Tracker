@@ -24,3 +24,7 @@ jobs:
         run: |
           node check-scripts.mjs --self-test
           node check-scripts.mjs
+      # every Claude model id in src/ and the built page is Opus 5.5 or Sonnet 5, and replies are read by block type;
+      # the self-test first shows each rule goes red on a sample that breaks it
+      - name: allowed models only
+        run: node check-models.mjs --self-test
