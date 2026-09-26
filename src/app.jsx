@@ -541,7 +541,7 @@ const CLAUDE_URL = 'https://claude.ai/new';
 // Prompts are pasted into Claude.ai (200K token context) — no length limits needed.
 
 function promptTailorResume(resumeDb, job, formatting, region) {
-  return `Generate a one-page Letter PDF resume using Claude's Analysis Tool (reportlab). Extract the candidate's first and last name from the PROFILE below and save the file as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf). Present it as a downloadable file. Do NOT output HTML, markdown, or wrap code in fences without running it. After the file is generated, add ONE short confirming sentence — no more.
+  return `Generate a one-page Letter PDF resume using Claude's code execution (Python, reportlab). Extract the candidate's first and last name from the PROFILE below and save the file as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf). Present it as a downloadable file. Do NOT output HTML, markdown, or wrap code in fences without running it. After the file is generated, add ONE short confirming sentence — no more.
 
 PROFILE:
 ${resumeDb||''}
@@ -619,7 +619,7 @@ TONE — I'm a recent graduate seeking entry-level roles:
 }
 
 function promptCoverLetter(resumeDb, job) {
-  return `Generate a PDF cover letter using Claude's Analysis Tool (reportlab). Extract the candidate's first and last name from the profile/conversation context and save the file as /mnt/user-data/outputs/{Firstname}_{Lastname}_Cover_Letter.pdf (e.g. Jane_Doe_Cover_Letter.pdf). Present it as a downloadable file. ONE short confirming sentence after generating — no more.
+  return `Generate a PDF cover letter using Claude's code execution (Python, reportlab). Extract the candidate's first and last name from the profile/conversation context and save the file as /mnt/user-data/outputs/{Firstname}_{Lastname}_Cover_Letter.pdf (e.g. Jane_Doe_Cover_Letter.pdf). Present it as a downloadable file. ONE short confirming sentence after generating — no more.
 
 CONTEXT: If you already generated my tailored resume earlier in this conversation, use that resume content and background — you don't need to re-read the PROFILE below. If this is a fresh chat, use PROFILE:
 
@@ -1719,7 +1719,7 @@ function GeneralResumeSection({ resumeDb, formatting, glossary, region }) {
 
   function buildPrompt() {
     if (kind === 'en') {
-      return `Generate a one-page Letter PDF general resume (NOT tailored to any specific job) using Claude's Analysis Tool (reportlab). Extract the candidate's name and save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
+      return `Generate a one-page Letter PDF general resume (NOT tailored to any specific job) using Claude's code execution (Python, reportlab). Extract the candidate's name and save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
 
 PROFILE:
 ${resumeDb||''}
@@ -1750,7 +1750,7 @@ ONE PAGE — MANDATORY. Cut weakest first. FILL THE PAGE if space remains. Verif
 TONE: Recent graduate. No buzzwords. Plain verbs. Modest specificity.`.trim();
 
     } else if (kind === 'hk') {
-      return `Generate a TWO-PAGE A4 PDF using Claude's Analysis Tool (reportlab). Page 1: Traditional Chinese. Page 2: English. Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
+      return `Generate a TWO-PAGE A4 PDF using Claude's code execution (Python, reportlab). Page 1: Traditional Chinese. Page 2: English. Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
 
 Use the content below. Page 1: make a Hong Kong Traditional Chinese professional resume — use your own professional HK-style layout and formatting, do NOT copy the structure or formatting from the profile text, only use the content.
 Page 2: standard English resume using the same content.
@@ -1780,7 +1780,7 @@ CRITICAL RULES:
 8. Separate pages with PageBreak(). Verify page count = 2 with PdfReader.`.trim();
 
         } else {
-      return `Generate a one-page A4 PDF resume in Simplified Chinese using Claude's Analysis Tool (reportlab). Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
+      return `Generate a one-page A4 PDF resume in Simplified Chinese using Claude's code execution (Python, reportlab). Save as /mnt/user-data/outputs/{Firstname}_{Lastname}_Resume.pdf (e.g. Jane_Doe_Resume.pdf).
 
 PROFILE:
 ${resumeDb||''}
@@ -2068,7 +2068,7 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
 // ════════════════════════════════════════════════════════════════
 
 function promptBatchTailor(resumeDb, job, formatting, region) {
-  return `You are tailoring a resume for a specific job application. Return ONLY a JSON object — no other text, no markdown fences.
+  return `You are tailoring a resume for a specific job application.
 
 CANDIDATE PROFILE:
 ${resumeDb||''}
@@ -2083,14 +2083,14 @@ ${job.jdText||''}
 ${(formatting||'').trim() ? `CUSTOM FORMATTING RULES:\n${formatting.trim()}\n\n` : ''}TAILORING RULES:
 - Select and reword bullets to match the JD's language and priorities
 - Emphasise skills/experiences the JD asks for; deprioritise unrelated ones
-- Never invent metrics or experience. Never use: leveraged, spearheaded, drove, transformed, oversaw
+- Never invent metrics or experience. Leave out leveraged, spearheaded, drove, transformed, oversaw: from a recent graduate they read as inflated
 - Prefer: built, wrote, designed, implemented, analysed, supported, assisted
 - Treat the candidate as a recent graduate — no long-term strategic impact claims
 - Courses: select those relevant to this role. Never show grades.
 - ${(REGION_BY[region]&&REGION_BY[region].phoneTip)||'Use phone numbers appropriate to the target region'}
 - ONE PAGE — select only strongest and most relevant content
 
-Return this exact JSON structure:
+The reply has this structure (the values show what each field holds):
 {
   "name": "Full Name",
   "contact": "phone · email · location",
@@ -2119,6 +2119,27 @@ Return this exact JSON structure:
   ]
 }`;
 }
+
+// The shape of promptBatchTailor's reply, held by the API (structured outputs). Skills entries are {label, items}; the
+// other sections' entries are {date, org, role, bullets}; "type" is "skills" for the skills section and "" otherwise.
+const TAILOR_SCHEMA = (() => {
+  const obj = (props) => ({ type:'object', additionalProperties:false, properties:props, required:Object.keys(props) });
+  const str = { type:'string' };
+  const entry = obj({ date:str, org:str, role:str, bullets:{ type:'array', items:str } });
+  const skill = obj({ label:str, items:str });
+  return obj({ name:str, contact:str,
+    sections:{ type:'array', items:obj({ title:str, type:str, entries:{ type:'array', items:{ anyOf:[entry, skill] } } }) } });
+})();
+
+// The job lists that "Scan an email" and "Discover new jobs" get back, held by the API (structured outputs, which work
+// together with web search).
+const JOBS_SCHEMA = (() => {
+  const str = { type:'string' };
+  const job = { type:'object', additionalProperties:false,
+    properties:{ company:str, role:str, location:str, description:str, url:str, salary:str, score:{ type:'integer' }, reason:str },
+    required:['company', 'role', 'location', 'description', 'url', 'salary', 'score', 'reason'] };
+  return { type:'object', additionalProperties:false, properties:{ jobs:{ type:'array', items:job } }, required:['jobs'] };
+})();
 
 // ── jsPDF resume renderer ────────────────────────────────────────
 
@@ -2280,8 +2301,8 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
           body: JSON.stringify({
             model:'claude-sonnet-5',
             max_tokens:16000,   // Sonnet 5 thinks on every request and the thinking counts toward this
-            system:'Return ONLY valid JSON. No markdown fences, no explanation.',
             messages:[{role:'user',content:prompt}],
+            output_config:{ format:{ type:'json_schema', schema:TAILOR_SCHEMA } },
           }),
         });
 
@@ -2292,8 +2313,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
 
         const apiData = await res.json();
         const text = anthropicText(apiData);
-        const clean = text.replace(/```json|```/g,'').trim();
-        const resumeJson = JSON.parse(clean);
+        const resumeJson = JSON.parse(text);
 
         // Render PDF
         const doc = renderResumePDF(resumeJson);
@@ -2788,7 +2808,7 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
 
   // A web search runs on Anthropic's side and can stop mid-turn with stop_reason "pause_turn". The turn is continued by
   // sending the conversation back with the paused assistant turn appended (no extra user message), at most
-  // MAX_CONTINUATIONS times; the answer is the text of all the assistant turns together.
+  // MAX_CONTINUATIONS times; the answer is the JSON text of the last assistant turn.
   const MAX_CONTINUATIONS = 3;
   async function callClaude(messages, useWebSearch = false) {
     const key = anthropicKey();
@@ -2796,7 +2816,7 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
     const body = {
       model:'claude-sonnet-5',
       max_tokens:16000,   // Sonnet 5 thinks on every request and the thinking counts toward this
-      system: 'You are a job search API. Return ONLY a JSON array. No narration, no explanation, no preamble. Start your response with [ and end with ].',
+      output_config:{ format:{ type:'json_schema', schema:JOBS_SCHEMA } },
     };
     if (useWebSearch) body.tools = [{ type:'web_search_20260209', name:'web_search', max_uses: 5 }];
     const turn = [...messages], replies = [];
@@ -2808,18 +2828,11 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
       setMsg(T('搜索还在进行，继续…','The search is still running, continuing…'));
       turn.push({ role:'assistant', content: data.content });
     }
-    return replies.map(anthropicText).join('');
+    return anthropicText(replies[replies.length - 1]);
   }
 
-  function parseArr(text) {
-    if (!text) return [];
-    // Try to find a JSON array — look for [{ to }] pattern
-    const m = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-    if (m) { try { return JSON.parse(m[0]); } catch {} }
-    // Fallback: try any [ to ] match
-    const m2 = text.match(/\[[\s\S]*\]/);
-    if (m2) { try { return JSON.parse(m2[0]); } catch {} }
-    return [];
+  function parseJobs(text) {
+    try { const o = JSON.parse(text || ''); return Array.isArray(o.jobs) ? o.jobs : []; } catch { return []; }
   }
 
   async function scan() {
@@ -2844,12 +2857,10 @@ MY PROFILE (for scoring 1-10): ${trimmedProfile}
 
 For each job return: company (from career page), role (exact title from career page), location, description (from career page search), url (career page link), salary (or ""), score (1-10), reason.
 
-JSON only: [{"company":"...","role":"...","location":"...","description":"...","url":"...","salary":"","score":7,"reason":"..."}]
-
 EMAIL TEXT:
 ${trimmedText}` }], true);
 
-      const rawJobs = parseArr(resultText);
+      const rawJobs = parseJobs(resultText);
       if (!rawJobs.length) {
         setMsg(T('未能提取到任何职位。请尝试复制更多邮件内容。','Could not extract any job listings. Try copying more of the email.'));
         setStep('review'); return;
@@ -2904,24 +2915,14 @@ ${trimmedText}` }], true);
       const utc = d => d.toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
       const now = new Date(), since = new Date(now.getTime() - 24 * 3600 * 1000);
       const resultText = await callClaude([{ role:'user', content:
-        `Find real job postings for this person that were posted in the last 24 hours. You have 5 web searches. ONLY return jobs located in ${loc} — ${skip}.
+        `Find real job postings for this person, located in ${loc} and published in the last 24 hours (between ${utc(since)} and ${utc(now)}). The results fill a "new in ${loc}, last 24 h" list, so leave out any posting outside ${loc} (${skip}), any older posting, and any posting whose date you cannot find. ${none}
 
 Person: ${trimmedProfile}
-Location: MUST be in ${loc} only. ${hint}.
-Posted: ONLY postings published in the last 24 hours, between ${utc(since)} and ${utc(now)}. Skip anything older, and skip any posting whose date you cannot find.
+Where to look: ${hint}. You have 5 web searches. Company career pages (Workday, Greenhouse, Lever) carry the real job details and posting dates, so start from ${loc}-based companies that are hiring now for the role type in the profile, and go to their career pages.
 
-STRATEGY:
+For each job return: company, role (the exact title on the career page), location, description, url (the career page link), salary (or ""), score (1-10 fit with the person), reason.` }], true);
 
-Phase 1 (search 1): Search "${loc} companies hiring 2025" plus the role type from the profile, to find which ${loc}-based companies are actively posting.
-
-Phase 2 (searches 2-5): For each company found, search "[company name] careers [role] ${loc}" to find their career page. Company career pages (Workday, Greenhouse, Lever) have real job details.
-
-CRITICAL: Every job you return MUST have a ${loc} location and MUST have been posted in the last 24 hours. ${none}
-
-Return JSON only:
-[{"company":"...","role":"...","location":"Toronto, ON","description":"...","url":"https://...","salary":"","score":7,"reason":"..."}]` }], true);
-
-      const rawJobs = parseArr(resultText);
+      const rawJobs = parseJobs(resultText);
       if (!rawJobs.length) {
         const len = (resultText||'').length;
         const tail = (resultText || '(empty)').slice(-500);
