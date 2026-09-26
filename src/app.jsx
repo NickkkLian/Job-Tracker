@@ -2760,17 +2760,9 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
 
   const anthropicKey = () => lsGet('anthropicKey');
 
-  async function callClaude(messages, useWebSearch = false) {
-    const key = anthropicKey();
-    if (!key) throw new Error(T('没有 Anthropic API 密钥——请在「设置」里添加。','No Anthropic API key — add one in Settings.'));
-    const body = {
-      model:'claude-sonnet-5',
-      max_tokens:16000,   // Sonnet 5 thinks on every request and the thinking counts toward this
-      system: 'You are a job search API. Return ONLY a JSON array. No narration, no explanation, no preamble. Start your response with [ and end with ].',
-      messages,
-    };
-    if (useWebSearch) body.tools = [{ type:'web_search_20250305', name:'web_search', max_uses: 5 }];
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+  // One request, with one retry after 30 s when rate limited. Returns the parsed reply.
+  async function postMessages(key, body) {
+    const send = () => fetch('https://api.anthropic.com/v1/messages', {
       method:'POST',
       headers:{
         'Content-Type':'application/json',
@@ -2780,19 +2772,41 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
       },
       body: JSON.stringify(body),
     });
+    const res = await send();
     if (res.status === 429) {
       setMsg(T('触发限流 — 等待 30 秒后重试…','Rate limited — waiting 30s and retrying…'));
       await new Promise(r => setTimeout(r, 30000));
-      const retry = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json', 'x-api-key': key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body: JSON.stringify(body),
-      });
+      const retry = await send();
       if (!retry.ok) { const e = await retry.json().catch(()=>({})); throw new Error(`API ${retry.status}: ${e.error?.message||T('触发限流 — 请等待一分钟后再试。','Rate limit — wait a minute and try again.')}`); }
-      return anthropicText(await retry.json());
+      return retry.json();
     }
     if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`API ${res.status}: ${e.error?.message||'error'}`); }
-    return anthropicText(await res.json());
+    return res.json();
+  }
+
+  // A web search runs on Anthropic's side and can stop mid-turn with stop_reason "pause_turn". The turn is continued by
+  // sending the conversation back with the paused assistant turn appended (no extra user message), at most
+  // MAX_CONTINUATIONS times; the answer is the text of all the assistant turns together.
+  const MAX_CONTINUATIONS = 3;
+  async function callClaude(messages, useWebSearch = false) {
+    const key = anthropicKey();
+    if (!key) throw new Error(T('没有 Anthropic API 密钥——请在「设置」里添加。','No Anthropic API key — add one in Settings.'));
+    const body = {
+      model:'claude-sonnet-5',
+      max_tokens:16000,   // Sonnet 5 thinks on every request and the thinking counts toward this
+      system: 'You are a job search API. Return ONLY a JSON array. No narration, no explanation, no preamble. Start your response with [ and end with ].',
+    };
+    if (useWebSearch) body.tools = [{ type:'web_search_20260209', name:'web_search', max_uses: 5 }];
+    const turn = [...messages], replies = [];
+    for (let n = 0; ; n++) {
+      const data = await postMessages(key, { ...body, messages: turn });
+      replies.push(data);
+      if (data.stop_reason !== 'pause_turn') break;
+      if (n >= MAX_CONTINUATIONS) throw new Error(T('网页搜索暂停次数过多，没有得到完整结果——请减少一次粘贴的内容后再试。','The web search paused too many times without finishing — paste less at once and try again.'));
+      setMsg(T('搜索还在进行，继续…','The search is still running, continuing…'));
+      turn.push({ role:'assistant', content: data.content });
+    }
+    return replies.map(anthropicText).join('');
   }
 
   function parseArr(text) {
