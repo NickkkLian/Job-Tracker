@@ -2299,8 +2299,8 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
             'anthropic-dangerous-direct-browser-access':'true',
           },
           body: JSON.stringify({
-            model:'claude-sonnet-5',
-            max_tokens:16000,   // Sonnet 5 thinks on every request and the thinking counts toward this
+            model:'claude-sonnet-5-5',
+            max_tokens:16000,   // Sonnet 5.5 thinks on every request and the thinking counts toward this
             messages:[{role:'user',content:prompt}],
             output_config:{ format:{ type:'json_schema', schema:TAILOR_SCHEMA } },
           }),
@@ -2814,8 +2814,8 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
     const key = anthropicKey();
     if (!key) throw new Error(T('没有 Anthropic API 密钥——请在「设置」里添加。','No Anthropic API key — add one in Settings.'));
     const body = {
-      model:'claude-sonnet-5',
-      max_tokens:16000,   // Sonnet 5 thinks on every request and the thinking counts toward this
+      model:'claude-sonnet-5-5',
+      max_tokens:16000,   // Sonnet 5.5 thinks on every request and the thinking counts toward this
       output_config:{ format:{ type:'json_schema', schema:JOBS_SCHEMA } },
     };
     if (useWebSearch) body.tools = [{ type:'web_search_20260209', name:'web_search', max_uses: 5 }];
