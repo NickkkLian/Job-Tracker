@@ -25,6 +25,7 @@ The navigation has two groups: the views that belong to the region you are in, a
 | **My profile** | A sectioned profile (upload files, or start from a skeleton and per-role skills blocks), a translation glossary, and formatting rules that go into every resume prompt |
 | **Diagnosis** | A six-step check before applying: stage → strengths → target profile → reality check against real postings → resume narrative → high-stakes decisions |
 | **Resumes** | A library of resume versions: preview, rename, download, delete, or use one as your profile |
+| **Ghost check** | Paste job links, one per line; each gets *probably not hiring*, *check first*, *not enough to tell* or *no warning signs found*, with the reasons and the evidence behind it. No score, no AI, no account needed (below) |
 
 ![Insights](docs/screenshot-insights.png)
 
@@ -44,6 +45,60 @@ JSON** (sections → entries → bullets); a small jsPDF renderer lays it out as
 with the same column geometry the Claude.ai prompts specify. Results are pushed to the repo and
 cached locally. A job whose resume is already in the repo is skipped before any API call, so a run in
 another browser never replaces it; to tailor that job again, delete its resume first.
+
+### Ghost check: is anyone actually hiring?
+
+Some postings stay up long after the job is gone, or were never meant to be filled. The Ghost check gives each link a
+flag and says why, in plain words. There is no score and no model: four rules, each of which either fires with the
+evidence it saw or says what it could not check.
+
+**Demo:** https://nickkklian.github.io/Job-Tracker/?demo=1&tab=ghost opens it with 20 made-up postings: 7 come out
+*probably not hiring*, 6 *check first*, 1 *not enough to tell*, 6 *no warning signs found*.
+
+![Ghost check on the 20 sample links](docs/screenshot-ghost.png)
+
+One line per posting: the link first, then optionally `company:`, `title:`, `posted:` (a date or "12 days ago") and
+`live:`, separated by ` | `. A LinkedIn link or an applicant-system link (Greenhouse, Lever, Workday, Ashby, …) already
+carries the company name.
+
+```
+https://www.linkedin.com/jobs/view/4000000002 | company: Larkspur Mutual | title: Claims Analyst | posted: 52 days ago
+```
+
+**What it checks**
+
+| Rule | Fires when | Evidence shown |
+|---|---|---|
+| Liveness | the posting's page says it is closed or gone (HTTP 404/410, Job Bank's expired page, LinkedIn's "No longer accepting applications", "position has been filled" and similar) | the status or the words found |
+| Age | it was posted more than 30 days ago | the number of days and the date |
+| Repost | the same company and title appear more than once on the same site, under different links | the other links |
+| Not on the employer's site | it is only on a job board (LinkedIn, Indeed, Job Bank, Glassdoor, …) and the list has no link for it on the employer's own site or applicant system | the board it was found on |
+
+Liveness alone makes *probably not hiring*; so do any two of the other three. One makes *check first*. When three or
+four rules could not look (no date, no company, not checked), the flag is *not enough to tell*, never a clean bill.
+The 30 days and the two-of-three are choices, not numbers learned from data. Age and repost follow two of the
+posting-behaviour features (posting lifecycle, repost rate) in
+[Vacancy Signal](https://github.com/NickkkLian/Ghost-Job-Detection-And-Trading-Signal), which studied ghost posting
+across whole firms rather than single postings. The Job Bank and LinkedIn liveness markers come from an earlier checker
+that was run on real postings after they came down; the markers for other sites have only been tested on made-up pages.
+
+**What it can't know**
+
+- What the employer intends. A flag says the posting *looks* abandoned; a role can still be real, and a fresh posting on
+  the employer's own site can still be a formality or already promised to someone.
+- Whether a job board's date is right: boards refresh dates, so "posted 3 days ago" may be a repost it did not show.
+- Anything outside the list you paste: *not on the employer's site* means no such link was in the list, not that the
+  rule searched the employer's site.
+- Liveness, from the page. A browser page may not read other sites' pages, so the page never opens the links. To check
+  them, run the same rules from the command line, which also opens each posting once (1.5 s apart) and prints the lines
+  with a `live:` field to paste back:
+
+```bash
+node ghost-check.mjs links.txt --live     # or without --live: the rules only, no network
+```
+
+A page that is still up proves nothing either way, and LinkedIn is read through its public guest view, which can
+change without notice.
 
 ## How it's built
 
@@ -74,6 +129,8 @@ node build.mjs            # writes index.html
 node build.mjs --check    # what CI runs: index.html must be exactly what src/ builds to, and vendor/ match its hashes
 node check-scripts.mjs    # CI too: no script from another host, and the page's script policy intact (--self-test: each form and each loosened policy is caught)
 node check-models.mjs     # CI too: the page asks for Claude Opus 5.5 or Sonnet 5.5 only, with max_tokens >= 16000, and reads replies by block type (--self-test: each rule is caught)
+node --test test/ghost-flags.test.mjs   # CI too: the Ghost check's rules (src/ghost-flags.js, which build.mjs puts in front of the app)
+node ghost-mutants.mjs    # CI too: breaks each rule in a copy, one at a time; a test must fail for every break
 ```
 
 A link can open a region: `?region=usa` (the ids are the `REGIONS` list in `src/app.jsx`); the region picker still

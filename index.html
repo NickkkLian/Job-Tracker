@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-5nyhwSzTgu2n7ZAL4gvhru/QlXgk4oq6kTJUzThiFGQ=' 'sha256-fKQZmKTZa8V4D4jRPG1kdnpiVO8m+8u3vqQQFRv0R7A=' 'sha256-hI+omUyAeph23A18Pr++HYkVVIj3Ah2F7Osm1IApCwU='">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-5nyhwSzTgu2n7ZAL4gvhru/QlXgk4oq6kTJUzThiFGQ=' 'sha256-fKQZmKTZa8V4D4jRPG1kdnpiVO8m+8u3vqQQFRv0R7A=' 'sha256-kyBDfjdaT/EzavvolbMcGDIqYrh/FdIuQaRhDiE8f/0='">
 <script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem('nl-theme'),s=L.getItem('nl-scheme');if(s===null){var o=L.getItem('theme')||L.getItem('qm-theme');if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="ApplyLedger: job applications, one pipeline per region, kept in a private repo you own. A tracker, a pipeline chart and an hours ledger for the Canadian Experience Class; the AI prompts run in your own Claude.ai.">
@@ -217,6 +217,210 @@ const SafeMerge = (() => {
 
   return { merge3, same, canon, ask, save, rebase, serial, snapshot };
 })();
+const GhostFlags = (() => {
+  const DEFAULTS = { maxAgeDays: 30, twoOf: 2 };
+  const BOARDS = [
+    "linkedin.com",
+    "indeed.com",
+    "indeed.ca",
+    "glassdoor.com",
+    "glassdoor.ca",
+    "ziprecruiter.com",
+    "jobbank.gc.ca",
+    "monster.com",
+    "monster.ca",
+    "simplyhired.com",
+    "talent.com",
+    "workopolis.com",
+    "eluta.ca",
+    "jooble.org",
+    "careerbuilder.com",
+    "dice.com",
+    "wellfound.com",
+    "builtin.com",
+    "jobillico.com",
+    "seek.com.au",
+    "reed.co.uk",
+    "totaljobs.com",
+    "jobsdb.com",
+    "zhipin.com",
+    "liepin.com",
+    "51job.com"
+  ];
+  const ATS = [
+    { host: "greenhouse.io", co: (u) => u.pathname.split("/")[1] },
+    { host: "lever.co", co: (u) => u.pathname.split("/")[1] },
+    { host: "ashbyhq.com", co: (u) => u.pathname.split("/")[1] },
+    { host: "smartrecruiters.com", co: (u) => u.pathname.split("/")[1] },
+    { host: "jobvite.com", co: (u) => u.pathname.split("/")[1] },
+    { host: "workable.com", co: (u) => u.pathname.split("/")[1] },
+    { host: "myworkdayjobs.com", co: (u) => u.hostname.split(".")[0] },
+    { host: "bamboohr.com", co: (u) => u.hostname.split(".")[0] },
+    { host: "recruitee.com", co: (u) => u.hostname.split(".")[0] },
+    { host: "breezy.hr", co: (u) => u.hostname.split(".")[0] },
+    { host: "taleo.net", co: (u) => u.hostname.split(".")[0] },
+    { host: "icims.com", co: (u) => u.hostname.split(".")[0].replace(/^careers-/, "") }
+  ];
+  const CLOSED_WORDS = /no longer accepting applications|this job (?:posting )?(?:has expired|is no longer available)|job posting (?:has )?expired|position has been filled|this (?:job|position|posting) (?:is )?(?:closed|no longer (?:open|available))|no longer (?:open|available) for applications/i;
+  const hostIs = (hostname, h) => hostname === h || hostname.endsWith("." + h);
+  const norm = (s) => String(s || "").toLowerCase().replace(/\b(inc|ltd|llc|llp|corp|corporation|co|company|limited|group|plc|gmbh)\b\.?/g, " ").replace(/[^a-z0-9一-鿿]+/g, "");
+  const normTitle = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9一-鿿]+/g, " ").trim();
+  function classify(u) {
+    const h = u.hostname.toLowerCase();
+    if (BOARDS.some((b) => hostIs(h, b))) return { kind: "board", company: companyFromBoard(u) };
+    const ats = ATS.find((a) => hostIs(h, a.host));
+    if (ats) return { kind: "ats", company: ats.co(u) || "" };
+    const parts = h.replace(/^www\./, "").split(".");
+    const two = parts.length > 2 && /^(co|com|org|gov|ac|net)$/.test(parts[parts.length - 2]);
+    return { kind: "employer", company: parts[parts.length - (two ? 3 : 2)] || "" };
+  }
+  function companyFromBoard(u) {
+    const m = u.pathname.match(/\/jobs\/view\/[^/]*?-at-([a-z0-9-]+?)-\d{6,}/i);
+    return m ? m[1] : "";
+  }
+  const DAY = 864e5;
+  function parseDay(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : NaN;
+  }
+  function ageDays(text, today) {
+    const t = String(text || "").trim().toLowerCase();
+    if (!t) return null;
+    const now = parseDay(today);
+    const d = parseDay(t);
+    if (!isNaN(d)) return Math.round((now - d) / DAY);
+    if (/^(today|just now|\d+\s*(minutes?|hours?)\s*ago)$/.test(t)) return 0;
+    if (t === "yesterday") return 1;
+    const m = /^(\d+)\s*(\+?)\s*(days?|weeks?|months?)\s*ago$/.exec(t);
+    if (!m) return null;
+    const n = +m[1] + (m[2] ? 1 : 0);
+    return m[3].startsWith("day") ? n : m[3].startsWith("week") ? n * 7 : n * 30;
+  }
+  function liveState(text) {
+    const t = String(text || "").trim();
+    const m = /^(\w+)\s*(?:\((.*)\))?$/.exec(t);
+    if (!m) return { state: t ? "unknown" : null, detail: t };
+    const w = m[1].toLowerCase();
+    const state = /^(expired|closed|gone|removed)$/.test(w) ? "expired" : /^(live|open|up)$/.test(w) ? "live" : "unknown";
+    return { state, detail: m[2] || "" };
+  }
+  function parseLine(line) {
+    const [first, ...rest] = String(line).split("|").map((s) => s.trim());
+    let u;
+    try {
+      u = new URL(first);
+    } catch (e) {
+      return { error: "not a link", line: String(line).trim() };
+    }
+    if (!/^https?:$/.test(u.protocol)) return { error: "not a web link", line: String(line).trim() };
+    const fields = {};
+    for (const f of rest) {
+      const m = /^(company|title|posted|live)\s*:\s*(.*)$/i.exec(f);
+      if (m) fields[m[1].toLowerCase()] = m[2].trim();
+    }
+    const c = classify(u);
+    return {
+      url: u.href,
+      host: u.hostname.replace(/^www\./, ""),
+      kind: c.kind,
+      company: fields.company || c.company.replace(/-/g, " "),
+      companyFrom: fields.company ? "given" : c.company ? "link" : null,
+      title: fields.title || "",
+      posted: fields.posted || "",
+      live: fields.live || ""
+    };
+  }
+  function check(text, opts = {}) {
+    const o = { ...DEFAULTS, ...opts };
+    const today = o.today;
+    const lines = String(text).split(/\r?\n/).map((s) => s.trim()).filter((s) => s && !s.startsWith("#"));
+    const items = lines.map(parseLine);
+    const ok = items.filter((x) => !x.error);
+    const key = (x) => norm(x.company) && normTitle(x.title) ? norm(x.company) + "|" + normTitle(x.title) : "";
+    return items.map((x) => {
+      if (x.error) return { ...x, verdict: "unreadable", reasons: [], unknown: [], seen: [] };
+      const reasons = [], unknown = [], seen = [];
+      const lv = liveState(x.live);
+      if (lv.state === "expired") reasons.push({ rule: "liveness", en: `The posting's page says it is closed or gone${lv.detail ? ` (${lv.detail})` : ""}.`, zh: `职位页面显示已关闭或已下架${lv.detail ? `（${lv.detail}）` : ""}。` });
+      else if (lv.state === "live") seen.push({ rule: "liveness", en: `Page still up${lv.detail ? ` (${lv.detail})` : ""}; that alone does not show anyone is hiring.`, zh: `页面还在${lv.detail ? `（${lv.detail}）` : ""}；这本身不能说明真在招人。` });
+      else unknown.push({ rule: "liveness", en: lv.state === "unknown" ? `Liveness check could not tell${lv.detail ? ` (${lv.detail})` : ""}.` : "Not checked whether the posting is still up (run ghost-check.mjs --live).", zh: lv.state === "unknown" ? `存活检查判断不了${lv.detail ? `（${lv.detail}）` : ""}。` : "没查过职位是否还挂着（运行 ghost-check.mjs --live）。" });
+      const age = today ? ageDays(x.posted, today) : null;
+      if (age === null) unknown.push({ rule: "age", en: x.posted ? `Posting date not readable ("${x.posted}").` : "Posting date unknown.", zh: x.posted ? `发布日期读不懂（"${x.posted}"）。` : "不知道发布日期。" });
+      else {
+        const on = /^\d{4}-/.test(x.posted) ? ` (${x.posted})` : "", onZh = on ? `（${x.posted}）` : "";
+        const days = age === 1 ? "1 day" : `${age} days`;
+        if (age > o.maxAgeDays) reasons.push({ rule: "age", en: `Posted ${days} ago${on}; more than ${o.maxAgeDays}.`, zh: `${age} 天前发布${onZh}，超过 ${o.maxAgeDays} 天。` });
+        else seen.push({ rule: "age", en: `Posted ${days} ago${on}.`, zh: `${age} 天前发布${onZh}。` });
+      }
+      const k = key(x);
+      if (!k) unknown.push({ rule: "repost", en: "Company or title unknown, so reposts cannot be matched.", zh: "缺公司名或职位名，查不了重复发布。" });
+      else {
+        const twins = ok.filter((y) => y !== x && y.host === x.host && y.url !== x.url && key(y) === k);
+        if (twins.length) reasons.push({ rule: "repost", en: `The same role at the same company is on ${x.host} ${twins.length + 1} times, under different links.`, zh: `同一公司同一职位在 ${x.host} 上出现 ${twins.length + 1} 次，链接各不相同。`, evidence: twins.map((y) => y.url) });
+        else seen.push({ rule: "repost", en: `Only one link for this role on ${x.host} in this list.`, zh: `这份清单里该职位在 ${x.host} 上只有一个链接。` });
+      }
+      if (x.kind !== "board") seen.push({ rule: "offsite", en: x.kind === "ats" ? `On the employer's applicant system (${x.host}).` : `On the employer's own site (${x.host}).`, zh: x.kind === "ats" ? `在雇主自己的招聘系统上（${x.host}）。` : `在雇主自己的网站上（${x.host}）。` });
+      else if (!norm(x.company)) unknown.push({ rule: "offsite", en: "Company unknown, so the employer's own site cannot be matched.", zh: "不知道公司名，没法对上雇主官网。" });
+      else {
+        const own = ok.filter((y) => y.kind !== "board" && norm(y.company) === norm(x.company) && (!normTitle(x.title) || !normTitle(y.title) || normTitle(y.title) === normTitle(x.title)));
+        if (own.length) seen.push({ rule: "offsite", en: `Also on the employer's site: ${own[0].host}.`, zh: `雇主自己的网站上也有：${own[0].host}。`, evidence: own.map((y) => y.url) });
+        else reasons.push({ rule: "offsite", en: `Only on a job board (${x.host}); no link for it on the employer's own site or applicant system in this list.`, zh: `只在招聘网站（${x.host}）上看到；这份清单里没有雇主官网或其招聘系统的链接。` });
+      }
+      const soft = reasons.filter((r) => r.rule !== "liveness").length;
+      const verdict = reasons.some((r) => r.rule === "liveness") || soft >= o.twoOf ? "not-hiring" : soft >= 1 ? "check" : unknown.length >= 3 ? "unknown" : "clear";
+      return { ...x, age, verdict, reasons, unknown, seen };
+    });
+  }
+  function livenessVerdict({ url, status, finalUrl, body }) {
+    const where = (() => {
+      try {
+        return new URL(url).hostname;
+      } catch (e) {
+        return "";
+      }
+    })();
+    const text = String(body || "");
+    if (hostIs(where, "jobbank.gc.ca")) {
+      if (status === 410 || /jobpostingexpired/.test(finalUrl || "")) return { state: "expired", detail: status === 410 ? "HTTP 410" : "redirected to jobpostingexpired" };
+      if (status === 200) return /jobposting-brief|Posted on|How to apply/.test(text) ? { state: "live", detail: "HTTP 200" } : { state: "unknown", detail: "HTTP 200 without the posting" };
+      return { state: "unknown", detail: `HTTP ${status}` };
+    }
+    if (hostIs(where, "linkedin.com")) {
+      if (status !== 200) return { state: "unknown", detail: `HTTP ${status}` };
+      if (!/topcard__title/.test(text)) return { state: "unknown", detail: "HTTP 200 without the posting" };
+      return /No longer accepting applications/i.test(text) ? { state: "expired", detail: "No longer accepting applications" } : { state: "live", detail: "HTTP 200" };
+    }
+    if (status === 404 || status === 410) return { state: "expired", detail: `HTTP ${status}` };
+    if (/[?&]error=true\b/.test(finalUrl || "")) return { state: "expired", detail: "redirected to the job list with error=true" };
+    if (status === 200 && CLOSED_WORDS.test(text)) return { state: "expired", detail: `page says "${text.match(CLOSED_WORDS)[0]}"` };
+    if (status === 200) return { state: "live", detail: "HTTP 200" };
+    return { state: "unknown", detail: status ? `HTTP ${status}` : "no answer" };
+  }
+  const SAMPLE = [
+    "https://www.linkedin.com/jobs/view/4000000001 | company: Northgate Datalab | title: Data Analyst | posted: 4 days ago | live: live (HTTP 200)",
+    "https://careers.northgate-datalab.example/jobs/data-analyst | company: Northgate Datalab | title: Data Analyst | posted: 4 days ago | live: live (HTTP 200)",
+    "https://www.linkedin.com/jobs/view/4000000002 | company: Larkspur Mutual | title: Claims Analyst | posted: 52 days ago | live: live (HTTP 200)",
+    "https://www.linkedin.com/jobs/view/4000000003 | company: Larkspur Mutual | title: Claims Analyst | posted: 12 days ago | live: live (HTTP 200)",
+    "https://www.jobbank.gc.ca/jobsearch/jobposting/40000001 | company: Harbourline Logistics | title: Operations Coordinator | posted: 9 days ago | live: expired (HTTP 410)",
+    "https://boards.greenhouse.io/quillworks/jobs/5000001 | title: Product Analyst | posted: 6 days ago | live: live (HTTP 200)",
+    "https://www.linkedin.com/jobs/view/product-analyst-at-quillworks-4000000004 | title: Product Analyst | posted: 6 days ago | live: live (HTTP 200)",
+    "https://www.indeed.com/viewjob?jk=a1b2c3d4e5f60001 | company: Fernhill Health | title: Junior Data Scientist | posted: 45 days ago | live: live (HTTP 200)",
+    "https://jobs.lever.co/brightmoss/00000000-0000-4000-8000-000000000001 | title: Marketing Analyst | posted: 38 days ago | live: live (HTTP 200)",
+    "https://www.glassdoor.com/job-listing/business-analyst-JV_KO0,16.htm?jl=1000000001 | company: Cedarpoint Energy | title: Business Analyst | posted: 3 days ago | live: live (HTTP 200)",
+    "https://www.linkedin.com/jobs/view/4000000005 | company: Oakridge Retail | title: Data Coordinator | posted: 20 days ago | live: expired (No longer accepting applications)",
+    "https://tidewater.wd3.myworkdayjobs.com/en-US/careers/job/Vancouver/Reporting-Analyst_R-10001 | title: Reporting Analyst | posted: 10 days ago | live: live (HTTP 200)",
+    "https://tidewater.wd3.myworkdayjobs.com/en-US/careers/job/Vancouver/Reporting-Analyst_R-10002 | title: Reporting Analyst | posted: 2 days ago | live: live (HTTP 200)",
+    "https://www.ziprecruiter.com/c/Silverline-Media/Job/Content-Analyst/-in-Toronto,ON?jid=0000000000000001 | company: Silverline Media | title: Content Analyst | posted: 30+ days ago | live: unknown (HTTP 403)",
+    "https://jobs.ashbyhq.com/lumenfold/00000000-0000-4000-8000-000000000002 | title: Data Engineer | posted: yesterday | live: live (HTTP 200)",
+    "https://www.linkedin.com/jobs/view/4000000006 | company: Lumenfold | title: Data Engineer | posted: yesterday",
+    "https://www.jobbank.gc.ca/jobsearch/jobposting/40000002 | company: Pinecrest Clinic | title: Office Administrator | posted: 5 days ago | live: live (HTTP 200)",
+    "https://careers.maplebay-analytics.example/jobs/42 | company: Maple Bay Analytics | title: Junior Analyst | posted: 60 days ago | live: live (HTTP 200)",
+    "https://www.linkedin.com/jobs/view/4000000007",
+    "https://www.indeed.com/viewjob?jk=a1b2c3d4e5f60002 | company: Harbourline Logistics | title: Operations Coordinator | posted: 41 days ago"
+  ].join("\n");
+  return { DEFAULTS, BOARDS, ATS, SAMPLE, parseLine, ageDays, check, livenessVerdict };
+})();
+if (typeof module === "object" && module && module.exports) module.exports = GhostFlags;
 const { useState, useEffect, useRef, useMemo } = React;
 let lang = (() => {
   try {
@@ -736,7 +940,8 @@ const TABS = [
   { id: "watchdog", label: "Alerts", zh: "提醒", icon: "mail", scope: "region" },
   { id: "profile", label: "My profile", zh: "我的资料", icon: "person", scope: "shared" },
   { id: "diagnosis", label: "Diagnosis", zh: "诊断", icon: "compass", scope: "shared" },
-  { id: "library", label: "Resumes", zh: "简历库", icon: "file", scope: "shared" }
+  { id: "library", label: "Resumes", zh: "简历库", icon: "file", scope: "shared" },
+  { id: "ghost", label: "Ghost check", zh: "幽灵岗检查", icon: "ghost", scope: "shared" }
 ];
 const tabFromUrl = () => {
   const t = new URLSearchParams(location.search).get("tab") || "";
@@ -1169,7 +1374,8 @@ const ICON_PATHS = {
   eyeOff: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("path", { d: "M2.5 12c2.2-4 5.5-6.5 9.5-6.5s7.3 2.5 9.5 6.5c-2.2 4-5.5 6.5-9.5 6.5S4.7 16 2.5 12z" }), /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "3" }), /* @__PURE__ */ React.createElement("path", { d: "M4 4l16 16" })),
   x: /* @__PURE__ */ React.createElement("path", { d: "M6 6l12 12M18 6L6 18" }),
   chevron: /* @__PURE__ */ React.createElement("path", { d: "M9 6l6 6-6 6" }),
-  down: /* @__PURE__ */ React.createElement("path", { d: "M6 9l6 6 6-6" })
+  down: /* @__PURE__ */ React.createElement("path", { d: "M6 9l6 6 6-6" }),
+  ghost: /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("path", { d: "M5.5 20.5V11a6.5 6.5 0 0 1 13 0v9.5l-2.2-1.6-2.2 1.6-2.1-1.6-2.1 1.6-2.2-1.6z" }), /* @__PURE__ */ React.createElement("path", { d: "M9.5 11h.01M14.5 11h.01" }))
 };
 function Icon({ name, size = 18, className }) {
   return /* @__PURE__ */ React.createElement(
@@ -3132,6 +3338,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
   const tabMeta = TABS.find((t) => t.id === tab) || TABS[0];
   const shared = T("所有地区共用", "Shared by all regions");
   const eyebrow = tabMeta.scope === "region" ? regionLabel : shared;
+  if (tab === "ghost") return /* @__PURE__ */ React.createElement(GhostTab, { eyebrow });
   if (loading) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow, title: T(tabMeta.zh, tabMeta.label) }), /* @__PURE__ */ React.createElement("div", { className: "card loading", "aria-busy": "true" }, /* @__PURE__ */ React.createElement("span", { className: "sr-only" }, T(`正在加载${regionLabel}的投递…`, `Loading ${regionLabel} applications…`)), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "40%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "85%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "70%" } })));
   if (tabMeta.scope === "region" && loadErr) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow, title: T(tabMeta.zh, tabMeta.label) }), /* @__PURE__ */ React.createElement(ErrorCard, { title: T(`没能从 GitHub 读到${regionLabel}的投递`, `Couldn’t read your ${regionLabel} applications from GitHub`), error: loadErr, onRetry: () => setAttempt((a) => a + 1), openSettings }));
   if (tabMeta.scope === "shared" && sharedLoading) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow, title: T(tabMeta.zh, tabMeta.label) }), /* @__PURE__ */ React.createElement("div", { className: "card loading", "aria-busy": "true" }, /* @__PURE__ */ React.createElement("span", { className: "sr-only" }, T("正在读取你的资料…", "Loading your profile…")), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "40%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "85%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "70%" } })));
@@ -3141,6 +3348,72 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
     setFocusJob(openJob.id);
     setOpenJobId(null);
   }, onOpenProfile: () => go("profile") }), tab === "profile" && /* @__PURE__ */ React.createElement(ProfileTab, { sections, updateSections, formatting, setFormatting, glossary, setGlossary, region, resumeDb }), tab === "diagnosis" && /* @__PURE__ */ React.createElement(DiagnosisTab, { diagnosis, setDiagnosis }), tab === "library" && /* @__PURE__ */ React.createElement(LibraryTab, { library, setLibrary, updateSections }), tab === "insights" && /* @__PURE__ */ React.createElement(InsightsTab, { jobs, regionName: regionLabel, onWorking: () => go("tracker", { status: jobs.some((j) => j.status === "working") ? "working" : null }), onAdd: () => go("addjob") }), tab === "watchdog" && /* @__PURE__ */ React.createElement(WatchdogTab, { region, jobs, setJobs, resumeDb, onOpenKey: (opener) => openSettings(opener, "#set-key"), openSettings }));
+}
+let ghostDraft = "";
+const GHOST_VERDICT = {
+  "not-hiring": { cls: "tag-neutral", en: "Probably not hiring", zh: "大概率不在招" },
+  check: { cls: "tag-warning", en: "Check first", zh: "先核实" },
+  unknown: { cls: "tag-draft", en: "Not enough to tell", zh: "信息不够判断" },
+  clear: { cls: "tag-info", en: "No warning signs found", zh: "没发现危险信号" }
+};
+const GHOST_ORDER = ["not-hiring", "check", "unknown", "clear"];
+function GhostTab({ eyebrow }) {
+  const [text, setText] = useState(() => ghostDraft || (DEMO ? GhostFlags.SAMPLE : ""));
+  const [results, setResults] = useState(null);
+  const [isSample, setIsSample] = useState(() => !ghostDraft && DEMO);
+  const run = (t, sample) => {
+    ghostDraft = t;
+    setIsSample(!!sample);
+    setResults(GhostFlags.check(t, { today: localISO(/* @__PURE__ */ new Date()) }));
+  };
+  useEffect(() => {
+    if (text.trim()) run(text, isSample);
+  }, []);
+  const L = (x) => T(x.zh, x.en);
+  const counts = results ? GHOST_ORDER.map((v) => [v, results.filter((r) => r.verdict === v).length]).filter(([, n]) => n) : [];
+  const bad = results ? results.filter((r) => r.verdict === "unreadable") : [];
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+    PageHead,
+    {
+      eyebrow,
+      title: T("幽灵岗检查", "Ghost check"),
+      sub: T(
+        "贴上职位链接，一行一个。每条都给出结论和理由——没有打分，也不用 AI。",
+        "Paste job links, one per line. Each gets a flag and the reasons behind it — no score, no AI."
+      )
+    }
+  ), /* @__PURE__ */ React.createElement("div", { className: "stack" }, /* @__PURE__ */ React.createElement("div", { className: "card" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "ghost-in", className: "card-head" }, /* @__PURE__ */ React.createElement("h2", null, T("职位链接", "Job links"))), /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      id: "ghost-in",
+      className: "mono lined ghost-in",
+      rows: 8,
+      value: text,
+      spellCheck: false,
+      onChange: (e) => {
+        setText(e.target.value);
+        ghostDraft = e.target.value;
+        setIsSample(false);
+      },
+      placeholder: "https://www.linkedin.com/jobs/view/… | company: … | title: … | posted: 12 days ago"
+    }
+  ), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T(
+    '每行先放链接，后面可以用 " | " 接：company:（公司）、title:（职位）、posted:（日期或「N days ago」）、live:（存活检查结果，由 ghost-check.mjs --live 写）。给得越多，能查的规则越多。',
+    'Each line starts with the link; after it, optionally, separated by " | ": company:, title:, posted: (a date or "N days ago") and live: (what a liveness check found; ghost-check.mjs --live writes it). The more a line says, the more rules can look.'
+  )), /* @__PURE__ */ React.createElement("div", { className: "btn-row ghost-acts" }, /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: () => run(text, isSample), disabled: !text.trim() }, T("检查", "Check")), /* @__PURE__ */ React.createElement(Btn, { onClick: () => {
+    setText(GhostFlags.SAMPLE);
+    run(GhostFlags.SAMPLE, true);
+  } }, T("试试 20 条示例链接", "Try 20 sample links")), text && /* @__PURE__ */ React.createElement(Btn, { variant: "ghost", onClick: () => {
+    setText("");
+    ghostDraft = "";
+    setResults(null);
+  } }, T("清空", "Clear")))), results && /* @__PURE__ */ React.createElement("div", { className: "card", "aria-live": "polite" }, /* @__PURE__ */ React.createElement("div", { className: "card-head" }, /* @__PURE__ */ React.createElement("h2", null, T(`${results.length - bad.length} 条结果`, `${results.length - bad.length} results`))), isSample && /* @__PURE__ */ React.createElement("p", { className: "hint" }, T("示例数据：公司都是编的，链接不指向真实职位。", "Sample data: every company is made up and the links point to no real posting.")), /* @__PURE__ */ React.createElement("p", { className: "ghost-sum" }, counts.map(([v, n]) => /* @__PURE__ */ React.createElement("span", { key: v, className: "tag " + GHOST_VERDICT[v].cls }, n, " · ", L(GHOST_VERDICT[v])))), bad.length > 0 && /* @__PURE__ */ React.createElement(Alert, { type: "warning" }, T(`${bad.length} 行不是以链接开头，跳过了：`, `${bad.length} line${bad.length > 1 ? "s" : ""} did not start with a link and ${bad.length > 1 ? "were" : "was"} skipped: `), bad.map((b) => b.line).join(" · ")), /* @__PURE__ */ React.createElement("ol", { className: "ghost-list" }, results.filter((r) => r.verdict !== "unreadable").map((r, i) => /* @__PURE__ */ React.createElement("li", { key: i, className: "ghost-item ghost-" + r.verdict }, /* @__PURE__ */ React.createElement("div", { className: "ghost-top" }, /* @__PURE__ */ React.createElement("span", { className: "tag " + GHOST_VERDICT[r.verdict].cls }, L(GHOST_VERDICT[r.verdict])), /* @__PURE__ */ React.createElement("span", { className: "ghost-what" }, [r.company, r.title].filter(Boolean).join(" · ") || T("（没写公司和职位）", "(no company or title given)"))), /* @__PURE__ */ React.createElement("p", { className: "ghost-url mono" }, isSample ? r.url : /* @__PURE__ */ React.createElement("a", { href: r.url, target: "_blank", rel: "noopener noreferrer" }, r.url)), r.reasons.length > 0 && /* @__PURE__ */ React.createElement("ul", { className: "ghost-reasons" }, r.reasons.map((x, j) => /* @__PURE__ */ React.createElement("li", { key: j }, /* @__PURE__ */ React.createElement("b", null, L(x)), x.evidence && /* @__PURE__ */ React.createElement("span", { className: "ghost-ev" }, " ", T("证据：", "Evidence: "), x.evidence.map((u) => u.replace(/^https?:\/\/(www\.)?/, "")).join(", "))))), (r.seen.length > 0 || r.unknown.length > 0) && /* @__PURE__ */ React.createElement("details", { className: "ghost-more" }, /* @__PURE__ */ React.createElement("summary", null, T(`查过的 ${r.seen.length} 项 · 查不了的 ${r.unknown.length} 项`, `Checked ${r.seen.length} · couldn’t check ${r.unknown.length}`)), /* @__PURE__ */ React.createElement("ul", null, r.seen.map((x, j) => /* @__PURE__ */ React.createElement("li", { key: "s" + j }, "✓ ", L(x))), r.unknown.map((x, j) => /* @__PURE__ */ React.createElement("li", { key: "u" + j, className: "faint" }, "? ", L(x))))))))), /* @__PURE__ */ React.createElement("div", { className: "card" }, /* @__PURE__ */ React.createElement("h2", null, T("它查什么，查不了什么", "What it checks, and what it can’t know")), /* @__PURE__ */ React.createElement("ul", { className: "ghost-rules" }, /* @__PURE__ */ React.createElement("li", null, T(
+    "存活：职位页面说已关闭或已下架 → 直接判「大概率不在招」。页面还在不代表真在招。",
+    "Liveness: the posting’s page says it is closed or gone → “probably not hiring” on its own. A page that is still up proves nothing."
+  )), /* @__PURE__ */ React.createElement("li", null, T("发布超过 30 天。", "Posted more than 30 days ago.")), /* @__PURE__ */ React.createElement("li", null, T("同一网站上同一公司同一职位出现不止一次、链接不同（重复发布）。", "The same company and title on the same site more than once, under different links (reposted).")), /* @__PURE__ */ React.createElement("li", null, T("只在招聘网站上，清单里没有雇主官网或其招聘系统（Greenhouse、Lever、Workday…）的链接。", "Only on a job board, with no link on the employer’s own site or applicant system (Greenhouse, Lever, Workday, …) in the list."))), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T(
+    "存活单独一条就够；另外三条中了两条 →「大概率不在招」，中一条 →「先核实」。它不知道雇主心里怎么想、岗位是不是内定、招聘网站的日期准不准；这个页面也不会去打开链接（浏览器不允许读别的网站）——要查存活，在本机运行 node ghost-check.mjs 链接.txt --live，把它输出的行贴回来。",
+    "Liveness alone is enough; two of the other three → “probably not hiring”, one → “check first”. It cannot know what the employer intends, whether the role is already promised to someone, or whether a job board’s date is right; and this page never opens the links (a browser page may not read other sites). To check liveness, run node ghost-check.mjs links.txt --live on your computer and paste the lines it prints back here."
+  )))));
 }
 const HALF_CIRCLE = /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "18", height: "18", fill: "none", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "8", stroke: "currentColor", strokeWidth: "2" }), /* @__PURE__ */ React.createElement("path", { d: "M12 4a8 8 0 0 1 0 16z", fill: "currentColor" }));
 const GEAR = /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "18", height: "18", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinejoin: "round", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("path", { d: "M10.34 5.10L10.58 2.51L13.42 2.51L13.66 5.10A7.1 7.1 0 0 1 15.71 5.95L17.71 4.28L19.72 6.29L18.05 8.29A7.1 7.1 0 0 1 18.90 10.34L21.49 10.58L21.49 13.42L18.90 13.66A7.1 7.1 0 0 1 18.05 15.71L19.72 17.71L17.71 19.72L15.71 18.05A7.1 7.1 0 0 1 13.66 18.90L13.42 21.49L10.58 21.49L10.34 18.90A7.1 7.1 0 0 1 8.29 18.05L6.29 19.72L4.28 17.71L5.95 15.71A7.1 7.1 0 0 1 5.10 13.66L2.51 13.42L2.51 10.58L5.10 10.34A7.1 7.1 0 0 1 5.95 8.29L4.28 6.29L6.29 4.28L8.29 5.95A7.1 7.1 0 0 1 10.34 5.10Z" }), /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "3" }));

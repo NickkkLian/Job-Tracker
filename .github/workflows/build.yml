@@ -28,3 +28,8 @@ jobs:
       # the self-test first shows each rule goes red on a sample that breaks it
       - name: allowed models only
         run: node check-models.mjs --self-test
+      # the Ghost check's rules (src/ghost-flags.js): their tests, then each rule broken in a copy, which a test must catch
+      - name: ghost check rules
+        run: |
+          node --test test/ghost-flags.test.mjs
+          node ghost-mutants.mjs

@@ -525,6 +525,7 @@ const TABS = [
   { id:'profile',  label:'My profile', zh:'我的资料',   icon:'person',  scope:'shared' },
   { id:'diagnosis',label:'Diagnosis',  zh:'诊断',       icon:'compass', scope:'shared' },
   { id:'library',  label:'Resumes',    zh:'简历库',     icon:'file',    scope:'shared' },
+  { id:'ghost',    label:'Ghost check',zh:'幽灵岗检查', icon:'ghost',   scope:'shared' },
 ];
 const tabFromUrl = () => { const t = new URLSearchParams(location.search).get('tab') || ''; return TABS.some(x => x.id === t) ? t : 'addjob'; };
 // A link can open a region: ?region=usa (any id in REGIONS). Read once when the page opens; the region picker still
@@ -987,6 +988,7 @@ const ICON_PATHS = {
   x:       <path d="M6 6l12 12M18 6L6 18"/>,
   chevron: <path d="M9 6l6 6-6 6"/>,
   down:    <path d="M6 9l6 6 6-6"/>,
+  ghost:   <><path d="M5.5 20.5V11a6.5 6.5 0 0 1 13 0v9.5l-2.2-1.6-2.2 1.6-2.1-1.6-2.1 1.6-2.2-1.6z"/><path d="M9.5 11h.01M14.5 11h.01"/></>,
 };
 function Icon({ name, size=18, className }) {
   return (
@@ -3575,6 +3577,8 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
   const tabMeta = TABS.find(t => t.id === tab) || TABS[0];
   const shared = T('所有地区共用','Shared by all regions');
   const eyebrow = tabMeta.scope === 'region' ? regionLabel : shared;
+  // The Ghost check reads nothing from the repo, so it works before (and without) any GitHub setup
+  if (tab === 'ghost') return <GhostTab eyebrow={eyebrow} />;
   if (loading) return (
     <>
       <PageHead eyebrow={eyebrow} title={T(tabMeta.zh, tabMeta.label)} />
@@ -3619,6 +3623,93 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
       {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}
       {tab==='insights'&& <InsightsTab jobs={jobs} regionName={regionLabel} onWorking={()=>go('tracker', { status: jobs.some(j => j.status === 'working') ? 'working' : null })} onAdd={()=>go('addjob')} />}
       {tab==='watchdog'&& <WatchdogTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} onOpenKey={opener => openSettings(opener, '#set-key')} openSettings={openSettings} />}
+    </>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// GHOST CHECK — "probably not hiring" flags with their reasons (rules: src/ghost-flags.js, no score, no model)
+// ════════════════════════════════════════════════════════════════
+
+let ghostDraft = '';   // the pasted lines survive a visit to another view (not saved anywhere)
+const GHOST_VERDICT = {
+  'not-hiring': { cls:'tag-neutral', en:'Probably not hiring', zh:'大概率不在招' },
+  check:        { cls:'tag-warning', en:'Check first',         zh:'先核实' },
+  unknown:      { cls:'tag-draft',   en:'Not enough to tell',  zh:'信息不够判断' },
+  clear:        { cls:'tag-info',    en:'No warning signs found', zh:'没发现危险信号' },
+};
+const GHOST_ORDER = ['not-hiring', 'check', 'unknown', 'clear'];
+function GhostTab({ eyebrow }) {
+  const [text, setText] = useState(() => ghostDraft || (DEMO ? GhostFlags.SAMPLE : ''));
+  const [results, setResults] = useState(null);
+  const [isSample, setIsSample] = useState(() => !ghostDraft && DEMO);
+  const run = (t, sample) => {
+    ghostDraft = t; setIsSample(!!sample);
+    setResults(GhostFlags.check(t, { today: localISO(new Date()) }));
+  };
+  useEffect(() => { if (text.trim()) run(text, isSample); }, []);
+  const L = x => T(x.zh, x.en);
+  const counts = results ? GHOST_ORDER.map(v => [v, results.filter(r => r.verdict === v).length]).filter(([, n]) => n) : [];
+  const bad = results ? results.filter(r => r.verdict === 'unreadable') : [];
+  return (
+    <>
+      <PageHead eyebrow={eyebrow} title={T('幽灵岗检查','Ghost check')}
+        sub={T('贴上职位链接，一行一个。每条都给出结论和理由——没有打分，也不用 AI。',
+               'Paste job links, one per line. Each gets a flag and the reasons behind it — no score, no AI.')} />
+      <div className="stack">
+        <div className="card">
+          <label htmlFor="ghost-in" className="card-head"><h2>{T('职位链接','Job links')}</h2></label>
+          <textarea id="ghost-in" className="mono lined ghost-in" rows={8} value={text} spellCheck={false}
+            onChange={e => { setText(e.target.value); ghostDraft = e.target.value; setIsSample(false); }}
+            placeholder={'https://www.linkedin.com/jobs/view/… | company: … | title: … | posted: 12 days ago'} />
+          <p className="hint">{T('每行先放链接，后面可以用 " | " 接：company:（公司）、title:（职位）、posted:（日期或「N days ago」）、live:（存活检查结果，由 ghost-check.mjs --live 写）。给得越多，能查的规则越多。',
+            'Each line starts with the link; after it, optionally, separated by " | ": company:, title:, posted: (a date or "N days ago") and live: (what a liveness check found; ghost-check.mjs --live writes it). The more a line says, the more rules can look.')}</p>
+          <div className="btn-row ghost-acts">
+            <Btn variant="primary" onClick={() => run(text, isSample)} disabled={!text.trim()}>{T('检查','Check')}</Btn>
+            <Btn onClick={() => { setText(GhostFlags.SAMPLE); run(GhostFlags.SAMPLE, true); }}>{T('试试 20 条示例链接','Try 20 sample links')}</Btn>
+            {text && <Btn variant="ghost" onClick={() => { setText(''); ghostDraft = ''; setResults(null); }}>{T('清空','Clear')}</Btn>}
+          </div>
+        </div>
+        {results && (
+          <div className="card" aria-live="polite">
+            <div className="card-head"><h2>{T(`${results.length - bad.length} 条结果`, `${results.length - bad.length} results`)}</h2></div>
+            {isSample && <p className="hint">{T('示例数据：公司都是编的，链接不指向真实职位。','Sample data: every company is made up and the links point to no real posting.')}</p>}
+            <p className="ghost-sum">{counts.map(([v, n]) => <span key={v} className={'tag ' + GHOST_VERDICT[v].cls}>{n} · {L(GHOST_VERDICT[v])}</span>)}</p>
+            {bad.length > 0 && <Alert type="warning">{T(`${bad.length} 行不是以链接开头，跳过了：`, `${bad.length} line${bad.length > 1 ? 's' : ''} did not start with a link and ${bad.length > 1 ? 'were' : 'was'} skipped: `)}{bad.map(b => b.line).join(' · ')}</Alert>}
+            <ol className="ghost-list">
+              {results.filter(r => r.verdict !== 'unreadable').map((r, i) => (
+                <li key={i} className={'ghost-item ghost-' + r.verdict}>
+                  <div className="ghost-top">
+                    <span className={'tag ' + GHOST_VERDICT[r.verdict].cls}>{L(GHOST_VERDICT[r.verdict])}</span>
+                    <span className="ghost-what">{[r.company, r.title].filter(Boolean).join(' · ') || T('（没写公司和职位）','(no company or title given)')}</span>
+                  </div>
+                  <p className="ghost-url mono">{isSample ? r.url : <a href={r.url} target="_blank" rel="noopener noreferrer">{r.url}</a>}</p>
+                  {r.reasons.length > 0 && <ul className="ghost-reasons">{r.reasons.map((x, j) => (
+                    <li key={j}><b>{L(x)}</b>{x.evidence && <span className="ghost-ev"> {T('证据：','Evidence: ')}{x.evidence.map(u => u.replace(/^https?:\/\/(www\.)?/, '')).join(', ')}</span>}</li>))}</ul>}
+                  {(r.seen.length > 0 || r.unknown.length > 0) && (
+                    <details className="ghost-more">
+                      <summary>{T(`查过的 ${r.seen.length} 项 · 查不了的 ${r.unknown.length} 项`, `Checked ${r.seen.length} · couldn’t check ${r.unknown.length}`)}</summary>
+                      <ul>{r.seen.map((x, j) => <li key={'s' + j}>✓ {L(x)}</li>)}{r.unknown.map((x, j) => <li key={'u' + j} className="faint">? {L(x)}</li>)}</ul>
+                    </details>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+        <div className="card">
+          <h2>{T('它查什么，查不了什么','What it checks, and what it can’t know')}</h2>
+          <ul className="ghost-rules">
+            <li>{T('存活：职位页面说已关闭或已下架 → 直接判「大概率不在招」。页面还在不代表真在招。',
+                   'Liveness: the posting’s page says it is closed or gone → “probably not hiring” on its own. A page that is still up proves nothing.')}</li>
+            <li>{T('发布超过 30 天。','Posted more than 30 days ago.')}</li>
+            <li>{T('同一网站上同一公司同一职位出现不止一次、链接不同（重复发布）。','The same company and title on the same site more than once, under different links (reposted).')}</li>
+            <li>{T('只在招聘网站上，清单里没有雇主官网或其招聘系统（Greenhouse、Lever、Workday…）的链接。','Only on a job board, with no link on the employer’s own site or applicant system (Greenhouse, Lever, Workday, …) in the list.')}</li>
+          </ul>
+          <p className="hint">{T('存活单独一条就够；另外三条中了两条 →「大概率不在招」，中一条 →「先核实」。它不知道雇主心里怎么想、岗位是不是内定、招聘网站的日期准不准；这个页面也不会去打开链接（浏览器不允许读别的网站）——要查存活，在本机运行 node ghost-check.mjs 链接.txt --live，把它输出的行贴回来。',
+            'Liveness alone is enough; two of the other three → “probably not hiring”, one → “check first”. It cannot know what the employer intends, whether the role is already promised to someone, or whether a job board’s date is right; and this page never opens the links (a browser page may not read other sites). To check liveness, run node ghost-check.mjs links.txt --live on your computer and paste the lines it prints back here.')}</p>
+        </div>
+      </div>
     </>
   );
 }

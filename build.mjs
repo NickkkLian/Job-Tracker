@@ -24,7 +24,10 @@ if (esbuild.version !== ESBUILD_VERSION) {
   process.exit(2);
 }
 
-const source = readFileSync(new URL('./src/app.jsx', import.meta.url), 'utf8');
+// src/ghost-flags.js (the Ghost check's rules, plain JavaScript that node ghost-check.mjs and the tests load too) goes in
+// front of the app, so GhostFlags is defined before app.jsx uses it
+const source = readFileSync(new URL('./src/ghost-flags.js', import.meta.url), 'utf8') + '\n'
+  + readFileSync(new URL('./src/app.jsx', import.meta.url), 'utf8');
 const template = readFileSync(new URL('./src/index.template.html', import.meta.url), 'utf8');
 
 // The same JSX transform the page had in the browser (React.createElement / React.Fragment). No bundling and no
