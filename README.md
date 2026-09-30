@@ -55,7 +55,7 @@ evidence it saw or says what it could not check.
 **Demo:** https://nickkklian.github.io/Job-Tracker/?demo=1&tab=ghost opens it with 20 made-up postings: 7 come out
 *probably not hiring*, 6 *check first*, 1 *not enough to tell*, 6 *no warning signs found*.
 
-![Ghost check on the 20 sample links](docs/screenshot-ghost.png)
+![Ghost check on the 20 sample links (the input box above the results is trimmed out of this image)](docs/screenshot-ghost.png)
 
 One line per posting: the link first, then optionally `company:`, `title:`, `posted:` (a date or "12 days ago") and
 `live:`, separated by ` | `. A LinkedIn link or an applicant-system link (Greenhouse, Lever, Workday, Ashby, …) already
