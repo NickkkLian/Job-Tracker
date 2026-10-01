@@ -10,6 +10,49 @@ this repository — and keeps everything in a **private GitHub repo you own**.
 **Live demo:** https://nickkklian.github.io/Job-Tracker/?demo=1&tab=tracker (or `&tab=insights`; add `&region=usa`
 to open another region) — sample data, nothing is saved. English by default, 中文 in the top bar.
 
+## Try it
+
+**In the browser, nothing to install:** [the Ghost check on 20 made-up postings](https://nickkklian.github.io/Job-Tracker/?demo=1&tab=ghost),
+or [the tracker with sample data](https://nickkklian.github.io/Job-Tracker/?demo=1&tab=tracker).
+
+**From a clone, one command** (Node, nothing to install, no network):
+
+```bash
+node ghost-check.mjs examples/ghost-links.txt
+```
+
+[`examples/ghost-links.txt`](examples/ghost-links.txt) holds four made-up postings. Three lines give the link and what
+the posting says (company, title, posted date); the fourth is a link on its own. This is what comes back:
+
+```
+PROBABLY NOT HIRING  https://www.linkedin.com/jobs/view/4000000002
+  x Posted 52 days ago; more than 30.
+  x Only on a job board (linkedin.com); no link for it on the employer's own site or applicant system in this list.
+  . Only one link for this role on linkedin.com in this list.
+  ? Not checked whether the posting is still up (run ghost-check.mjs --live).
+CHECK FIRST  https://www.indeed.com/viewjob?jk=a1b2c3d4e5f60001
+  x Only on a job board (indeed.com); no link for it on the employer's own site or applicant system in this list.
+  . Posted 12 days ago.
+  . Only one link for this role on indeed.com in this list.
+  ? Not checked whether the posting is still up (run ghost-check.mjs --live).
+NO WARNING SIGNS FOUND  https://boards.greenhouse.io/quillworks/jobs/5000001
+  . Posted 6 days ago.
+  . Only one link for this role on boards.greenhouse.io in this list.
+  . On the employer's applicant system (boards.greenhouse.io).
+  ? Not checked whether the posting is still up (run ghost-check.mjs --live).
+NOT ENOUGH TO TELL  https://www.linkedin.com/jobs/view/4000000007
+  ? Not checked whether the posting is still up (run ghost-check.mjs --live).
+  ? Posting date unknown.
+  ? Company or title unknown, so reposts cannot be matched.
+  ? Company unknown, so the employer's own site cannot be matched.
+
+4 lines: 1 probably not hiring, 1 check first, 1 no warning signs found, 1 not enough to tell, 0 unreadable
+1 line was a link with nothing after it. Nothing is opened without --live, so the rules had nothing to read: add " | company: … | title: … | posted: …" after the link (the posting date matters most), or run with --live to see which postings are closed.
+```
+
+The check reads what you write after each link. It does not open the link, so a link on its own always comes back
+*not enough to tell*. The rules and their limits are under [Ghost check](#ghost-check-is-anyone-actually-hiring).
+
 ![Tracker](docs/screenshot-tracker.png)
 
 ## What's in it
@@ -25,7 +68,7 @@ The navigation has two groups: the views that belong to the region you are in, a
 | **My profile** | A sectioned profile (upload files, or start from a skeleton and per-role skills blocks), a translation glossary, and formatting rules that go into every resume prompt |
 | **Diagnosis** | A six-step check before applying: stage → strengths → target profile → reality check against real postings → resume narrative → high-stakes decisions |
 | **Resumes** | A library of resume versions: preview, rename, download, delete, or use one as your profile |
-| **Ghost check** | Paste job links, one per line; each gets *probably not hiring*, *check first*, *not enough to tell* or *no warning signs found*, with the reasons and the evidence behind it. No score, no AI, no account needed (below) |
+| **Ghost check** | One line per posting: the link, then what the posting says (company, title, posted date). Each line gets *probably not hiring*, *check first*, *not enough to tell* or *no warning signs found*, with the reasons and the evidence behind it. A link on its own comes back *not enough to tell*, because the page does not open links. No score, no AI, no account needed (below) |
 
 ![Insights](docs/screenshot-insights.png)
 
@@ -48,8 +91,8 @@ another browser never replaces it; to tailor that job again, delete its resume f
 
 ### Ghost check: is anyone actually hiring?
 
-Some postings stay up long after the job is gone, or were never meant to be filled. The Ghost check gives each link a
-flag and says why, in plain words. There is no score and no model: four rules, each of which either fires with the
+Some postings stay up long after the job is gone, or were never meant to be filled. The Ghost check gives each posting
+you list a flag and says why, in plain words. There is no score and no model: four rules, each of which either fires with the
 evidence it saw or says what it could not check.
 
 **Demo:** https://nickkklian.github.io/Job-Tracker/?demo=1&tab=ghost opens it with 20 made-up postings: 7 come out
@@ -57,13 +100,19 @@ evidence it saw or says what it could not check.
 
 ![Ghost check on the 20 sample links (the input box above the results is trimmed out of this image)](docs/screenshot-ghost.png)
 
-One line per posting: the link first, then optionally `company:`, `title:`, `posted:` (a date or "12 days ago") and
-`live:`, separated by ` | `. A LinkedIn link or an applicant-system link (Greenhouse, Lever, Workday, Ashby, …) already
-carries the company name.
+**What to paste.** One line per posting: the link first, then what the posting says, as `company:`, `title:`, `posted:`
+(a date or "12 days ago") and `live:`, separated by ` | `. The rules read these fields, not the page behind the link:
+with the link alone none of them can look, and the flag is *not enough to tell*. Give at least the posting date;
+company and title let the repost rule and the employer-site rule look. An applicant-system link (Greenhouse, Lever,
+Workday, Ashby, …) already carries the company name, and so does a LinkedIn link of the long form
+(`…/jobs/view/data-analyst-at-northgate-datalab-4000000001`).
 
 ```
 https://www.linkedin.com/jobs/view/4000000002 | company: Larkspur Mutual | title: Claims Analyst | posted: 52 days ago
 ```
+
+That line comes back *probably not hiring*: posted 52 days ago, and only on a job board. The same link with nothing
+after it comes back *not enough to tell* ([both are in the example above](#try-it)).
 
 **What it checks**
 
@@ -97,8 +146,9 @@ that was run on real postings after they came down; the markers for other sites 
 node ghost-check.mjs links.txt --live     # or without --live: the rules only, no network
 ```
 
-A page that is still up proves nothing either way, and LinkedIn is read through its public guest view, which can
-change without notice.
+`--live` answers one question, whether the page says the posting is closed. It does not read the posting date or the
+company off the page, so a bare link that is still up stays *not enough to tell*. A page that is still up proves nothing
+either way, and LinkedIn is read through its public guest view, which can change without notice.
 
 ## How it's built
 

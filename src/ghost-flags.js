@@ -5,7 +5,9 @@
 // version, which can also check whether each posting is still up) run the same rules. test/ghost-flags.test.mjs tests
 // each rule, and ghost-mutants.mjs breaks each rule in a copy of this file and requires a test to fail.
 //
-// Input: one posting per line, a link first, then optional fields separated by " | ":
+// Input: one posting per line, a link first, then what the posting says, as fields separated by " | ". The fields are
+// what the rules read: a link with nothing after it gives them nothing to look at and comes back "not enough to tell"
+// (`given` counts the fields a line carried, so the page and the command line can say what to add).
 //   https://www.linkedin.com/jobs/view/4000000001 | company: Northgate Datalab | title: Data Analyst | posted: 2026-08-10 | live: expired (HTTP 410)
 // `posted` takes a date (YYYY-MM-DD) or "N days/weeks/months ago" (also "30+ days ago", "today", "yesterday").
 // `live` is what a liveness check found: expired, live or unknown, with a detail in brackets. ghost-check.mjs --live
@@ -111,6 +113,7 @@ const GhostFlags = (() => {
       url: u.href, host: u.hostname.replace(/^www\./, ''), kind: c.kind,
       company: fields.company || c.company.replace(/-/g, ' '), companyFrom: fields.company ? 'given' : c.company ? 'link' : null,
       title: fields.title || '', posted: fields.posted || '', live: fields.live || '',
+      given: Object.keys(fields).length,
     };
   }
 

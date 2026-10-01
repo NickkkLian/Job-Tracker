@@ -1,0 +1,6 @@
+# One posting per line: the link, then what the posting says (company, title, posted date), separated by " | ".
+# Every company here is made up and the links point to no real posting.
+https://www.linkedin.com/jobs/view/4000000002 | company: Larkspur Mutual | title: Claims Analyst | posted: 52 days ago
+https://www.indeed.com/viewjob?jk=a1b2c3d4e5f60001 | company: Fernhill Health | title: Junior Data Scientist | posted: 12 days ago
+https://boards.greenhouse.io/quillworks/jobs/5000001 | title: Product Analyst | posted: 6 days ago
+https://www.linkedin.com/jobs/view/4000000007

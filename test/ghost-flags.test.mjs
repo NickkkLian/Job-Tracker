@@ -3,6 +3,7 @@
 // GHOST_FLAGS=<path> loads another copy of the rules instead; ghost-mutants.mjs uses it to show each rule's tests fail
 // when that rule is broken.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
@@ -126,6 +127,23 @@ test('the sample: 20 links, 7 probably not hiring, 6 check first, 1 not enough t
   const rs = G.check(G.SAMPLE, { today: TODAY });
   const n = (v) => rs.filter((r) => r.verdict === v).length;
   assert.deepEqual([rs.length, n('not-hiring'), n('check'), n('unknown'), n('clear')], [20, 7, 6, 1, 6]);
+});
+// ── a link with nothing after it ──
+test('a bare link is "not enough to tell", is marked as carrying no fields, and the report says what to add', async () => {
+  const { report } = await import('../ghost-check.mjs');
+  const res = G.check('https://www.linkedin.com/jobs/view/4000000007\nhttps://boards.greenhouse.io/acme/jobs/123 | posted: 3 days ago', { today: TODAY });
+  assert.equal(res[0].verdict, 'unknown');
+  assert.equal(res[0].given, 0);
+  assert.equal(res[1].given, 1);
+  assert.match(report(res), /^1 line was a link with nothing after it\..*posted: …/m);
+  assert.doesNotMatch(report(res.slice(1)), /nothing after it/);
+});
+test('README: the Try it block is the real output of examples/ghost-links.txt, and it shows all four flags', async () => {
+  const { report } = await import('../ghost-check.mjs');
+  const res = G.check(readFileSync(new URL('../examples/ghost-links.txt', import.meta.url), 'utf8'), { today: TODAY });
+  assert.deepEqual(res.map((r) => r.verdict), ['not-hiring', 'check', 'clear', 'unknown']);
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+  assert.ok(readme.includes('```\n' + report(res) + '\n```'), 'README.md does not contain the current output of: node ghost-check.mjs examples/ghost-links.txt');
 });
 test('lines that are not links are reported, not dropped silently', () => {
   const rs = G.check('# a comment\nnot a link\nftp://x.example/1\nhttps://careers.acme.example/1', { today: TODAY });

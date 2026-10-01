@@ -1,7 +1,9 @@
 // ghost-check.mjs — the page's Ghost check from the command line, plus the one thing the page cannot do: open each
 // posting and see whether it is still up (a browser page may not read other sites' pages; this script can).
 //
-//   node ghost-check.mjs links.txt                  flags from what the lines say (no network)
+//   node ghost-check.mjs links.txt                  flags from what the lines say (no network); a line that is only a
+//                                                   link says nothing, so it comes back "not enough to tell"
+//   node ghost-check.mjs examples/ghost-links.txt   four made-up lines, one for each flag
 //   node ghost-check.mjs links.txt --live           first opens each posting that has no "live:" field yet
 //   node ghost-check.mjs - --live < links.txt       read the lines from stdin
 //   options: --today YYYY-MM-DD (default: today's local date)   --json (print the results as JSON)
@@ -62,6 +64,9 @@ export function report(results) {
   }
   const n = (v) => results.filter((r) => r.verdict === v).length;
   lines.push('', `${results.length} lines: ${n('not-hiring')} probably not hiring, ${n('check')} check first, ${n('clear')} no warning signs found, ${n('unknown')} not enough to tell, ${n('unreadable')} unreadable`);
+  // a link with nothing after it: the rules had nothing to read, so say what to add instead of leaving "not enough to tell" unexplained
+  const bare = results.filter((r) => !r.error && r.given === 0).length;
+  if (bare) lines.push(`${bare} ${bare === 1 ? 'line was' : 'lines were'} a link with nothing after it. Nothing is opened without --live, so the rules had nothing to read: add " | company: … | title: … | posted: …" after the link (the posting date matters most), or run with --live to see which postings are closed.`);
   return lines.join('\n');
 }
 

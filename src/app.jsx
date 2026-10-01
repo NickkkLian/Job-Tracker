@@ -3636,7 +3636,7 @@ const GHOST_VERDICT = {
   'not-hiring': { cls:'tag-neutral', en:'Probably not hiring', zh:'大概率不在招' },
   check:        { cls:'tag-warning', en:'Check first',         zh:'先核实' },
   unknown:      { cls:'tag-draft',   en:'Not enough to tell',  zh:'信息不够判断' },
-  clear:        { cls:'tag-info',    en:'No warning signs found', zh:'没发现危险信号' },
+  clear:        { cls:'tag-success', en:'No warning signs found', zh:'没发现危险信号' },   // the calm one: it was tag-info, which is pink with a red dot in this palette and read as the alarm
 };
 const GHOST_ORDER = ['not-hiring', 'check', 'unknown', 'clear'];
 function GhostTab({ eyebrow }) {
@@ -3651,19 +3651,21 @@ function GhostTab({ eyebrow }) {
   const L = x => T(x.zh, x.en);
   const counts = results ? GHOST_ORDER.map(v => [v, results.filter(r => r.verdict === v).length]).filter(([, n]) => n) : [];
   const bad = results ? results.filter(r => r.verdict === 'unreadable') : [];
+  const bare = results ? results.filter(r => !r.error && r.given === 0).length : 0;   // a link and nothing else: say what to add
   return (
     <>
       <PageHead eyebrow={eyebrow} title={T('幽灵岗检查','Ghost check')}
-        sub={T('贴上职位链接，一行一个。每条都给出结论和理由——没有打分，也不用 AI。',
-               'Paste job links, one per line. Each gets a flag and the reasons behind it — no score, no AI.')} />
+        sub={T('一行一个职位：先放链接，再写上职位页面上的信息（公司、职位、发布日期）。每条都给出结论和理由——没有打分，也不用 AI。本页不会打开链接，只贴链接只会得到「信息不够判断」。',
+               'One line per posting: the link, then what the posting says (company, title, posted date). Each line gets a flag and the reasons behind it — no score, no AI. This page never opens a link, so a link on its own comes back “not enough to tell”.')} />
       <div className="stack">
         <div className="card">
-          <label htmlFor="ghost-in" className="card-head"><h2>{T('职位链接','Job links')}</h2></label>
+          <label htmlFor="ghost-in" className="card-head"><h2>{T('职位链接和页面信息','Postings: link, then what it says')}</h2></label>
           <textarea id="ghost-in" className="mono lined ghost-in" rows={8} value={text} spellCheck={false}
             onChange={e => { setText(e.target.value); ghostDraft = e.target.value; setIsSample(false); }}
             placeholder={'https://www.linkedin.com/jobs/view/… | company: … | title: … | posted: 12 days ago'} />
-          <p className="hint">{T('每行先放链接，后面可以用 " | " 接：company:（公司）、title:（职位）、posted:（日期或「N days ago」）、live:（存活检查结果，由 ghost-check.mjs --live 写）。给得越多，能查的规则越多。',
-            'Each line starts with the link; after it, optionally, separated by " | ": company:, title:, posted: (a date or "N days ago") and live: (what a liveness check found; ghost-check.mjs --live writes it). The more a line says, the more rules can look.')}</p>
+          <p className="hint">{T('每行先放链接，后面用 " | " 接上职位页面上的信息：company:（公司）、title:（职位）、posted:（日期或「N days ago」）、live:（存活检查结果，由 ghost-check.mjs --live 写）。规则读的是这些信息：至少要有发布日期，公司和职位能让另外两条规则查得了。',
+            'Each line starts with the link; after it, separated by " | ", what the posting says: company:, title:, posted: (a date or "N days ago") and live: (what a liveness check found; ghost-check.mjs --live writes it). These are what the rules read: give at least the posting date; company and title let two more rules look.')}</p>
+          <p className="hint">{T('例子：', 'Example: ')}<span className="mono ghost-ev">https://www.linkedin.com/jobs/view/4000000002 | company: Larkspur Mutual | title: Claims Analyst | posted: 52 days ago</span>{T(' → 「大概率不在招」：发布超过 30 天，而且只在招聘网站上。', ' → “probably not hiring”: posted more than 30 days ago, and only on a job board.')}</p>
           <div className="btn-row ghost-acts">
             <Btn variant="primary" onClick={() => run(text, isSample)} disabled={!text.trim()}>{T('检查','Check')}</Btn>
             <Btn onClick={() => { setText(GhostFlags.SAMPLE); run(GhostFlags.SAMPLE, true); }}>{T('试试 20 条示例链接','Try 20 sample links')}</Btn>
@@ -3675,6 +3677,8 @@ function GhostTab({ eyebrow }) {
             <div className="card-head"><h2>{T(`${results.length - bad.length} 条结果`, `${results.length - bad.length} results`)}</h2></div>
             {isSample && <p className="hint">{T('示例数据：公司都是编的，链接不指向真实职位。','Sample data: every company is made up and the links point to no real posting.')}</p>}
             <p className="ghost-sum">{counts.map(([v, n]) => <span key={v} className={'tag ' + GHOST_VERDICT[v].cls}>{n} · {L(GHOST_VERDICT[v])}</span>)}</p>
+            {bare > 0 && <Alert type="warning">{T(`${bare} 行只有链接，后面什么都没写。本页不会打开链接，规则没有东西可读：在链接后面加上 " | company: … | title: … | posted: 12 days ago"（发布日期最要紧），或者在本机运行 node ghost-check.mjs 链接.txt --live 看哪些已经关闭。`,
+              `${bare} ${bare > 1 ? 'lines were' : 'line was'} a link with nothing after it. This page never opens links, so the rules had nothing to read: add " | company: … | title: … | posted: 12 days ago" after the link (the posting date matters most), or run node ghost-check.mjs links.txt --live on your computer to see which postings are closed.`)}</Alert>}
             {bad.length > 0 && <Alert type="warning">{T(`${bad.length} 行不是以链接开头，跳过了：`, `${bad.length} line${bad.length > 1 ? 's' : ''} did not start with a link and ${bad.length > 1 ? 'were' : 'was'} skipped: `)}{bad.map(b => b.line).join(' · ')}</Alert>}
             <ol className="ghost-list">
               {results.filter(r => r.verdict !== 'unreadable').map((r, i) => (

@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-5nyhwSzTgu2n7ZAL4gvhru/QlXgk4oq6kTJUzThiFGQ=' 'sha256-fKQZmKTZa8V4D4jRPG1kdnpiVO8m+8u3vqQQFRv0R7A=' 'sha256-usgMvqia8NwlXYHjhmGZSosoxN0j24scHXxU9V3buVs='">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-5nyhwSzTgu2n7ZAL4gvhru/QlXgk4oq6kTJUzThiFGQ=' 'sha256-fKQZmKTZa8V4D4jRPG1kdnpiVO8m+8u3vqQQFRv0R7A=' 'sha256-orYwMgQVs4+lO2C4UgUaQB8tQTQ2VJqJPGvjT/44crQ='">
 <script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem('nl-theme'),s=L.getItem('nl-scheme');if(s===null){var o=L.getItem('theme')||L.getItem('qm-theme');if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="ApplyLedger: job applications, one pipeline per region, kept in a private repo you own. A tracker, a pipeline chart and an hours ledger for the Canadian Experience Class; the AI prompts run in your own Claude.ai.">
@@ -367,7 +367,8 @@ const GhostFlags = (() => {
       companyFrom: fields.company ? "given" : c.company ? "link" : null,
       title: fields.title || "",
       posted: fields.posted || "",
-      live: fields.live || ""
+      live: fields.live || "",
+      given: Object.keys(fields).length
     };
   }
   function check(text, opts = {}) {
@@ -3394,7 +3395,8 @@ const GHOST_VERDICT = {
   "not-hiring": { cls: "tag-neutral", en: "Probably not hiring", zh: "大概率不在招" },
   check: { cls: "tag-warning", en: "Check first", zh: "先核实" },
   unknown: { cls: "tag-draft", en: "Not enough to tell", zh: "信息不够判断" },
-  clear: { cls: "tag-info", en: "No warning signs found", zh: "没发现危险信号" }
+  clear: { cls: "tag-success", en: "No warning signs found", zh: "没发现危险信号" }
+  // the calm one: it was tag-info, which is pink with a red dot in this palette and read as the alarm
 };
 const GHOST_ORDER = ["not-hiring", "check", "unknown", "clear"];
 function GhostTab({ eyebrow }) {
@@ -3412,17 +3414,18 @@ function GhostTab({ eyebrow }) {
   const L = (x) => T(x.zh, x.en);
   const counts = results ? GHOST_ORDER.map((v) => [v, results.filter((r) => r.verdict === v).length]).filter(([, n]) => n) : [];
   const bad = results ? results.filter((r) => r.verdict === "unreadable") : [];
+  const bare = results ? results.filter((r) => !r.error && r.given === 0).length : 0;
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
     PageHead,
     {
       eyebrow,
       title: T("幽灵岗检查", "Ghost check"),
       sub: T(
-        "贴上职位链接，一行一个。每条都给出结论和理由——没有打分，也不用 AI。",
-        "Paste job links, one per line. Each gets a flag and the reasons behind it — no score, no AI."
+        "一行一个职位：先放链接，再写上职位页面上的信息（公司、职位、发布日期）。每条都给出结论和理由——没有打分，也不用 AI。本页不会打开链接，只贴链接只会得到「信息不够判断」。",
+        "One line per posting: the link, then what the posting says (company, title, posted date). Each line gets a flag and the reasons behind it — no score, no AI. This page never opens a link, so a link on its own comes back “not enough to tell”."
       )
     }
-  ), /* @__PURE__ */ React.createElement("div", { className: "stack" }, /* @__PURE__ */ React.createElement("div", { className: "card" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "ghost-in", className: "card-head" }, /* @__PURE__ */ React.createElement("h2", null, T("职位链接", "Job links"))), /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("div", { className: "stack" }, /* @__PURE__ */ React.createElement("div", { className: "card" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "ghost-in", className: "card-head" }, /* @__PURE__ */ React.createElement("h2", null, T("职位链接和页面信息", "Postings: link, then what it says"))), /* @__PURE__ */ React.createElement(
     "textarea",
     {
       id: "ghost-in",
@@ -3438,16 +3441,19 @@ function GhostTab({ eyebrow }) {
       placeholder: "https://www.linkedin.com/jobs/view/… | company: … | title: … | posted: 12 days ago"
     }
   ), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T(
-    '每行先放链接，后面可以用 " | " 接：company:（公司）、title:（职位）、posted:（日期或「N days ago」）、live:（存活检查结果，由 ghost-check.mjs --live 写）。给得越多，能查的规则越多。',
-    'Each line starts with the link; after it, optionally, separated by " | ": company:, title:, posted: (a date or "N days ago") and live: (what a liveness check found; ghost-check.mjs --live writes it). The more a line says, the more rules can look.'
-  )), /* @__PURE__ */ React.createElement("div", { className: "btn-row ghost-acts" }, /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: () => run(text, isSample), disabled: !text.trim() }, T("检查", "Check")), /* @__PURE__ */ React.createElement(Btn, { onClick: () => {
+    '每行先放链接，后面用 " | " 接上职位页面上的信息：company:（公司）、title:（职位）、posted:（日期或「N days ago」）、live:（存活检查结果，由 ghost-check.mjs --live 写）。规则读的是这些信息：至少要有发布日期，公司和职位能让另外两条规则查得了。',
+    'Each line starts with the link; after it, separated by " | ", what the posting says: company:, title:, posted: (a date or "N days ago") and live: (what a liveness check found; ghost-check.mjs --live writes it). These are what the rules read: give at least the posting date; company and title let two more rules look.'
+  )), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T("例子：", "Example: "), /* @__PURE__ */ React.createElement("span", { className: "mono ghost-ev" }, "https://www.linkedin.com/jobs/view/4000000002 | company: Larkspur Mutual | title: Claims Analyst | posted: 52 days ago"), T(" → 「大概率不在招」：发布超过 30 天，而且只在招聘网站上。", " → “probably not hiring”: posted more than 30 days ago, and only on a job board.")), /* @__PURE__ */ React.createElement("div", { className: "btn-row ghost-acts" }, /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: () => run(text, isSample), disabled: !text.trim() }, T("检查", "Check")), /* @__PURE__ */ React.createElement(Btn, { onClick: () => {
     setText(GhostFlags.SAMPLE);
     run(GhostFlags.SAMPLE, true);
   } }, T("试试 20 条示例链接", "Try 20 sample links")), text && /* @__PURE__ */ React.createElement(Btn, { variant: "ghost", onClick: () => {
     setText("");
     ghostDraft = "";
     setResults(null);
-  } }, T("清空", "Clear")))), results && /* @__PURE__ */ React.createElement("div", { className: "card", "aria-live": "polite" }, /* @__PURE__ */ React.createElement("div", { className: "card-head" }, /* @__PURE__ */ React.createElement("h2", null, T(`${results.length - bad.length} 条结果`, `${results.length - bad.length} results`))), isSample && /* @__PURE__ */ React.createElement("p", { className: "hint" }, T("示例数据：公司都是编的，链接不指向真实职位。", "Sample data: every company is made up and the links point to no real posting.")), /* @__PURE__ */ React.createElement("p", { className: "ghost-sum" }, counts.map(([v, n]) => /* @__PURE__ */ React.createElement("span", { key: v, className: "tag " + GHOST_VERDICT[v].cls }, n, " · ", L(GHOST_VERDICT[v])))), bad.length > 0 && /* @__PURE__ */ React.createElement(Alert, { type: "warning" }, T(`${bad.length} 行不是以链接开头，跳过了：`, `${bad.length} line${bad.length > 1 ? "s" : ""} did not start with a link and ${bad.length > 1 ? "were" : "was"} skipped: `), bad.map((b) => b.line).join(" · ")), /* @__PURE__ */ React.createElement("ol", { className: "ghost-list" }, results.filter((r) => r.verdict !== "unreadable").map((r, i) => /* @__PURE__ */ React.createElement("li", { key: i, className: "ghost-item ghost-" + r.verdict }, /* @__PURE__ */ React.createElement("div", { className: "ghost-top" }, /* @__PURE__ */ React.createElement("span", { className: "tag " + GHOST_VERDICT[r.verdict].cls }, L(GHOST_VERDICT[r.verdict])), /* @__PURE__ */ React.createElement("span", { className: "ghost-what" }, [r.company, r.title].filter(Boolean).join(" · ") || T("（没写公司和职位）", "(no company or title given)"))), /* @__PURE__ */ React.createElement("p", { className: "ghost-url mono" }, isSample ? r.url : /* @__PURE__ */ React.createElement("a", { href: r.url, target: "_blank", rel: "noopener noreferrer" }, r.url)), r.reasons.length > 0 && /* @__PURE__ */ React.createElement("ul", { className: "ghost-reasons" }, r.reasons.map((x, j) => /* @__PURE__ */ React.createElement("li", { key: j }, /* @__PURE__ */ React.createElement("b", null, L(x)), x.evidence && /* @__PURE__ */ React.createElement("span", { className: "ghost-ev" }, " ", T("证据：", "Evidence: "), x.evidence.map((u) => u.replace(/^https?:\/\/(www\.)?/, "")).join(", "))))), (r.seen.length > 0 || r.unknown.length > 0) && /* @__PURE__ */ React.createElement("details", { className: "ghost-more" }, /* @__PURE__ */ React.createElement("summary", null, T(`查过的 ${r.seen.length} 项 · 查不了的 ${r.unknown.length} 项`, `Checked ${r.seen.length} · couldn’t check ${r.unknown.length}`)), /* @__PURE__ */ React.createElement("ul", null, r.seen.map((x, j) => /* @__PURE__ */ React.createElement("li", { key: "s" + j }, "✓ ", L(x))), r.unknown.map((x, j) => /* @__PURE__ */ React.createElement("li", { key: "u" + j, className: "faint" }, "? ", L(x))))))))), /* @__PURE__ */ React.createElement("div", { className: "card" }, /* @__PURE__ */ React.createElement("h2", null, T("它查什么，查不了什么", "What it checks, and what it can’t know")), /* @__PURE__ */ React.createElement("ul", { className: "ghost-rules" }, /* @__PURE__ */ React.createElement("li", null, T(
+  } }, T("清空", "Clear")))), results && /* @__PURE__ */ React.createElement("div", { className: "card", "aria-live": "polite" }, /* @__PURE__ */ React.createElement("div", { className: "card-head" }, /* @__PURE__ */ React.createElement("h2", null, T(`${results.length - bad.length} 条结果`, `${results.length - bad.length} results`))), isSample && /* @__PURE__ */ React.createElement("p", { className: "hint" }, T("示例数据：公司都是编的，链接不指向真实职位。", "Sample data: every company is made up and the links point to no real posting.")), /* @__PURE__ */ React.createElement("p", { className: "ghost-sum" }, counts.map(([v, n]) => /* @__PURE__ */ React.createElement("span", { key: v, className: "tag " + GHOST_VERDICT[v].cls }, n, " · ", L(GHOST_VERDICT[v])))), bare > 0 && /* @__PURE__ */ React.createElement(Alert, { type: "warning" }, T(
+    `${bare} 行只有链接，后面什么都没写。本页不会打开链接，规则没有东西可读：在链接后面加上 " | company: … | title: … | posted: 12 days ago"（发布日期最要紧），或者在本机运行 node ghost-check.mjs 链接.txt --live 看哪些已经关闭。`,
+    `${bare} ${bare > 1 ? "lines were" : "line was"} a link with nothing after it. This page never opens links, so the rules had nothing to read: add " | company: … | title: … | posted: 12 days ago" after the link (the posting date matters most), or run node ghost-check.mjs links.txt --live on your computer to see which postings are closed.`
+  )), bad.length > 0 && /* @__PURE__ */ React.createElement(Alert, { type: "warning" }, T(`${bad.length} 行不是以链接开头，跳过了：`, `${bad.length} line${bad.length > 1 ? "s" : ""} did not start with a link and ${bad.length > 1 ? "were" : "was"} skipped: `), bad.map((b) => b.line).join(" · ")), /* @__PURE__ */ React.createElement("ol", { className: "ghost-list" }, results.filter((r) => r.verdict !== "unreadable").map((r, i) => /* @__PURE__ */ React.createElement("li", { key: i, className: "ghost-item ghost-" + r.verdict }, /* @__PURE__ */ React.createElement("div", { className: "ghost-top" }, /* @__PURE__ */ React.createElement("span", { className: "tag " + GHOST_VERDICT[r.verdict].cls }, L(GHOST_VERDICT[r.verdict])), /* @__PURE__ */ React.createElement("span", { className: "ghost-what" }, [r.company, r.title].filter(Boolean).join(" · ") || T("（没写公司和职位）", "(no company or title given)"))), /* @__PURE__ */ React.createElement("p", { className: "ghost-url mono" }, isSample ? r.url : /* @__PURE__ */ React.createElement("a", { href: r.url, target: "_blank", rel: "noopener noreferrer" }, r.url)), r.reasons.length > 0 && /* @__PURE__ */ React.createElement("ul", { className: "ghost-reasons" }, r.reasons.map((x, j) => /* @__PURE__ */ React.createElement("li", { key: j }, /* @__PURE__ */ React.createElement("b", null, L(x)), x.evidence && /* @__PURE__ */ React.createElement("span", { className: "ghost-ev" }, " ", T("证据：", "Evidence: "), x.evidence.map((u) => u.replace(/^https?:\/\/(www\.)?/, "")).join(", "))))), (r.seen.length > 0 || r.unknown.length > 0) && /* @__PURE__ */ React.createElement("details", { className: "ghost-more" }, /* @__PURE__ */ React.createElement("summary", null, T(`查过的 ${r.seen.length} 项 · 查不了的 ${r.unknown.length} 项`, `Checked ${r.seen.length} · couldn’t check ${r.unknown.length}`)), /* @__PURE__ */ React.createElement("ul", null, r.seen.map((x, j) => /* @__PURE__ */ React.createElement("li", { key: "s" + j }, "✓ ", L(x))), r.unknown.map((x, j) => /* @__PURE__ */ React.createElement("li", { key: "u" + j, className: "faint" }, "? ", L(x))))))))), /* @__PURE__ */ React.createElement("div", { className: "card" }, /* @__PURE__ */ React.createElement("h2", null, T("它查什么，查不了什么", "What it checks, and what it can’t know")), /* @__PURE__ */ React.createElement("ul", { className: "ghost-rules" }, /* @__PURE__ */ React.createElement("li", null, T(
     "存活：职位页面说已关闭或已下架 → 直接判「大概率不在招」。页面还在不代表真在招。",
     "Liveness: the posting’s page says it is closed or gone → “probably not hiring” on its own. A page that is still up proves nothing."
   )), /* @__PURE__ */ React.createElement("li", null, T("发布超过 30 天。", "Posted more than 30 days ago.")), /* @__PURE__ */ React.createElement("li", null, T("同一网站上同一公司同一职位出现不止一次、链接不同（重复发布）。", "The same company and title on the same site more than once, under different links (reposted).")), /* @__PURE__ */ React.createElement("li", null, T("只在招聘网站上，清单里没有雇主官网或其招聘系统（Greenhouse、Lever、Workday…）的链接。", "Only on a job board, with no link on the employer’s own site or applicant system (Greenhouse, Lever, Workday, …) in the list."))), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T(
