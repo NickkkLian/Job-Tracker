@@ -178,7 +178,7 @@ build dependency with `npm install` (esbuild 0.27.7), then:
 node build.mjs            # writes index.html
 node build.mjs --check    # what CI runs: index.html must be exactly what src/ builds to, and vendor/ match its hashes
 node check-scripts.mjs    # CI too: no script from another host, and the page's script policy intact (--self-test: each form and each loosened policy is caught)
-node check-models.mjs     # CI too: the page asks for Claude Opus 5.5 or Sonnet 5.5 only, with max_tokens >= 16000, and reads replies by block type (--self-test: each rule is caught)
+node check-models.mjs     # CI too: the page asks for Claude Opus 5.5, Sonnet 5.5 or Haiku 5.5 only, with max_tokens >= 16000, and reads replies by block type (--self-test: each rule is caught)
 node --test test/ghost-flags.test.mjs   # CI too: the Ghost check's rules (src/ghost-flags.js, which build.mjs puts in front of the app)
 node ghost-mutants.mjs    # CI too: breaks each rule in a copy, one at a time; a test must fail for every break
 ```

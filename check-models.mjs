@@ -1,19 +1,20 @@
-/* check-models.mjs — the page asks the Messages API for Opus 5.5 or Sonnet 5.5 only, and reads its replies by block type.
+/* check-models.mjs — the page asks the Messages API for Opus 5.5, Sonnet 5.5 or Haiku 5.5 only, and reads its replies by block type.
 
      node check-models.mjs              checks src/ and the built index.html
      node check-models.mjs --self-test  shows that each rule goes red on a sample that breaks it, and the real files pass
 
    Rules, over every file in src/ and index.html:
-   - every Claude model id is claude-opus-5-5 or claude-sonnet-5-5 (both think on every request; thinking counts toward
-     max_tokens, so every max_tokens next to a model id is at least 16000);
-   - no request sets budget_tokens, temperature or a forced tool_choice, which these models reject;
+   - every Claude model id is claude-opus-5-5, claude-sonnet-5-5 or claude-haiku-5-5 (all think by default; thinking
+     counts toward max_tokens, so every max_tokens next to a model id is at least 16000);
+   - no request sets budget_tokens, temperature or a forced tool_choice (all three reject the first two; Opus 5.5 and
+     Sonnet 5.5 reject the third);
    - no reply is read by position (content[0]): a thinking or web-search block can come first. */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ALLOWED = new Set(['claude-opus-5-5', 'claude-sonnet-5-5']);
+const ALLOWED = new Set(['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5']);
 
 function problems(text) {
   const out = [];
@@ -59,5 +60,5 @@ if (process.argv.includes('--self-test')) {
   if (clean.length) bad++;
 }
 
-console.log(bad ? `${bad} problem(s)` : `ok: ${files.join(', ')} ask for Opus 5.5 / Sonnet 5.5 only and read replies by block type`);
+console.log(bad ? `${bad} problem(s)` : `ok: ${files.join(', ')} ask for Opus 5.5 / Sonnet 5.5 / Haiku 5.5 only and read replies by block type`);
 process.exit(bad ? 1 : 0);
