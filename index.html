@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-5nyhwSzTgu2n7ZAL4gvhru/QlXgk4oq6kTJUzThiFGQ=' 'sha256-fKQZmKTZa8V4D4jRPG1kdnpiVO8m+8u3vqQQFRv0R7A=' 'sha256-orYwMgQVs4+lO2C4UgUaQB8tQTQ2VJqJPGvjT/44crQ='">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-5nyhwSzTgu2n7ZAL4gvhru/QlXgk4oq6kTJUzThiFGQ=' 'sha256-fKQZmKTZa8V4D4jRPG1kdnpiVO8m+8u3vqQQFRv0R7A=' 'sha256-E5wOyWvW0I35PDUK08u9cmA5iLoAdwkbMItccXUyVdU='">
 <script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem('nl-theme'),s=L.getItem('nl-scheme');if(s===null){var o=L.getItem('theme')||L.getItem('qm-theme');if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="ApplyLedger: job applications, one pipeline per region, kept in a private repo you own. A tracker, a pipeline chart and an hours ledger for the Canadian Experience Class; the AI prompts run in your own Claude.ai.">
@@ -462,6 +462,197 @@ const GhostFlags = (() => {
   return { DEFAULTS, BOARDS, ATS, SAMPLE, parseLine, ageDays, check, livenessVerdict };
 })();
 if (typeof module === "object" && module && module.exports) module.exports = GhostFlags;
+const ApplyKits = /* @__PURE__ */ (() => {
+  const path = "data/apply-kits.json";
+  const progressPath = "data/apply-kit-progress.json";
+  const text = (v) => typeof v === "string" ? v : "";
+  const day = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v + "T12:00:00Z")) && (/* @__PURE__ */ new Date(v + "T12:00:00Z")).toISOString().slice(0, 10) === v;
+  const label = (v) => v == null || typeof v === "string" || typeof v === "object" && !Array.isArray(v) && ["en", "zh"].every((l) => v[l] == null || typeof v[l] === "string");
+  function url(v) {
+    try {
+      const u = new URL(v);
+      return u.protocol === "https:" && !u.username && !u.password ? u.href : "";
+    } catch {
+      return "";
+    }
+  }
+  function file(v) {
+    return /^data\/apply-kits\/[a-z0-9_-]+\/[a-zA-Z0-9_.-]+\.pdf$/.test(v || "") ? v : "";
+  }
+  function validate(rows) {
+    if (!Array.isArray(rows)) throw new Error("Apply kits must be an array");
+    const ids = /* @__PURE__ */ new Set();
+    rows.forEach((k) => {
+      if (!k || !/^[a-z0-9_-]+$/.test(k.id || "") || ids.has(k.id) || !text(k.role) || !text(k.company) || !url(k.postingUrl) || !file(k.resume?.path) || k.deadline && !day(k.deadline) || !Array.isArray(k.answers) || !Array.isArray(k.actions) || !Array.isArray(k.steps)) throw new Error("Invalid application kit");
+      ids.add(k.id);
+      if (![k.deadlineKind, k.fit, k.reviewNote, k.sideDoor, k.formNote, k.resume.reason].every(label) || k.coverLetter != null && typeof k.coverLetter !== "string" || !k.steps.every(label) || k.sources != null && (!Array.isArray(k.sources) || k.sources.some((s) => !s || !label(s.label))) || k.salary != null && (typeof k.salary.text !== "string" || !label(k.salary.note) || !url(k.salary.source))) throw new Error("Invalid kit content");
+      for (const list of [k.answers, k.actions]) {
+        const seen = /* @__PURE__ */ new Set();
+        list.forEach((x) => {
+          if (!x || !/^[a-z0-9_-]+$/.test(x.id || "") || seen.has(x.id)) throw new Error("Invalid kit item");
+          seen.add(x.id);
+        });
+      }
+      k.answers.forEach((a) => {
+        if (!label(a.label) || !label(a.note) || !label(a.prompt) || a.text != null && typeof a.text !== "string") throw new Error("Invalid form answer");
+      });
+      k.actions.forEach((a) => {
+        if (!day(a.date) || !Number.isFinite(a.minutes) || a.minutes <= 0 || !label(a.title) || !label(a.outcome)) throw new Error("Invalid action");
+      });
+      if (k.applyDate && (!day(k.applyDate) || k.actions.some((a) => a.date > k.applyDate) || k.deadline && k.applyDate > k.deadline)) throw new Error("Application must follow preparation and precede the deadline");
+    });
+    return rows;
+  }
+  function validateProgress(rows) {
+    if (!Array.isArray(rows) || rows.some((r, i) => !r || typeof r.id !== "string" || rows.findIndex((x) => x?.id === r.id) !== i || r.answers != null && (typeof r.answers !== "object" || Array.isArray(r.answers)) || r.completed != null && (typeof r.completed !== "object" || Array.isArray(r.completed)) || r.appliedAt != null && (typeof r.appliedAt !== "string" || !Number.isFinite(Date.parse(r.appliedAt))) || r.appliedDate != null && !day(r.appliedDate) || r.followUpDate != null && !day(r.followUpDate))) throw new Error("Invalid application progress");
+    return rows;
+  }
+  function sort(rows) {
+    return [...rows].sort((a, b) => (a.deadline || "9999").localeCompare(b.deadline || "9999") || a.company.localeCompare(b.company));
+  }
+  function days(deadline, today) {
+    return day(deadline) ? Math.round((Date.parse(deadline + "T12:00:00Z") - Date.parse(today + "T12:00:00Z")) / 864e5) : null;
+  }
+  function applied(record, now = /* @__PURE__ */ new Date()) {
+    if (record.appliedAt) return record;
+    const follow = new Date(now);
+    follow.setDate(follow.getDate() + 7);
+    const iso = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    return { ...record, appliedAt: now.toISOString(), appliedDate: iso(now), followUpDate: iso(follow) };
+  }
+  function hashId(hash) {
+    try {
+      return /^#apply\//.test(hash) ? decodeURIComponent(hash.slice(7)) : "";
+    } catch {
+      return "";
+    }
+  }
+  return { path, progressPath, validate, validateProgress, sort, days, applied, hashId, url, file };
+})();
+function kitLabel(value) {
+  if (typeof value === "string") return value;
+  const preferred = value?.[lang], fallback = value?.[lang === "zh" ? "en" : "zh"];
+  return typeof preferred === "string" ? preferred : typeof fallback === "string" ? fallback : "";
+}
+function KitCopy({ id, label, value }) {
+  const [state, setState] = useState("");
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setState("copied");
+    } catch {
+      setState("failed");
+    }
+  };
+  return /* @__PURE__ */ React.createElement("div", { className: "kit-copy" }, /* @__PURE__ */ React.createElement("div", { className: "kit-copy-head" }, /* @__PURE__ */ React.createElement("label", { htmlFor: id }, label), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn", "data-copy": id, disabled: !value, onClick: copy }, state === "copied" ? T("已复制", "Copied") : T("复制", "Copy"))), /* @__PURE__ */ React.createElement("textarea", { id, value: value || "", readOnly: true, rows: value?.length > 450 ? 9 : 2, onFocus: (e) => e.target.select() }), /* @__PURE__ */ React.createElement("span", { className: state === "failed" ? "field-err" : "hint", role: "status" }, state === "failed" ? T("复制失败，请选中文字手动复制。", "Copy failed. Select the text and copy it manually.") : state === "copied" ? T("已原样复制。", "Copied exactly.") : ""));
+}
+function KitAnswer({ kit, answer, record, busy, update }) {
+  const saved = typeof record.answers?.[answer.id] === "string" ? record.answers[answer.id] : answer.text || "";
+  const [draft, setDraft] = useState(saved);
+  useEffect(() => setDraft(saved), [saved]);
+  const id = `answer-${kit.id}-${answer.id}`;
+  return /* @__PURE__ */ React.createElement("div", { className: "kit-answer" }, answer.editable && /* @__PURE__ */ React.createElement("div", { className: "kit-personal" }, /* @__PURE__ */ React.createElement("label", { htmlFor: `${id}-edit` }, kitLabel(answer.label), " · ", T("填写真实信息后保存", "Enter your actual answer, then save")), /* @__PURE__ */ React.createElement("input", { id: `${id}-edit`, value: draft, placeholder: kitLabel(answer.prompt), onChange: (e) => setDraft(e.target.value), disabled: busy }), /* @__PURE__ */ React.createElement("button", { className: "btn", type: "button", disabled: busy || !draft.trim() || draft === saved, onClick: () => update(kit.id, (r) => ({ ...r, answers: { ...r.answers, [answer.id]: draft } })) }, T("保存答案", "Save answer"))), /* @__PURE__ */ React.createElement(KitCopy, { id, label: kitLabel(answer.label), value: saved }), answer.note && /* @__PURE__ */ React.createElement("p", { className: "hint" }, kitLabel(answer.note)));
+}
+function ApplyKitCard({ kit, record, busy, update, focused }) {
+  const ref = useRef(null);
+  const [salary, setSalary] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  useEffect(() => {
+    if (focused && ref.current) {
+      ref.current.open = true;
+      ref.current.scrollIntoView({ block: "start" });
+      ref.current.querySelector("summary")?.focus();
+    }
+  }, [focused]);
+  const count = ApplyKits.days(kit.deadline, localISO(/* @__PURE__ */ new Date()));
+  const countdown = count == null ? T("未注明截止日期", "No published deadline") : count < 0 ? T(`已过 ${-count} 天`, `${-count} days past`) : count === 0 ? T("今天到期", "Due today") : T(`还有 ${count} 天`, `${count} days left`);
+  const download = async () => {
+    setDownloading(true);
+    setDownloadError("");
+    try {
+      const data = await ghFindDataUrl(kit.resume.path, "application/pdf");
+      if (!data) throw new Error(T("简历文件不存在，请联系资料维护者。", "The resume file is missing. Ask the kit maintainer to upload it."));
+      const bin = atob(data.split(",")[1] || "");
+      if (!bin.startsWith("%PDF-")) throw new Error(T("下载内容不是 PDF。", "The downloaded file is not a PDF."));
+      const blob = new Blob([Uint8Array.from(bin, (c) => c.charCodeAt(0))], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url;
+      a.download = kit.resume.path.split("/").pop();
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 3e4);
+    } catch (e) {
+      setDownloadError(e.message);
+    } finally {
+      setDownloading(false);
+    }
+  };
+  return /* @__PURE__ */ React.createElement("details", { className: `card apply-kit${focused ? " kit-focused" : ""}`, ref, "data-kit": kit.id }, /* @__PURE__ */ React.createElement("summary", null, /* @__PURE__ */ React.createElement("span", { className: "kit-summary" }, /* @__PURE__ */ React.createElement("span", { className: "eyebrow" }, kit.company, kit.optional ? ` · ${T("可选", "Optional")}` : ""), /* @__PURE__ */ React.createElement("h2", null, kit.role), /* @__PURE__ */ React.createElement("span", { className: "kit-date" }, kit.deadline || "—", " · ", countdown, " · ", kitLabel(kit.deadlineKind))), /* @__PURE__ */ React.createElement("span", { className: `tag ${record.appliedAt ? "tag-success" : "tag-neutral"}` }, record.appliedAt ? T("已投递", "Applied") : T("待投递", "To apply"))), /* @__PURE__ */ React.createElement("div", { className: "kit-body" }, /* @__PURE__ */ React.createElement("div", { className: "acts" }, /* @__PURE__ */ React.createElement("a", { className: "btn", href: kit.postingUrl, target: "_blank", rel: "noreferrer" }, T("打开职位", "Open posting"), " ", /* @__PURE__ */ React.createElement(Icon, { name: "open", size: 14 })), /* @__PURE__ */ React.createElement("a", { href: `#apply/${encodeURIComponent(kit.id)}` }, T("此申请的链接", "Link to this application"))), /* @__PURE__ */ React.createElement("p", { className: "kit-notice" }, kitLabel(kit.reviewNote)), /* @__PURE__ */ React.createElement("h3", null, T("是否合适", "Fit and gaps")), /* @__PURE__ */ React.createElement("p", null, kitLabel(kit.fit)), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T("联系入口：", "Way in: "), kitLabel(kit.sideDoor)), /* @__PURE__ */ React.createElement("section", { "aria-label": T("投递前", "Before you apply") }, /* @__PURE__ */ React.createElement("h3", null, T("投递前", "Before you apply")), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T("日程仍是提案；尚未写入日历。只有实际完成后才勾选。", "Dates are proposed; they have not been added to your calendar. Check an action only after completing it.")), kit.actions.length ? /* @__PURE__ */ React.createElement("ul", { className: "kit-actions" }, kit.actions.map((a) => /* @__PURE__ */ React.createElement("li", { key: a.id }, /* @__PURE__ */ React.createElement("label", null, /* @__PURE__ */ React.createElement("input", { type: "checkbox", "data-action": a.id, checked: !!record.completed?.[a.id], disabled: busy, onChange: (e) => {
+    const checked = e.target.checked;
+    update(kit.id, (r) => ({ ...r, completed: { ...r.completed, [a.id]: checked ? (/* @__PURE__ */ new Date()).toISOString() : null } }));
+  } }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, a.date, " · ", a.minutes, " ", T("分钟", "min")), /* @__PURE__ */ React.createElement("br", null), kitLabel(a.title))), /* @__PURE__ */ React.createElement("p", null, kitLabel(a.outcome))))) : /* @__PURE__ */ React.createElement("p", null, T("没有已确认、可在截止前补上的技能缺口。", "No confirmed skill gap that can be closed before the deadline.")), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("b", null, T("计划投递：", "Planned application: ")), kit.applyDate || "—", " · ", T("完成准备后，再按下方步骤投递。", "Complete preparation, then follow the steps below."))), /* @__PURE__ */ React.createElement("section", { "aria-label": T("发送材料", "Send") }, /* @__PURE__ */ React.createElement("h3", null, T("发送材料", "Send")), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-primary", "data-download": kit.id, disabled: downloading, onClick: download }, downloading ? T("下载中…", "Downloading…") : T("下载所选简历", "Download selected resume")), /* @__PURE__ */ React.createElement("p", { className: "hint" }, kit.resume.path.split("/").pop(), " · ", kitLabel(kit.resume.reason)), downloadError && /* @__PURE__ */ React.createElement("p", { className: "field-err", role: "alert" }, downloadError), /* @__PURE__ */ React.createElement(KitCopy, { id: `cover-${kit.id}`, label: T("求职信 / 邮件正文（英文）", "Cover letter / email body (English)"), value: kit.coverLetter || "" }), /* @__PURE__ */ React.createElement("h3", null, T("表格答案", "Form answers")), /* @__PURE__ */ React.createElement("p", { className: "hint" }, kitLabel(kit.formNote)), kit.answers.map((a) => /* @__PURE__ */ React.createElement(KitAnswer, { key: a.id, kit, answer: a, record, busy, update })), kit.salary && /* @__PURE__ */ React.createElement("div", { className: "kit-salary" }, /* @__PURE__ */ React.createElement("label", null, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: salary, onChange: (e) => setSalary(e.target.checked) }), T("表格确实要求期望薪资", "The form asks for expected salary")), salary && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(KitCopy, { id: `salary-${kit.id}`, label: T("薪资（仅被问到时）", "Salary (only if asked)"), value: kit.salary.text || "" }), /* @__PURE__ */ React.createElement("p", { className: "hint" }, kitLabel(kit.salary.note), " ", ApplyKits.url(kit.salary.source) && /* @__PURE__ */ React.createElement("a", { href: kit.salary.source, target: "_blank", rel: "noreferrer" }, T("薪资来源", "Salary source")))))), /* @__PURE__ */ React.createElement("section", null, /* @__PURE__ */ React.createElement("h3", null, T("按顺序操作", "Steps in order")), /* @__PURE__ */ React.createElement("ol", { className: "how" }, kit.steps.map((s, i) => /* @__PURE__ */ React.createElement("li", { key: i }, kitLabel(s))))), /* @__PURE__ */ React.createElement("details", { className: "kit-sources" }, /* @__PURE__ */ React.createElement("summary", null, T("材料依据", "Sources for this kit")), /* @__PURE__ */ React.createElement("ul", null, (kit.sources || []).map((s, i) => /* @__PURE__ */ React.createElement("li", { key: i }, kitLabel(s.label), ApplyKits.url(s.url) && /* @__PURE__ */ React.createElement(React.Fragment, null, " · ", /* @__PURE__ */ React.createElement("a", { href: s.url, target: "_blank", rel: "noreferrer" }, T("来源", "Source"))))))), /* @__PURE__ */ React.createElement("div", { className: "kit-record" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-primary", "data-applied": kit.id, disabled: busy || !!record.appliedAt, onClick: () => update(kit.id, (r) => ApplyKits.applied(r)) }, busy ? T("保存中…", "Saving…") : record.appliedAt ? T("已记录投递", "Application recorded") : T("标记已投递", "Mark applied")), /* @__PURE__ */ React.createElement("p", null, record.appliedAt ? /* @__PURE__ */ React.createElement(React.Fragment, null, T("投递日期：", "Applied: "), record.appliedDate || record.appliedAt.slice(0, 10), " · ", T("跟进日期：", "Follow up: "), record.followUpDate) : T("实际发送后点击。将记录当天日期，并在一周后跟进。", "Click after sending. Records the date and a follow-up date one week later.")))));
+}
+function ApplyTab({ openSettings }) {
+  const [kits, setKits] = useState([]), [progress, setProgress] = useState([]);
+  const [loading, setLoading] = useState(true), [error, setError] = useState(null), [saveError, setSaveError] = useState("");
+  const [attempt, setAttempt] = useState(0), [busy, setBusy] = useState(false), [selected, setSelected] = useState(() => ApplyKits.hashId(location.hash));
+  const now = useRef(progress);
+  now.current = progress;
+  useEffect(() => holdFile("applyProgress", () => now.current, setProgress), []);
+  useEffect(() => {
+    const h = () => setSelected(ApplyKits.hashId(location.hash));
+    window.addEventListener("hashchange", h);
+    window.addEventListener("popstate", h);
+    return () => {
+      window.removeEventListener("hashchange", h);
+      window.removeEventListener("popstate", h);
+    };
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    if (!ghConfigured()) {
+      setKits([]);
+      setProgress([]);
+      setLoading(false);
+      return;
+    }
+    Promise.all([ghRead(ApplyKits.path), loadJsonStrict("applyProgress")]).then(([text, records]) => {
+      const data = ApplyKits.validate(text ? JSON.parse(text) : []);
+      ApplyKits.validateProgress(records);
+      if (!cancelled) {
+        setKits(ApplyKits.sort(data));
+        setProgress(records);
+        setLoading(false);
+      }
+    }).catch((e) => {
+      if (!cancelled) {
+        setError(e);
+        setLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt]);
+  const update = async (id, transform) => {
+    if (busy || error || loading || !ghConfigured()) return;
+    setBusy(true);
+    setSaveError("");
+    const rows = now.current, record = rows.find((r) => r.id === id) || { id };
+    const changed = transform(record), next = rows.some((r) => r.id === id) ? rows.map((r) => r.id === id ? changed : r) : [...rows, changed];
+    try {
+      const r = await ghWrite(ApplyKits.progressPath, next);
+      setProgress(ApplyKits.validateProgress(r.data));
+    } catch (e) {
+      setSaveError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow: T("所有地区共用", "Shared by all regions"), title: T("去投递", "Apply"), sub: T("材料、准备和下一步，都在同一处。", "Your materials, preparation and next step, together.") }), loading ? /* @__PURE__ */ React.createElement("div", { className: "card", "aria-busy": "true" }, T("正在读取申请材料…", "Loading application kits…")) : error ? /* @__PURE__ */ React.createElement(ErrorCard, { title: T("没能读取申请材料，未保存任何更改", "Couldn’t read application kits; no changes saved"), error, onRetry: () => setAttempt((x) => x + 1), openSettings }) : !kits.length ? /* @__PURE__ */ React.createElement("section", { className: "card" }, /* @__PURE__ */ React.createElement("h2", null, T("还没有申请材料包", "No application kits yet")), /* @__PURE__ */ React.createElement("p", null, T("由资料维护者审核材料包后上传到你的私有仓库，即可在这里使用。", "Your kit maintainer can review and upload application kits to your private repository to make them available here."))) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("p", { className: "hint" }, T(`${kits.length} 份申请 · 按截止日期排序 · 投递记录保存到你的仓库`, `${kits.length} applications · nearest deadline first · progress saved to your repo`)), selected && !kits.some((k) => k.id === selected) && /* @__PURE__ */ React.createElement("p", { className: "field-err", role: "alert" }, T("这个链接没有对应的申请，请从下面选择。", "This link has no matching application. Choose one below.")), saveError && /* @__PURE__ */ React.createElement("p", { className: "field-err kit-save-error", role: "alert" }, T("保存失败；刚才的操作未记录，请重试。", "Save failed; the last action was not recorded. Please retry."), " ", saveError), kits.map((kit) => /* @__PURE__ */ React.createElement(ApplyKitCard, { key: kit.id, kit, record: progress.find((r) => r.id === kit.id) || { id: kit.id }, busy, update, focused: selected === kit.id }))));
+}
 const { useState, useEffect, useRef, useMemo } = React;
 let lang = (() => {
   try {
@@ -578,7 +769,8 @@ const PATHS = {
   canadaJobs: "data/canada_jobs.json",
   hongkongJobs: "data/hongkong_jobs.json",
   chinaJobs: "data/china_jobs.json",
-  diagnosis: "data/diagnosis.json"
+  diagnosis: "data/diagnosis.json",
+  applyProgress: "data/apply-kit-progress.json"
 };
 const KEY_TO_PATH = {
   resumeDb: PATHS.resumeDb,
@@ -590,7 +782,8 @@ const KEY_TO_PATH = {
   "canada:jobs": PATHS.canadaJobs,
   "hongkong:jobs": PATHS.hongkongJobs,
   "china:jobs": PATHS.chinaJobs,
-  diagnosis: PATHS.diagnosis
+  diagnosis: PATHS.diagnosis,
+  applyProgress: PATHS.applyProgress
 };
 function keyToPath(key) {
   if (KEY_TO_PATH[key]) return KEY_TO_PATH[key];
@@ -975,6 +1168,7 @@ function cecHours(jobs) {
 const stName = (s) => s.id === "working" && !inCanada() ? T("在职", "Working") : T(s.zh, s.label);
 const statusLabel = (id) => stName(STATUSES.find((x) => x.id === id) || STATUSES[0]);
 const TABS = [
+  { id: "apply", label: "Apply", zh: "去投递", icon: "file", scope: "shared" },
   { id: "addjob", label: "Add job", zh: "添加职位", icon: "plus", scope: "region" },
   { id: "tracker", label: "Tracker", zh: "追踪", icon: "list", scope: "region" },
   { id: "insights", label: "Insights", zh: "数据", icon: "flow", scope: "region" },
@@ -985,6 +1179,7 @@ const TABS = [
   { id: "ghost", label: "Ghost check", zh: "幽灵岗检查", icon: "ghost", scope: "shared" }
 ];
 const tabFromUrl = () => {
+  if (/^#apply\//.test(location.hash)) return "apply";
   const t = new URLSearchParams(location.search).get("tab") || "";
   return TABS.some((x) => x.id === t) ? t : "addjob";
 };
@@ -3380,6 +3575,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
   const shared = T("所有地区共用", "Shared by all regions");
   const eyebrow = tabMeta.scope === "region" ? regionLabel : shared;
   if (tab === "ghost") return /* @__PURE__ */ React.createElement(GhostTab, { eyebrow });
+  if (tab === "apply") return /* @__PURE__ */ React.createElement(ApplyTab, { openSettings });
   if (loading) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow, title: T(tabMeta.zh, tabMeta.label) }), /* @__PURE__ */ React.createElement("div", { className: "card loading", "aria-busy": "true" }, /* @__PURE__ */ React.createElement("span", { className: "sr-only" }, T(`正在加载${regionLabel}的投递…`, `Loading ${regionLabel} applications…`)), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "40%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "85%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "70%" } })));
   if (tabMeta.scope === "region" && loadErr) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow, title: T(tabMeta.zh, tabMeta.label) }), /* @__PURE__ */ React.createElement(ErrorCard, { title: T(`没能从 GitHub 读到${regionLabel}的投递`, `Couldn’t read your ${regionLabel} applications from GitHub`), error: loadErr, onRetry: () => setAttempt((a) => a + 1), openSettings }));
   if (tabMeta.scope === "shared" && sharedLoading) return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow, title: T(tabMeta.zh, tabMeta.label) }), /* @__PURE__ */ React.createElement("div", { className: "card loading", "aria-busy": "true" }, /* @__PURE__ */ React.createElement("span", { className: "sr-only" }, T("正在读取你的资料…", "Loading your profile…")), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "40%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "85%" } }), /* @__PURE__ */ React.createElement("span", { className: "skel", style: { width: "70%" } })));
@@ -3468,6 +3664,18 @@ function App() {
   const [region, setRegionState] = useState(regionFromUrl);
   regionNow = region;
   const [tab, setTab] = useState(tabFromUrl);
+  useEffect(() => {
+    const reveal = () => {
+      const links = document.querySelector(".nav-links"), active = links?.querySelector('[aria-current="page"]');
+      if (links && active && getComputedStyle(links).display === "flex") links.scrollLeft = active.offsetLeft - links.offsetLeft - 8;
+    };
+    const frame = requestAnimationFrame(reveal);
+    window.addEventListener("resize", reveal);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", reveal);
+    };
+  }, [tab]);
   const [openJobId, setOpenJobId] = useState(null);
   const [trackerStatus, setTrackerStatus] = useState(null);
   const [jobCount, setJobCount] = useState(null);
@@ -3577,7 +3785,11 @@ function App() {
       setTrackerStatus(null);
     };
     window.addEventListener("popstate", h);
-    return () => window.removeEventListener("popstate", h);
+    window.addEventListener("hashchange", h);
+    return () => {
+      window.removeEventListener("popstate", h);
+      window.removeEventListener("hashchange", h);
+    };
   }, []);
   const updateSections = async (newSecs, persist = true) => {
     setSections(newSecs);
@@ -3620,7 +3832,7 @@ function App() {
     if (gearRef.current) Appearance.bindSettings(gearRef.current, () => settingsOpts());
   }, []);
   const go = (t, opts = {}) => {
-    if (t !== tab) {
+    if (t !== tab || location.hash) {
       try {
         history.pushState(null, "", tabHref(t));
       } catch (e) {

@@ -131,6 +131,7 @@ const PATHS = {
   hongkongJobs:   'data/hongkong_jobs.json',
   chinaJobs:      'data/china_jobs.json',
   diagnosis:      'data/diagnosis.json',
+  applyProgress:  'data/apply-kit-progress.json',
 };
 
 const KEY_TO_PATH = {
@@ -144,6 +145,7 @@ const KEY_TO_PATH = {
   'hongkong:jobs': PATHS.hongkongJobs,
   'china:jobs':    PATHS.chinaJobs,
   diagnosis:       PATHS.diagnosis,
+  applyProgress:   PATHS.applyProgress,
 };
 
 // Any region maps to data/<id>_jobs.json; adding a region needs no change here
@@ -514,10 +516,11 @@ function cecHours(jobs){
 const stName = s => s.id === 'working' && !inCanada() ? T('在职', 'Working') : T(s.zh, s.label);
 const statusLabel = id => stName(STATUSES.find(x => x.id === id) || STATUSES[0]);
 
-// The navigation: four views follow the region picked above them (each region keeps its own job list and tailored
-// resumes, data/<region>_jobs.json); three are shared by every region (one profile, one resume library, one diagnosis).
+// Regional views follow the picker (each region keeps its own job list and tailored
+// resumes, data/<region>_jobs.json). Shared views include Apply, profile, library and diagnosis.
 // Ids are the ?tab= values and never change.
 const TABS = [
+  { id:'apply',    label:'Apply',      zh:'去投递',     icon:'file',    scope:'shared' },
   { id:'addjob',   label:'Add job',    zh:'添加职位',   icon:'plus',    scope:'region' },
   { id:'tracker',  label:'Tracker',    zh:'追踪',       icon:'list',    scope:'region' },
   { id:'insights', label:'Insights',   zh:'数据',       icon:'flow',    scope:'region' },
@@ -527,7 +530,7 @@ const TABS = [
   { id:'library',  label:'Resumes',    zh:'简历库',     icon:'file',    scope:'shared' },
   { id:'ghost',    label:'Ghost check',zh:'幽灵岗检查', icon:'ghost',   scope:'shared' },
 ];
-const tabFromUrl = () => { const t = new URLSearchParams(location.search).get('tab') || ''; return TABS.some(x => x.id === t) ? t : 'addjob'; };
+const tabFromUrl = () => { if (/^#apply\//.test(location.hash)) return 'apply'; const t = new URLSearchParams(location.search).get('tab') || ''; return TABS.some(x => x.id === t) ? t : 'addjob'; };
 // A link can open a region: ?region=usa (any id in REGIONS). Read once when the page opens; the region picker still
 // changes it and does not write it back, so a link keeps meaning the same thing.
 const regionFromUrl = () => { const r = new URLSearchParams(location.search).get('region') || ''; return REGION_BY[r] ? r : 'canada'; };
@@ -3579,6 +3582,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
   const eyebrow = tabMeta.scope === 'region' ? regionLabel : shared;
   // The Ghost check reads nothing from the repo, so it works before (and without) any GitHub setup
   if (tab === 'ghost') return <GhostTab eyebrow={eyebrow} />;
+  if (tab === 'apply') return <ApplyTab openSettings={openSettings} />;
   if (loading) return (
     <>
       <PageHead eyebrow={eyebrow} title={T(tabMeta.zh, tabMeta.label)} />
@@ -3730,6 +3734,16 @@ function App() {
   const [region, setRegionState] = useState(regionFromUrl);
   regionNow = region;
   const [tab, setTab]               = useState(tabFromUrl);
+  // Reveal the active phone tab without moving a deep-linked card vertically.
+  useEffect(() => {
+    const reveal = () => {
+      const links=document.querySelector('.nav-links'), active=links?.querySelector('[aria-current="page"]');
+      if (links && active && getComputedStyle(links).display === 'flex') links.scrollLeft=active.offsetLeft-links.offsetLeft-8;
+    };
+    const frame=requestAnimationFrame(reveal);
+    window.addEventListener('resize',reveal);
+    return () => {cancelAnimationFrame(frame); window.removeEventListener('resize',reveal);};
+  }, [tab]);
   const [openJobId, setOpenJobId]   = useState(null);
   const [trackerStatus, setTrackerStatus] = useState(null);
   const [jobCount, setJobCount]     = useState(null);
@@ -3827,7 +3841,8 @@ function App() {
   useEffect(() => {
     const h = () => { setTab(tabFromUrl()); setOpenJobId(null); setTrackerStatus(null); };
     window.addEventListener('popstate', h);
-    return () => window.removeEventListener('popstate', h);
+    window.addEventListener('hashchange', h);
+    return () => { window.removeEventListener('popstate', h); window.removeEventListener('hashchange', h); };
   }, []);
 
   const updateSections = async (newSecs, persist = true) => {
@@ -3877,7 +3892,7 @@ function App() {
   }, []);
 
   const go = (t, opts = {}) => {
-    if (t !== tab) { try { history.pushState(null, '', tabHref(t)); } catch (e) {} }
+    if (t !== tab || location.hash) { try { history.pushState(null, '', tabHref(t)); } catch (e) {} }
     setTab(t); setOpenJobId(opts.openJobId || null); setTrackerStatus(opts.status || null);
   };
   // changing region keeps the view you are on (it used to jump back to Add job)

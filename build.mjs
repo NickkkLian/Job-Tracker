@@ -27,6 +27,8 @@ if (esbuild.version !== ESBUILD_VERSION) {
 // src/ghost-flags.js (the Ghost check's rules, plain JavaScript that node ghost-check.mjs and the tests load too) goes in
 // front of the app, so GhostFlags is defined before app.jsx uses it
 const source = readFileSync(new URL('./src/ghost-flags.js', import.meta.url), 'utf8') + '\n'
+  + readFileSync(new URL('./src/apply-kits.js', import.meta.url), 'utf8') + '\n'
+  + readFileSync(new URL('./src/apply-tab.jsx', import.meta.url), 'utf8') + '\n'
   + readFileSync(new URL('./src/app.jsx', import.meta.url), 'utf8');
 const template = readFileSync(new URL('./src/index.template.html', import.meta.url), 'utf8');
 

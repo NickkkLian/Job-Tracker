@@ -4,7 +4,8 @@
   "description": "Builds index.html from src/: node build.mjs (check with node build.mjs --check)",
   "scripts": {
     "build": "node build.mjs",
-    "check": "node build.mjs --check"
+    "check": "node build.mjs --check",
+    "test": "node --test test/*.test.mjs"
   },
   "devDependencies": {
     "esbuild": "0.27.7"

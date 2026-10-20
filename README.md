@@ -57,6 +57,12 @@ The check reads what you write after each link. It does not open the link, so a 
 
 ## What's in it
 
+**Apply** collects reviewed private application kits, resume downloads, exact-text
+copy controls, preparation actions and saved application/follow-up dates. Each kit
+has a direct `#apply/<id>` link. See [private kit storage and setup](docs/apply-kits.md)
+and [the additional browser checks](test/README.md). Kit content and selected resumes
+are supplied through the private data repository and are never bundled in this app.
+
 The navigation has two groups: the views that belong to the region you are in, and the ones every region shares.
 
 | View | What it does |

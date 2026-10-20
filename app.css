@@ -152,6 +152,37 @@ label{font-size:var(--text-sm)}
 
 /* ===== cards ===== */
 .card{background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5);box-shadow:var(--shadow-1)}
+/* Apply uses the app's existing paper, ink, controls and spacing. */
+.apply-kit{margin:var(--space-3) 0;overflow-wrap:anywhere;scroll-margin-top:var(--space-5)}
+.apply-kit > summary{display:flex;align-items:center;gap:var(--space-3);cursor:pointer;min-height:44px;list-style:none}
+.apply-kit > summary::-webkit-details-marker{display:none}
+.apply-kit > summary::after{content:'+';font-size:24px;color:var(--text-2);flex:none}
+.apply-kit[open] > summary::after{content:'−'}
+.kit-summary{display:grid;gap:var(--space-1);flex:1;min-width:0}
+.kit-summary h2{font:var(--weight-medium) var(--text-lg)/1.35 var(--font-sans);letter-spacing:0;margin:0}
+.kit-date{font-size:var(--text-xs);color:var(--text-2)}
+.kit-body{border-top:1px solid var(--border);margin-top:var(--space-4);padding-top:var(--space-4);display:grid;gap:var(--space-3);min-width:0}
+.kit-body h3{font:var(--weight-semibold) var(--text-md)/1.4 var(--font-sans);margin:var(--space-3) 0 var(--space-2)}
+.kit-body p{max-width:var(--measure)}
+.kit-notice{border-left:3px solid var(--border-input);padding-left:var(--space-3);color:var(--text-2)}
+.kit-copy{margin:var(--space-3) 0;min-width:0}
+.kit-copy-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-2);margin-bottom:var(--space-1)}
+.kit-copy-head label{font-size:var(--text-sm);font-weight:var(--weight-medium)}
+.kit-copy textarea{width:100%;resize:vertical;font:var(--weight-regular) var(--text-sm)/1.6 var(--font-sans);min-height:72px}
+.kit-copy .btn,.kit-personal .btn,.kit-record .btn{min-height:44px;flex:none}
+.kit-actions{list-style:none;padding:0;display:grid;gap:var(--space-3)}
+.kit-actions label,.kit-salary > label{display:flex;align-items:flex-start;gap:var(--space-2);min-height:44px;cursor:pointer;font-size:var(--text-sm)}
+.kit-actions input,.kit-salary input{flex:none;margin-top:4px;width:20px;height:20px}
+.kit-actions p{margin:var(--space-1) 0 0 28px;font-size:var(--text-sm);color:var(--text-2)}
+.kit-personal{display:grid;gap:var(--space-2);padding:var(--space-3);background:var(--surface-2);border-radius:var(--radius-sm)}
+.kit-personal input{width:100%;min-width:0}.kit-personal .btn{justify-self:start}
+.kit-sources{font-size:var(--text-sm);color:var(--text-2)}
+.kit-sources summary{min-height:44px;cursor:pointer;display:flex;align-items:center}
+.kit-record{border-top:1px solid var(--border);padding-top:var(--space-4);display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center}
+.kit-record p{font-size:var(--text-sm);color:var(--text-2);flex:1 1 200px}
+.kit-focused{border-color:var(--accent-text)}
+.kit-save-error{position:sticky;top:var(--space-2);z-index:2;background:var(--paper);padding:var(--space-3);border:1px solid currentColor}
+@media(max-width:600px){.apply-kit{padding:var(--space-4)}.apply-kit > summary{flex-wrap:wrap}.kit-summary{flex-basis:calc(100% - 32px)}.apply-kit > summary::after{order:1}.apply-kit > summary > .tag{order:2}.kit-copy-head{align-items:flex-start}}
 .card > h2,.card > h3,.card-head h2{font-size:var(--text-md);font-weight:var(--weight-medium);font-family:var(--font-sans);letter-spacing:0}
 /* cards stacked in normal flow (the views not redrawn yet) keep their gap; redrawn views space cards with grid gaps */
 .legacy .card + .card{margin-top:var(--space-4)}
