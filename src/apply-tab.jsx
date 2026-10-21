@@ -66,7 +66,7 @@ function ApplyKitCard({ kit, record, busy, update, focused }) {
       <p className="hint">{T('联系入口：','Way in: ')}{kitLabel(kit.sideDoor)}</p>
       <section aria-label={T('投递前','Before you apply')}>
         <h3>{T('投递前','Before you apply')}</h3>
-        <p className="hint">{T('日程仍是提案；尚未写入日历。只有实际完成后才勾选。','Dates are proposed; they have not been added to your calendar. Check an action only after completing it.')}</p>
+        <p className="hint">{T('这些日期已经写进你的日历。只有实际完成后才勾选。','These dates are on your calendar. Check an action only after completing it.')}</p>
         {kit.actions.length ? <ul className="kit-actions">{kit.actions.map(a => <li key={a.id}>
           <label><input type="checkbox" data-action={a.id} checked={!!record.completed?.[a.id]} disabled={busy} onChange={e => {const checked=e.target.checked; update(kit.id, r => ({...r, completed:{...r.completed, [a.id]:checked ? new Date().toISOString() : null}}));}}/><span><b>{a.date} · {a.minutes} {T('分钟','min')}</b><br/>{kitLabel(a.title)}</span></label><p>{kitLabel(a.outcome)}</p>
         </li>)}</ul> : <p>{T('没有已确认、可在截止前补上的技能缺口。','No confirmed skill gap that can be closed before the deadline.')}</p>}
