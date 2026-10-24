@@ -70,6 +70,6 @@ Mark applied is idempotent and records the user's local date plus seven calendar
 days, including across daylight-saving changes. It records a kit application; the
 existing regional tracker rows are not changed. The follow-up is a recorded date,
 not an automatic reminder or message. The app never submits applications, sends
-email, adds calendar entries or changes Polaris. Unknown fields and unrelated
+email, adds calendar entries or changes the task list. Unknown fields and unrelated
 progress records survive conflict merges. Blank personal answers have disabled
 copy buttons until an actual answer is saved.

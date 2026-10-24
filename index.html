@@ -3,20 +3,25 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-5nyhwSzTgu2n7ZAL4gvhru/QlXgk4oq6kTJUzThiFGQ=' 'sha256-fKQZmKTZa8V4D4jRPG1kdnpiVO8m+8u3vqQQFRv0R7A=' 'sha256-w2Y6TugNC9oXV3k1rDoYkSWYUVqKA4iwQ0PlBp8LsG8='">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-5nyhwSzTgu2n7ZAL4gvhru/QlXgk4oq6kTJUzThiFGQ=' 'sha256-fKQZmKTZa8V4D4jRPG1kdnpiVO8m+8u3vqQQFRv0R7A=' 'sha256-Kbeo/BKh/pYfiixwpZWt9+1dqvVa1ene7MFCvaVoigU='">
+<script src="assets/settings-standard/core.js"></script>
 <script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem('nl-theme'),s=L.getItem('nl-scheme');if(s===null){var o=L.getItem('theme')||L.getItem('qm-theme');if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="ApplyLedger: job applications, one pipeline per region, kept in a private repo you own. A tracker, a pipeline chart and an hours ledger for the Canadian Experience Class; the AI prompts run in your own Claude.ai.">
 <meta name="theme-color" content="#f7e9e8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#130e15" media="(prefers-color-scheme: dark)">
 <title>ApplyLedger</title>
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="assets/app-logo/logo.svg" type="image/svg+xml">
+<link rel="icon" href="assets/app-logo/32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="assets/app-logo/128.png" sizes="128x128">
+<link rel="manifest" href="app.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500..600;1,9..144,400&family=Inter:wght@400..600&family=Space+Mono:wght@400;700&display=swap">
 <link rel="stylesheet" href="design-tokens.css">
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="assets/settings-standard/panel.css">
+<link rel="stylesheet" href="assets/settings-adapter.css">
 <script src="vendor/react-18.3.1.production.min.js"></script>
 <script src="vendor/react-dom-18.3.1.production.min.js"></script>
 <script src="vendor/mammoth-1.8.0.browser.min.js"></script>
@@ -26,7 +31,7 @@
 <body>
 <!-- the page before React mounts: the band with the mark, and three skeleton lines -->
 <div id="loading" aria-busy="true">
-  <header class="topbar"><span class="brand"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true" focusable="false"><rect x="2.5" y="2.5" width="19" height="19" rx="5" stroke="currentColor" stroke-width="2"/><rect x="14" y="6" width="4" height="4" rx="1" fill="var(--point)"/><path d="M7.5 17V9M11.5 17v-5M15.5 17v-2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><b>ApplyLedger</b></span></header>
+  <header class="topbar"><span class="brand"><img class="app-logo" src="assets/app-logo/logo.svg" width="32" height="32" alt=""><b>ApplyLedger</b></span></header>
   <div class="boot-main"><span class="sr-only" id="loading-text">Loading ApplyLedger…</span><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
 </div>
 <div id="root" style="display:none"></div>
@@ -537,18 +542,21 @@ function kitLabel(value) {
 function KitCopy({ id, label, value }) {
   const [state, setState] = useState("");
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setState("copied");
-    } catch {
-      setState("failed");
-    }
+    return HubSettingsRuntime.track(async () => {
+      try {
+        await navigator.clipboard.writeText(value);
+        setState("copied");
+      } catch {
+        setState("failed");
+      }
+    });
   };
   return /* @__PURE__ */ React.createElement("div", { className: "kit-copy" }, /* @__PURE__ */ React.createElement("div", { className: "kit-copy-head" }, /* @__PURE__ */ React.createElement("label", { htmlFor: id }, label), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn", "data-copy": id, disabled: !value, onClick: copy }, state === "copied" ? T("已复制", "Copied") : T("复制", "Copy"))), /* @__PURE__ */ React.createElement("textarea", { id, value: value || "", readOnly: true, rows: value?.length > 450 ? 9 : 2, onFocus: (e) => e.target.select() }), /* @__PURE__ */ React.createElement("span", { className: state === "failed" ? "field-err" : "hint", role: "status" }, state === "failed" ? T("复制失败，请选中文字手动复制。", "Copy failed. Select the text and copy it manually.") : state === "copied" ? T("已原样复制。", "Copied exactly.") : ""));
 }
 function KitAnswer({ kit, answer, record, busy, update }) {
   const saved = typeof record.answers?.[answer.id] === "string" ? record.answers[answer.id] : answer.text || "";
   const [draft, setDraft] = useState(saved);
+  useSettingsDraft(draft !== saved);
   useEffect(() => setDraft(saved), [saved]);
   const id = `answer-${kit.id}-${answer.id}`;
   return /* @__PURE__ */ React.createElement("div", { className: "kit-answer" }, answer.editable && /* @__PURE__ */ React.createElement("div", { className: "kit-personal" }, /* @__PURE__ */ React.createElement("label", { htmlFor: `${id}-edit` }, kitLabel(answer.label), " · ", T("填写真实信息后保存", "Enter your actual answer, then save")), /* @__PURE__ */ React.createElement("input", { id: `${id}-edit`, value: draft, placeholder: kitLabel(answer.prompt), onChange: (e) => setDraft(e.target.value), disabled: busy }), /* @__PURE__ */ React.createElement("button", { className: "btn", type: "button", disabled: busy || !draft.trim() || draft === saved, onClick: () => update(kit.id, (r) => ({ ...r, answers: { ...r.answers, [answer.id]: draft } })) }, T("保存答案", "Save answer"))), /* @__PURE__ */ React.createElement(KitCopy, { id, label: kitLabel(answer.label), value: saved }), answer.note && /* @__PURE__ */ React.createElement("p", { className: "hint" }, kitLabel(answer.note)));
@@ -568,24 +576,26 @@ function ApplyKitCard({ kit, record, busy, update, focused }) {
   const count = ApplyKits.days(kit.deadline, localISO(/* @__PURE__ */ new Date()));
   const countdown = count == null ? T("未注明截止日期", "No published deadline") : count < 0 ? T(`已过 ${-count} 天`, `${-count} days past`) : count === 0 ? T("今天到期", "Due today") : T(`还有 ${count} 天`, `${count} days left`);
   const download = async () => {
-    setDownloading(true);
-    setDownloadError("");
-    try {
-      const data = await ghFindDataUrl(kit.resume.path, "application/pdf");
-      if (!data) throw new Error(T("简历文件不存在，请联系资料维护者。", "The resume file is missing. Ask the kit maintainer to upload it."));
-      const bin = atob(data.split(",")[1] || "");
-      if (!bin.startsWith("%PDF-")) throw new Error(T("下载内容不是 PDF。", "The downloaded file is not a PDF."));
-      const blob = new Blob([Uint8Array.from(bin, (c) => c.charCodeAt(0))], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob), a = document.createElement("a");
-      a.href = url;
-      a.download = kit.resume.path.split("/").pop();
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 3e4);
-    } catch (e) {
-      setDownloadError(e.message);
-    } finally {
-      setDownloading(false);
-    }
+    return HubSettingsRuntime.track(async () => {
+      setDownloading(true);
+      setDownloadError("");
+      try {
+        const data = await ghFindDataUrl(kit.resume.path, "application/pdf");
+        if (!data) throw new Error(T("简历文件不存在，请联系资料维护者。", "The resume file is missing. Ask the kit maintainer to upload it."));
+        const bin = atob(data.split(",")[1] || "");
+        if (!bin.startsWith("%PDF-")) throw new Error(T("下载内容不是 PDF。", "The downloaded file is not a PDF."));
+        const blob = new Blob([Uint8Array.from(bin, (c) => c.charCodeAt(0))], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob), a = document.createElement("a");
+        a.href = url;
+        a.download = kit.resume.path.split("/").pop();
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 3e4);
+      } catch (e) {
+        setDownloadError(e.message);
+      } finally {
+        setDownloading(false);
+      }
+    });
   };
   return /* @__PURE__ */ React.createElement("details", { className: `card apply-kit${focused ? " kit-focused" : ""}`, ref, "data-kit": kit.id }, /* @__PURE__ */ React.createElement("summary", null, /* @__PURE__ */ React.createElement("span", { className: "kit-summary" }, /* @__PURE__ */ React.createElement("span", { className: "eyebrow" }, kit.company, kit.optional ? ` · ${T("可选", "Optional")}` : ""), /* @__PURE__ */ React.createElement("h2", null, kit.role), /* @__PURE__ */ React.createElement("span", { className: "kit-date" }, kit.deadline || "—", " · ", countdown, " · ", kitLabel(kit.deadlineKind))), /* @__PURE__ */ React.createElement("span", { className: `tag ${record.appliedAt ? "tag-success" : "tag-neutral"}` }, record.appliedAt ? T("已投递", "Applied") : T("待投递", "To apply"))), /* @__PURE__ */ React.createElement("div", { className: "kit-body" }, /* @__PURE__ */ React.createElement("div", { className: "acts" }, /* @__PURE__ */ React.createElement("a", { className: "btn", href: kit.postingUrl, target: "_blank", rel: "noreferrer" }, T("打开职位", "Open posting"), " ", /* @__PURE__ */ React.createElement(Icon, { name: "open", size: 14 })), /* @__PURE__ */ React.createElement("a", { href: `#apply/${encodeURIComponent(kit.id)}` }, T("此申请的链接", "Link to this application"))), /* @__PURE__ */ React.createElement("p", { className: "kit-notice" }, kitLabel(kit.reviewNote)), /* @__PURE__ */ React.createElement("h3", null, T("是否合适", "Fit and gaps")), /* @__PURE__ */ React.createElement("p", null, kitLabel(kit.fit)), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T("联系入口：", "Way in: "), kitLabel(kit.sideDoor)), /* @__PURE__ */ React.createElement("section", { "aria-label": T("投递前", "Before you apply") }, /* @__PURE__ */ React.createElement("h3", null, T("投递前", "Before you apply")), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T("这些日期已经写进你的日历。只有实际完成后才勾选。", "These dates are on your calendar. Check an action only after completing it.")), kit.actions.length ? /* @__PURE__ */ React.createElement("ul", { className: "kit-actions" }, kit.actions.map((a) => /* @__PURE__ */ React.createElement("li", { key: a.id }, /* @__PURE__ */ React.createElement("label", null, /* @__PURE__ */ React.createElement("input", { type: "checkbox", "data-action": a.id, checked: !!record.completed?.[a.id], disabled: busy, onChange: (e) => {
     const checked = e.target.checked;
@@ -637,19 +647,21 @@ function ApplyTab({ openSettings }) {
     };
   }, [attempt]);
   const update = async (id, transform) => {
-    if (busy || error || loading || !ghConfigured()) return;
-    setBusy(true);
-    setSaveError("");
-    const rows = now.current, record = rows.find((r) => r.id === id) || { id };
-    const changed = transform(record), next = rows.some((r) => r.id === id) ? rows.map((r) => r.id === id ? changed : r) : [...rows, changed];
-    try {
-      const r = await ghWrite(ApplyKits.progressPath, next);
-      setProgress(ApplyKits.validateProgress(r.data));
-    } catch (e) {
-      setSaveError(e.message);
-    } finally {
-      setBusy(false);
-    }
+    return HubSettingsRuntime.track(async () => {
+      if (busy || error || loading || !ghConfigured()) return;
+      setBusy(true);
+      setSaveError("");
+      const rows = now.current, record = rows.find((r) => r.id === id) || { id };
+      const changed = transform(record), next = rows.some((r) => r.id === id) ? rows.map((r) => r.id === id ? changed : r) : [...rows, changed];
+      try {
+        const r = await ghWrite(ApplyKits.progressPath, next);
+        setProgress(ApplyKits.validateProgress(r.data));
+      } catch (e) {
+        setSaveError(e.message);
+      } finally {
+        setBusy(false);
+      }
+    });
   };
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow: T("所有地区共用", "Shared by all regions"), title: T("去投递", "Apply"), sub: T("材料、准备和下一步，都在同一处。", "Your materials, preparation and next step, together.") }), loading ? /* @__PURE__ */ React.createElement("div", { className: "card", "aria-busy": "true" }, T("正在读取申请材料…", "Loading application kits…")) : error ? /* @__PURE__ */ React.createElement(ErrorCard, { title: T("没能读取申请材料，未保存任何更改", "Couldn’t read application kits; no changes saved"), error, onRetry: () => setAttempt((x) => x + 1), openSettings }) : !kits.length ? /* @__PURE__ */ React.createElement("section", { className: "card" }, /* @__PURE__ */ React.createElement("h2", null, T("还没有申请材料包", "No application kits yet")), /* @__PURE__ */ React.createElement("p", null, T("由资料维护者审核材料包后上传到你的私有仓库，即可在这里使用。", "Your kit maintainer can review and upload application kits to your private repository to make them available here."))) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("p", { className: "hint" }, T(`${kits.length} 份申请 · 按截止日期排序 · 投递记录保存到你的仓库`, `${kits.length} applications · nearest deadline first · progress saved to your repo`)), selected && !kits.some((k) => k.id === selected) && /* @__PURE__ */ React.createElement("p", { className: "field-err", role: "alert" }, T("这个链接没有对应的申请，请从下面选择。", "This link has no matching application. Choose one below.")), saveError && /* @__PURE__ */ React.createElement("p", { className: "field-err kit-save-error", role: "alert" }, T("保存失败；刚才的操作未记录，请重试。", "Save failed; the last action was not recorded. Please retry."), " ", saveError), kits.map((kit) => /* @__PURE__ */ React.createElement(ApplyKitCard, { key: kit.id, kit, record: progress.find((r) => r.id === kit.id) || { id: kit.id }, busy, update, focused: selected === kit.id }))));
 }
@@ -743,22 +755,31 @@ function sampleProfile() {
   ];
   return { sections, library };
 }
-try {
-  const _pha = JSON.parse(localStorage.getItem("pha-config") || "null");
-  if (/\.github\.io\.?$/.test(location.hostname)) {
-    if (_pha && _pha.token && localStorage.getItem("jobapp:githubToken") === _pha.token && localStorage.getItem("jobapp:githubRepo") === _pha.owner + "/" + _pha.repo) {
-      localStorage.removeItem("jobapp:githubToken");
-      localStorage.removeItem("jobapp:githubRepo");
-      localStorage.removeItem("pha-config");
-    }
-  } else if (_pha && _pha.token) {
-    if (!localStorage.getItem("jobapp:githubRepo") && _pha.owner && _pha.repo)
-      localStorage.setItem("jobapp:githubRepo", _pha.owner + "/" + _pha.repo);
-    if (!localStorage.getItem("jobapp:githubToken"))
-      localStorage.setItem("jobapp:githubToken", _pha.token);
-  }
-} catch (e) {
+let jobConnection = {}, jobSourcePaused = false;
+const jobDrafts = /* @__PURE__ */ new Map(), jobFailedPaths = /* @__PURE__ */ new Set();
+let jobRegionLoading = false, jobRegionError = null;
+function useSettingsDraft(dirty) {
+  const id = useRef(/* @__PURE__ */ Symbol("job-draft"));
+  useEffect(() => {
+    jobDrafts.set(id.current, Boolean(dirty));
+    return () => jobDrafts.delete(id.current);
+  }, [dirty]);
 }
+function initializeJobConnection() {
+  if (DEMO) return;
+  try {
+    if (localStorage.getItem("jobapp:connection") === null) {
+      const oldRepo = localStorage.getItem("jobapp:githubRepo") || "", parts = oldRepo.split("/");
+      const local = { owner: parts[0] || "", repo: parts[1] || "", token: localStorage.getItem("jobapp:githubToken") || "" };
+      const raw = JSON.stringify(local);
+      localStorage.setItem("jobapp:connection", raw);
+      if (localStorage.getItem("jobapp:connection") !== raw) throw new HubSettingsContract.SettingsError("readback");
+    }
+    jobConnection = HubSettingsRuntime.resolve("Job-Tracker", HubSettingsContract.object(localStorage.getItem("jobapp:connection"))).config;
+  } catch {
+  }
+}
+initializeJobConnection();
 const PATHS = {
   resumeDb: "data/resumeDb.txt",
   resumeSections: "data/resumeSections.json",
@@ -795,10 +816,7 @@ const baseCache = {};
 const fileHolders = {};
 const saveQueues = {};
 function ghCfg() {
-  return {
-    token: localStorage.getItem(LOCAL_PRE + "githubToken") || "",
-    repo: localStorage.getItem(LOCAL_PRE + "githubRepo") || ""
-  };
+  return DEMO || jobSourcePaused ? { token: "", repo: "" } : { token: jobConnection.token || "", repo: jobConnection.owner && jobConnection.repo ? jobConnection.owner + "/" + jobConnection.repo : "" };
 }
 function ghHdrs(tok) {
   return { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github.v3+json", "Content-Type": "application/json" };
@@ -818,36 +836,41 @@ function parseFile(path, text) {
   return isJsonPath(path) ? text ? JSON.parse(text) : [] : text || "";
 }
 async function ghFetchFile(path) {
-  const { token, repo } = ghCfg();
-  const [o, r] = repo.split("/");
-  const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}?t=${Date.now()}`, { headers: ghHdrs(token), cache: "no-store" });
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    throw new Error(`GitHub ${res.status}: ${e.message || "error"}`);
-  }
-  const d = await res.json();
-  let b64 = d.content;
-  if (!b64 && d.sha && d.size > 0) {
-    const br = await fetch(`https://api.github.com/repos/${o}/${r}/git/blobs/${d.sha}`, { headers: ghHdrs(token), cache: "no-store" });
-    if (!br.ok) {
-      const e = await br.json().catch(() => ({}));
-      throw new Error(`GitHub ${br.status}: ${e.message || "error"}`);
+  return HubSettingsRuntime.track(async () => {
+    const { token, repo } = ghCfg();
+    const [o, r] = repo.split("/");
+    const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}?t=${Date.now()}`, { headers: ghHdrs(token), cache: "no-store" });
+    HubSettingsRuntime.fileRead(jobConnection, path, res.status);
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(`GitHub ${res.status}: ${e.message || "error"}`);
     }
-    b64 = (await br.json()).content;
-    if (!b64) throw new Error(`GitHub sent no content for ${path} (${d.size} bytes)`);
-  }
-  return { text: frB64(b64), sha: d.sha };
+    const d = await res.json();
+    let b64 = d.content;
+    if (!b64 && d.sha && d.size > 0) {
+      const br = await fetch(`https://api.github.com/repos/${o}/${r}/git/blobs/${d.sha}`, { headers: ghHdrs(token), cache: "no-store" });
+      if (!br.ok) {
+        const e = await br.json().catch(() => ({}));
+        throw new Error(`GitHub ${br.status}: ${e.message || "error"}`);
+      }
+      b64 = (await br.json()).content;
+      if (!b64) throw new Error(`GitHub sent no content for ${path} (${d.size} bytes)`);
+    }
+    return { text: frB64(b64), sha: d.sha };
+  });
 }
 async function ghRead(path) {
-  const { token, repo } = ghCfg();
-  if (!token || !repo) return null;
-  const f = await ghFetchFile(path);
-  const text = f ? f.text : null;
-  baseCache[path] = parseFile(path, text);
-  if (f) shaCache[path] = f.sha;
-  else delete shaCache[path];
-  return text;
+  return HubSettingsRuntime.track(async () => {
+    const { token, repo } = ghCfg();
+    if (!token || !repo) return null;
+    const f = await ghFetchFile(path);
+    const text = f ? f.text : null;
+    baseCache[path] = parseFile(path, text);
+    if (f) shaCache[path] = f.sha;
+    else delete shaCache[path];
+    return text;
+  });
 }
 function ghPut(path, text, sha) {
   const { token, repo } = ghCfg();
@@ -888,188 +911,224 @@ function ghWrite(path, value, opts = {}) {
   });
   q.chain = w.done.catch(() => {
   });
-  return w.done;
+  return HubSettingsRuntime.track(() => w.done);
 }
 async function ghWriteNow(path, value, opts, q) {
-  const { token, repo } = ghCfg();
-  if (!token || !repo) throw new Error("GitHub not configured");
-  const json = isJsonPath(path);
-  const sent = SafeMerge.snapshot(value);
-  let remoteNow = null;
-  const r = await SafeMerge.save({
-    data: sent,
-    sha: shaCache[path] || null,
-    base: path in baseCache ? baseCache[path] : null,
-    T,
-    put: (d, sha) => ghPut(path, json ? JSON.stringify(d) : d, sha),
-    get: async () => {
-      const f = await ghFetchFile(path);
-      remoteNow = parseFile(path, f && f.text);
-      return { json: remoteNow, sha: f ? f.sha : null };
-    },
-    askFn: opts.derived ? async () => "mine" : (conflicts, t) => SafeMerge.ask(conflicts.map((c) => ({ ...c, path: [path, ...c.path.map((p, i) => typeof p === "object" ? { ...p, label: itemLabel(itemAt(remoteNow, c.path, i) || itemAt(sent, c.path, i)) || p.label } : p)] })), t)
-  });
-  if (r.sha) shaCache[path] = r.sha;
-  else delete shaCache[path];
-  baseCache[path] = SafeMerge.snapshot(r.data);
-  if (r.merged) {
-    if (q.waiting) q.waiting.value = SafeMerge.rebase(sent, r.data, q.waiting.value);
-    const h = fileHolders[path];
-    if (h) {
-      const next = SafeMerge.rebase(sent, r.data, h.get());
-      ReactDOM.flushSync(() => h.set(next));
+  return HubSettingsRuntime.track(async () => {
+    try {
+      const { token, repo } = ghCfg();
+      if (!token || !repo) throw new Error("GitHub not configured");
+      const json = isJsonPath(path);
+      const sent = SafeMerge.snapshot(value);
+      let remoteNow = null;
+      const r = await SafeMerge.save({
+        data: sent,
+        sha: shaCache[path] || null,
+        base: path in baseCache ? baseCache[path] : null,
+        T,
+        put: (d, sha) => ghPut(path, json ? JSON.stringify(d) : d, sha),
+        get: async () => {
+          return HubSettingsRuntime.track(async () => {
+            const f = await ghFetchFile(path);
+            remoteNow = parseFile(path, f && f.text);
+            return { json: remoteNow, sha: f ? f.sha : null };
+          });
+        },
+        askFn: opts.derived ? async () => "mine" : (conflicts, t) => SafeMerge.ask(conflicts.map((c) => ({ ...c, path: [path, ...c.path.map((p, i) => typeof p === "object" ? { ...p, label: itemLabel(itemAt(remoteNow, c.path, i) || itemAt(sent, c.path, i)) || p.label } : p)] })), t)
+      });
+      if (r.sha) shaCache[path] = r.sha;
+      else delete shaCache[path];
+      baseCache[path] = SafeMerge.snapshot(r.data);
+      if (r.merged) {
+        if (q.waiting) q.waiting.value = SafeMerge.rebase(sent, r.data, q.waiting.value);
+        const h = fileHolders[path];
+        if (h) {
+          const next = SafeMerge.rebase(sent, r.data, h.get());
+          ReactDOM.flushSync(() => h.set(next));
+        }
+      }
+      jobFailedPaths.delete(path);
+      return r;
+    } catch (error) {
+      jobFailedPaths.add(path);
+      throw error;
     }
-  }
-  return r;
+  });
 }
 async function testGhConnection(token = ghCfg().token, repo = ghCfg().repo) {
-  if (!token || !repo) throw new Error("Not configured");
-  const [o, r] = repo.split("/");
-  const res = await fetch(`https://api.github.com/repos/${o}/${r}`, { headers: ghHdrs(token) });
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    throw new Error(`${res.status}: ${e.message || "error"}`);
-  }
-  return res.json();
+  return HubSettingsRuntime.track(async () => {
+    if (!token || !repo) throw new Error("Not configured");
+    const [o, r] = repo.split("/");
+    const res = await fetch(`https://api.github.com/repos/${o}/${r}`, { headers: ghHdrs(token) });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(`${res.status}: ${e.message || "error"}`);
+    }
+    return res.json();
+  });
 }
 function pdfGhPath(pdfKey) {
   return `data/files/${pdfKey.replace(/:/g, "_")}.pdf`;
 }
 async function ghWriteDataUrl(path, dataUrl) {
-  const base64 = (dataUrl || "").split(",")[1];
-  if (!base64) throw new Error("Invalid data URL");
-  const { token, repo } = ghCfg();
-  if (!token || !repo) throw new Error("GitHub not configured");
-  const [o, r] = repo.split("/");
-  const url = `https://api.github.com/repos/${o}/${r}/contents/${path}`;
-  if (!shaCache[path]) {
-    const c = await fetch(url, { headers: ghHdrs(token) });
-    if (c.ok) {
-      const d2 = await c.json();
-      shaCache[path] = d2.sha;
+  return HubSettingsRuntime.track(async () => {
+    const base64 = (dataUrl || "").split(",")[1];
+    if (!base64) throw new Error("Invalid data URL");
+    const { token, repo } = ghCfg();
+    if (!token || !repo) throw new Error("GitHub not configured");
+    const [o, r] = repo.split("/");
+    const url = `https://api.github.com/repos/${o}/${r}/contents/${path}`;
+    if (!shaCache[path]) {
+      const c = await fetch(url, { headers: ghHdrs(token) });
+      if (c.ok) {
+        const d2 = await c.json();
+        shaCache[path] = d2.sha;
+      }
     }
-  }
-  const doWrite = async () => {
-    const body = { message: `jobapp: update ${path}`, content: base64, ...shaCache[path] ? { sha: shaCache[path] } : {} };
-    return fetch(url, { method: "PUT", headers: ghHdrs(token), body: JSON.stringify(body) });
-  };
-  let res = await doWrite();
-  if (res.status === 409) {
-    const fresh = await fetch(url, { headers: ghHdrs(token) });
-    if (fresh.ok) {
-      const d2 = await fresh.json();
-      shaCache[path] = d2.sha;
-    } else delete shaCache[path];
-    res = await doWrite();
-  }
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    throw new Error(`GitHub ${res.status}: ${e.message || "error"}`);
-  }
-  const d = await res.json();
-  shaCache[path] = d.content.sha;
+    const doWrite = async () => {
+      return HubSettingsRuntime.track(async () => {
+        const body = { message: `jobapp: update ${path}`, content: base64, ...shaCache[path] ? { sha: shaCache[path] } : {} };
+        return fetch(url, { method: "PUT", headers: ghHdrs(token), body: JSON.stringify(body) });
+      });
+    };
+    let res = await doWrite();
+    if (res.status === 409) {
+      const fresh = await fetch(url, { headers: ghHdrs(token) });
+      if (fresh.ok) {
+        const d2 = await fresh.json();
+        shaCache[path] = d2.sha;
+      } else delete shaCache[path];
+      res = await doWrite();
+    }
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(`GitHub ${res.status}: ${e.message || "error"}`);
+    }
+    const d = await res.json();
+    shaCache[path] = d.content.sha;
+  });
 }
 async function ghCreateDataUrl(path, dataUrl) {
-  const base64 = (dataUrl || "").split(",")[1];
-  if (!base64) throw new Error("Invalid data URL");
-  const { token, repo } = ghCfg();
-  if (!token || !repo) throw new Error("GitHub not configured");
-  const [o, r] = repo.split("/");
-  const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, {
-    method: "PUT",
-    headers: ghHdrs(token),
-    body: JSON.stringify({ message: `jobapp: add ${path}`, content: base64 })
-  });
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    if (res.status === 422 && /sha/i.test(e.message || "")) {
-      const err = new Error(T("仓库里已经有这个文件，没有覆盖它", "Your repo already has this file; it was not replaced"));
-      err.exists = true;
-      throw err;
+  return HubSettingsRuntime.track(async () => {
+    const base64 = (dataUrl || "").split(",")[1];
+    if (!base64) throw new Error("Invalid data URL");
+    const { token, repo } = ghCfg();
+    if (!token || !repo) throw new Error("GitHub not configured");
+    const [o, r] = repo.split("/");
+    const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, {
+      method: "PUT",
+      headers: ghHdrs(token),
+      body: JSON.stringify({ message: `jobapp: add ${path}`, content: base64 })
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      if (res.status === 422 && /sha/i.test(e.message || "")) {
+        const err = new Error(T("仓库里已经有这个文件，没有覆盖它", "Your repo already has this file; it was not replaced"));
+        err.exists = true;
+        throw err;
+      }
+      throw new Error(`GitHub ${res.status}: ${e.message || "error"}`);
     }
-    throw new Error(`GitHub ${res.status}: ${e.message || "error"}`);
-  }
-  shaCache[path] = (await res.json()).content.sha;
+    shaCache[path] = (await res.json()).content.sha;
+  });
 }
 async function ghFindDataUrl(path, mimeType) {
-  const { token, repo } = ghCfg();
-  if (!token || !repo) throw new Error("GitHub not configured");
-  const [o, r] = repo.split("/");
-  const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}?t=${Date.now()}`, { headers: ghHdrs(token), cache: "no-store" });
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    throw new Error(`GitHub ${res.status}: ${e.message || "error"}`);
-  }
-  const d = await res.json();
-  shaCache[path] = d.sha;
-  return d.content ? `data:${mimeType};base64,${d.content.replace(/\n/g, "")}` : "";
+  return HubSettingsRuntime.track(async () => {
+    const { token, repo } = ghCfg();
+    if (!token || !repo) throw new Error("GitHub not configured");
+    const [o, r] = repo.split("/");
+    const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}?t=${Date.now()}`, { headers: ghHdrs(token), cache: "no-store" });
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(`GitHub ${res.status}: ${e.message || "error"}`);
+    }
+    const d = await res.json();
+    shaCache[path] = d.sha;
+    return d.content ? `data:${mimeType};base64,${d.content.replace(/\n/g, "")}` : "";
+  });
 }
 async function ghReadDataUrl(path, mimeType) {
-  const { token, repo } = ghCfg();
-  if (!token || !repo) return null;
-  const [o, r] = repo.split("/");
-  const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { headers: ghHdrs(token) });
-  if (res.status === 404) return null;
-  if (!res.ok) return null;
-  const d = await res.json();
-  shaCache[path] = d.sha;
-  return `data:${mimeType};base64,${d.content.replace(/\n/g, "")}`;
+  return HubSettingsRuntime.track(async () => {
+    const { token, repo } = ghCfg();
+    if (!token || !repo) return null;
+    const [o, r] = repo.split("/");
+    const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { headers: ghHdrs(token) });
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    const d = await res.json();
+    shaCache[path] = d.sha;
+    return `data:${mimeType};base64,${d.content.replace(/\n/g, "")}`;
+  });
 }
 async function ghDeleteFile(path) {
-  const { token, repo } = ghCfg();
-  if (!token || !repo) return;
-  const [o, r] = repo.split("/");
-  const url = `https://api.github.com/repos/${o}/${r}/contents/${path}`;
-  if (!shaCache[path]) {
-    const c = await fetch(url, { headers: ghHdrs(token) });
-    if (!c.ok) return;
-    const d = await c.json();
-    shaCache[path] = d.sha;
-  }
-  const body = { message: `jobapp: delete ${path}`, sha: shaCache[path] };
-  const res = await fetch(url, { method: "DELETE", headers: ghHdrs(token), body: JSON.stringify(body) });
-  if (res.ok) delete shaCache[path];
+  return HubSettingsRuntime.track(async () => {
+    const { token, repo } = ghCfg();
+    if (!token || !repo) return;
+    const [o, r] = repo.split("/");
+    const url = `https://api.github.com/repos/${o}/${r}/contents/${path}`;
+    if (!shaCache[path]) {
+      const c = await fetch(url, { headers: ghHdrs(token) });
+      if (!c.ok) return;
+      const d = await c.json();
+      shaCache[path] = d.sha;
+    }
+    const body = { message: `jobapp: delete ${path}`, sha: shaCache[path] };
+    const res = await fetch(url, { method: "DELETE", headers: ghHdrs(token), body: JSON.stringify(body) });
+    if (res.ok) delete shaCache[path];
+  });
 }
 async function loadText(key) {
-  try {
-    return await ghRead(keyToPath(key)) || "";
-  } catch {
-    return "";
-  }
+  return HubSettingsRuntime.track(async () => {
+    try {
+      return await ghRead(keyToPath(key)) || "";
+    } catch {
+      return "";
+    }
+  });
 }
 async function saveText(key, v, opts) {
-  if (DEMO && !ghConfigured()) return;
-  try {
-    return await ghWrite(keyToPath(key), v, opts);
-  } catch (e) {
-    console.error(e);
-    dispatchSaveErr(e);
-  }
+  return HubSettingsRuntime.track(async () => {
+    if (DEMO && !ghConfigured()) return;
+    try {
+      return await ghWrite(keyToPath(key), v, opts);
+    } catch (e) {
+      console.error(e);
+      dispatchSaveErr(e);
+    }
+  });
 }
 async function loadJson(key) {
-  try {
-    const t = await ghRead(keyToPath(key));
-    return t ? JSON.parse(t) : [];
-  } catch {
-    return [];
-  }
+  return HubSettingsRuntime.track(async () => {
+    try {
+      const t = await ghRead(keyToPath(key));
+      return t ? JSON.parse(t) : [];
+    } catch {
+      return [];
+    }
+  });
 }
 async function loadJsonStrict(key) {
-  const t = await ghRead(keyToPath(key));
-  return t ? JSON.parse(t) : [];
+  return HubSettingsRuntime.track(async () => {
+    const t = await ghRead(keyToPath(key));
+    return t ? JSON.parse(t) : [];
+  });
 }
 async function loadTextStrict(key) {
-  return await ghRead(keyToPath(key)) || "";
+  return HubSettingsRuntime.track(async () => {
+    return await ghRead(keyToPath(key)) || "";
+  });
 }
 async function saveJson(key, v) {
-  if (DEMO && !ghConfigured()) return;
-  try {
-    return await ghWrite(keyToPath(key), v);
-  } catch (e) {
-    console.error(e);
-    dispatchSaveErr(e);
-  }
+  return HubSettingsRuntime.track(async () => {
+    if (DEMO && !ghConfigured()) return;
+    try {
+      return await ghWrite(keyToPath(key), v);
+    } catch (e) {
+      console.error(e);
+      dispatchSaveErr(e);
+    }
+  });
 }
 function dispatchSaveErr(e) {
   window.dispatchEvent(new CustomEvent("jobapp:saveerror", { detail: e }));
@@ -1081,6 +1140,7 @@ function combineSections(sections) {
 ${s.content || ""}`).join("\n\n---\n\n");
 }
 function lsGet(k) {
+  if (DEMO && ["anthropicKey", "githubToken", "githubRepo"].includes(k)) return "";
   return localStorage.getItem(LOCAL_PRE + k) || "";
 }
 function lsSet(k, v) {
@@ -1439,44 +1499,48 @@ function loadPdfJs() {
   return pdfjsPromise;
 }
 async function extractPdfText(file) {
-  const lib = await loadPdfJs();
-  const buf = await file.arrayBuffer();
-  const pdf = await lib.getDocument({ data: buf }).promise;
-  const parts = [];
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const items = content.items.map((it) => ({ str: it.str, y: it.transform?.[5] ?? 0, x: it.transform?.[4] ?? 0 }));
-    items.sort((a, b) => b.y - a.y || a.x - b.x);
-    const lines = [];
-    let cy = null, cl = [];
-    for (const it of items) {
-      if (cy === null || Math.abs(it.y - cy) > 2) {
-        if (cl.length) lines.push(cl.join(" ").trim());
-        cl = [it.str];
-        cy = it.y;
-      } else cl.push(it.str);
+  return HubSettingsRuntime.track(async () => {
+    const lib = await loadPdfJs();
+    const buf = await file.arrayBuffer();
+    const pdf = await lib.getDocument({ data: buf }).promise;
+    const parts = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const items = content.items.map((it) => ({ str: it.str, y: it.transform?.[5] ?? 0, x: it.transform?.[4] ?? 0 }));
+      items.sort((a, b) => b.y - a.y || a.x - b.x);
+      const lines = [];
+      let cy = null, cl = [];
+      for (const it of items) {
+        if (cy === null || Math.abs(it.y - cy) > 2) {
+          if (cl.length) lines.push(cl.join(" ").trim());
+          cl = [it.str];
+          cy = it.y;
+        } else cl.push(it.str);
+      }
+      if (cl.length) lines.push(cl.join(" ").trim());
+      parts.push(lines.filter(Boolean).join("\n"));
     }
-    if (cl.length) lines.push(cl.join(" ").trim());
-    parts.push(lines.filter(Boolean).join("\n"));
-  }
-  return parts.join("\n\n").trim();
+    return parts.join("\n\n").trim();
+  });
 }
 async function readFileAsText(file) {
-  const ext = (file.name.split(".").pop() || "").toLowerCase();
-  if (["txt", "md", "markdown"].includes(ext)) return file.text();
-  if (ext === "docx") {
-    const buf = await file.arrayBuffer();
-    const r = await mammoth.extractRawText({ arrayBuffer: buf });
-    return (r?.value || "").trim();
-  }
-  if (ext === "pdf") {
-    const t = await extractPdfText(file);
-    if (!t || t.length < 10) throw new Error("Could not extract text — PDF may be scanned/image-based");
-    return t;
-  }
-  if (ext === "doc") throw new Error(".doc not supported — save as .docx first");
-  throw new Error(`Unsupported: .${ext} — use .txt, .md, .docx, or .pdf`);
+  return HubSettingsRuntime.track(async () => {
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    if (["txt", "md", "markdown"].includes(ext)) return file.text();
+    if (ext === "docx") {
+      const buf = await file.arrayBuffer();
+      const r = await mammoth.extractRawText({ arrayBuffer: buf });
+      return (r?.value || "").trim();
+    }
+    if (ext === "pdf") {
+      const t = await extractPdfText(file);
+      if (!t || t.length < 10) throw new Error("Could not extract text — PDF may be scanned/image-based");
+      return t;
+    }
+    if (ext === "doc") throw new Error(".doc not supported — save as .docx first");
+    throw new Error(`Unsupported: .${ext} — use .txt, .md, .docx, or .pdf`);
+  });
 }
 function downloadText(filename, content, mime = "text/plain") {
   const blob = new Blob([content], { type: `${mime};charset=utf-8` });
@@ -1498,20 +1562,46 @@ function readFileAsDataUrl(file) {
   });
 }
 const PDF_LS_PRE = "jobapp-pdf:";
-function savePdfLocal(key, dataUrl) {
+const pdfScope = () => encodeURIComponent((jobConnection.owner || "") + "/" + (jobConnection.repo || ""));
+function pdfCacheKey(key) {
+  return "jobapp-pdf-v2:" + pdfScope() + ":" + key;
+}
+function migratePdfCache() {
+  if (DEMO || !HubSettingsContract.complete(jobConnection)) return;
+  const scope = pdfScope(), marker = "jobapp:legacy-pdf-source";
   try {
-    localStorage.setItem(PDF_LS_PRE + key, dataUrl);
-    return true;
-  } catch (e) {
-    console.warn("localStorage quota exceeded:", e);
+    let original = localStorage.getItem(marker);
+    if (original === null) {
+      localStorage.setItem(marker, scope);
+      if (localStorage.getItem(marker) !== scope) return;
+      original = scope;
+    }
+    if (original !== scope) return;
+    for (const key of Object.keys(localStorage).filter((k) => k.startsWith(PDF_LS_PRE))) {
+      const target = pdfCacheKey(key.slice(PDF_LS_PRE.length));
+      if (localStorage.getItem(target) === null) localStorage.setItem(target, localStorage.getItem(key));
+    }
+  } catch {
+  }
+}
+migratePdfCache();
+function savePdfLocal(key, dataUrl) {
+  if (DEMO) return true;
+  try {
+    localStorage.setItem(pdfCacheKey(key), dataUrl);
+    return localStorage.getItem(pdfCacheKey(key)) === dataUrl;
+  } catch (error) {
+    console.warn("Local PDF cache unavailable");
     return false;
   }
 }
 function loadPdfLocal(key) {
-  return localStorage.getItem(PDF_LS_PRE + key) || null;
+  return DEMO ? null : localStorage.getItem(pdfCacheKey(key));
 }
 function deletePdfLocal(key) {
-  localStorage.removeItem(PDF_LS_PRE + key);
+  if (DEMO) return;
+  localStorage.removeItem(pdfCacheKey(key));
+  if (localStorage.getItem("jobapp:legacy-pdf-source") === pdfScope()) localStorage.removeItem(PDF_LS_PRE + key);
 }
 function safeName(s) {
   return (s || "file").replace(/[^\w\s-]/g, "").replace(/\s+/g, "_").slice(0, 60) || "file";
@@ -1633,7 +1723,7 @@ function Icon({ name, size = 18, className }) {
   );
 }
 function BrandMark() {
-  return /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "24", height: "24", fill: "none", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("rect", { x: "2.5", y: "2.5", width: "19", height: "19", rx: "5", stroke: "currentColor", strokeWidth: "2" }), /* @__PURE__ */ React.createElement("rect", { x: "14", y: "6", width: "4", height: "4", rx: "1", fill: "var(--point)" }), /* @__PURE__ */ React.createElement("path", { d: "M7.5 17V9M11.5 17v-5M15.5 17v-2.5", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" }));
+  return /* @__PURE__ */ React.createElement("img", { className: "app-logo", src: "assets/app-logo/logo.svg", width: "32", height: "32", alt: "" });
 }
 function Card({ children, className = "" }) {
   return /* @__PURE__ */ React.createElement("div", { className: `card ${className}` }, children);
@@ -1817,23 +1907,25 @@ function FileUploadButton({ onFile, label = T("上传文件…", "Upload file…
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const handle = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setErr("");
-    setBusy(true);
-    try {
-      const t = await readFileAsText(file);
-      if (!t.trim()) {
-        setErr(T("文件为空或无法读取", "File is empty or unreadable"));
-        return;
+    return HubSettingsRuntime.track(async () => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      setErr("");
+      setBusy(true);
+      try {
+        const t = await readFileAsText(file);
+        if (!t.trim()) {
+          setErr(T("文件为空或无法读取", "File is empty or unreadable"));
+          return;
+        }
+        onFile(t, file.name);
+      } catch (e2) {
+        setErr(e2.message || T("读取文件失败", "Failed to read file"));
+      } finally {
+        setBusy(false);
       }
-      onFile(t, file.name);
-    } catch (e2) {
-      setErr(e2.message || T("读取文件失败", "Failed to read file"));
-    } finally {
-      setBusy(false);
-    }
+    });
   };
   return /* @__PURE__ */ React.createElement("span", { className: "upload" }, /* @__PURE__ */ React.createElement(Btn, { variant: primary ? "primary" : "secondary", onClick: () => ref.current?.click(), disabled: busy }, busy ? T("读取中…", "Reading…") : label), /* @__PURE__ */ React.createElement("input", { ref, type: "file", accept, onChange: handle, className: "hidden" }), err && /* @__PURE__ */ React.createElement("span", { className: "field-err", role: "alert" }, err));
 }
@@ -1875,13 +1967,15 @@ function Dialog({ labelId, onClose, wide, children }) {
 function PromptBlock({ prompt, onClose, id }) {
   const [state, setState] = useState("idle");
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(prompt);
-      setState("copied");
-      setTimeout(() => setState((s) => s === "copied" ? "idle" : s), 2e3);
-    } catch (e) {
-      setState("failed");
-    }
+    return HubSettingsRuntime.track(async () => {
+      try {
+        await navigator.clipboard.writeText(prompt);
+        setState("copied");
+        setTimeout(() => setState((s) => s === "copied" ? "idle" : s), 2e3);
+      } catch (e) {
+        setState("failed");
+      }
+    });
   };
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("label", { htmlFor: id, className: "sr-only" }, T("提示词", "Prompt")), /* @__PURE__ */ React.createElement("textarea", { id, className: "prompt-box", value: prompt, readOnly: true, onClick: (e) => e.target.select() }), /* @__PURE__ */ React.createElement("div", { className: "dlg-acts" }, /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: copy }, state === "copied" ? T("已复制", "Copied") : T("复制提示词", "Copy prompt")), /* @__PURE__ */ React.createElement("a", { className: "btn", href: CLAUDE_URL, target: "_blank", rel: "noreferrer" }, T("打开 Claude.ai", "Open Claude.ai"), /* @__PURE__ */ React.createElement(Icon, { name: "open", size: 14 })), /* @__PURE__ */ React.createElement(Btn, { onClick: onClose }, T("关闭", "Close"))), /* @__PURE__ */ React.createElement("p", { className: "sr-only", role: "status" }, state === "copied" ? T("提示词已复制到剪贴板", "The prompt is on the clipboard") : ""), state === "failed" && /* @__PURE__ */ React.createElement("p", { className: "field-err", role: "alert" }, T("没能复制——选中上面的文字，按 ⌘C / Ctrl+C。", "Couldn’t copy — select the text above and press ⌘C / Ctrl+C.")), /* @__PURE__ */ React.createElement("p", { className: "hint dlg-foot" }, T("用的是你自己的 Claude.ai 订阅，不另外收费。", "Uses your Claude.ai subscription — no extra cost.")));
 }
@@ -1985,73 +2079,6 @@ function MdView({ text }) {
   flushList();
   return /* @__PURE__ */ React.createElement("div", { className: "md" }, out);
 }
-function SettingsSections({ ghOk, onGhChange }) {
-  const [tok, setTok] = useState(lsGet("githubToken"));
-  const [repo, setRepo] = useState(lsGet("githubRepo"));
-  const [key, setKey] = useState(lsGet("anthropicKey"));
-  const [showTok, setShowTok] = useState(false);
-  const [showKey, setShowKey] = useState(false);
-  const [connected, setConnected] = useState(ghOk);
-  const [status, setStatus] = useState(null);
-  const [testing, setTesting] = useState(false);
-  const [keySaved, setKeySaved] = useState(false);
-  const save = () => {
-    lsSet("githubToken", tok.trim());
-    lsSet("githubRepo", repo.trim());
-    const ok = ghConfigured();
-    setConnected(ok);
-    onGhChange?.(ok);
-    setStatus({ ok: true, msg: T("已保存。", "Saved.") });
-  };
-  const test = async () => {
-    const t = tok.trim(), rp = repo.trim();
-    setTesting(true);
-    setStatus(null);
-    try {
-      const d = await testGhConnection(t, rp);
-      lsSet("githubToken", t);
-      lsSet("githubRepo", rp);
-      setStatus({ ok: true, msg: `✓ ${T("已连接", "Connected")} — ${d.full_name} (${d.private ? T("私有", "private") : T("公开", "public")})` });
-      setConnected(true);
-      onGhChange?.(true);
-    } catch (e) {
-      setStatus({ ok: false, msg: `✗ ${T("连接失败", "Couldn’t connect")} — ${e.message}. ${T("请确认令牌勾选了 repo 权限。没有保存。", "Check that the token has the repo scope. Nothing was saved.")}` });
-    } finally {
-      setTesting(false);
-    }
-  };
-  const clear = () => {
-    if (!window.confirm(T("移除 GitHub 凭证？", "Remove GitHub credentials?"))) return;
-    lsDel("githubToken");
-    lsDel("githubRepo");
-    setTok("");
-    setRepo("");
-    setConnected(false);
-    setStatus(null);
-    onGhChange?.(false);
-  };
-  const saveKey = () => {
-    lsSet("anthropicKey", key.trim());
-    setKeySaved(true);
-    setTimeout(() => setKeySaved(false), 2e3);
-  };
-  const tokName = showTok ? T("隐藏令牌", "Hide token") : T("显示令牌", "Show token");
-  const keyName = showKey ? T("隐藏密钥", "Hide key") : T("显示密钥", "Show key");
-  return /* @__PURE__ */ React.createElement("div", { className: "set-stack" }, /* @__PURE__ */ React.createElement("section", { className: "set-sec", "aria-labelledby": "set-repo-h" }, /* @__PURE__ */ React.createElement("h3", { id: "set-repo-h" }, T("私有数据仓库", "Private data repo")), /* @__PURE__ */ React.createElement("details", { open: !connected }, /* @__PURE__ */ React.createElement("summary", null, T("怎么设置", "How to set it up")), /* @__PURE__ */ React.createElement("ol", null, /* @__PURE__ */ React.createElement("li", null, T("新建一个私有 GitHub 仓库，例如 ", "Create a private GitHub repo, for example "), /* @__PURE__ */ React.createElement("code", null, "your-username/jobapp-data")), /* @__PURE__ */ React.createElement("li", null, T("打开 ", "Open "), /* @__PURE__ */ React.createElement("a", { href: "https://github.com/settings/tokens/new", target: "_blank", rel: "noreferrer" }, "github.com/settings/tokens/new")), /* @__PURE__ */ React.createElement("li", null, T("勾选 repo 权限，生成并复制令牌", "Tick the repo scope, generate the token and copy it")), /* @__PURE__ */ React.createElement("li", null, T("把仓库名和令牌填在下面，保存", "Fill in the repository and the token below, then save")))), /* @__PURE__ */ React.createElement("div", { className: "fld" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "set-repo" }, T("仓库（owner/repo-name）", "Repository (owner/repo-name)")), /* @__PURE__ */ React.createElement("input", { id: "set-repo", type: "text", value: repo, onChange: (e) => setRepo(e.target.value), placeholder: "your-username/jobapp-data", autoComplete: "off", spellCheck: "false" })), /* @__PURE__ */ React.createElement("div", { className: "fld" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "set-token" }, T("个人访问令牌", "Personal access token")), /* @__PURE__ */ React.createElement("div", { className: "secret" }, /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      id: "set-token",
-      type: showTok ? "text" : "password",
-      value: tok,
-      onChange: (e) => setTok(e.target.value),
-      placeholder: "ghp_…",
-      autoComplete: "off",
-      spellCheck: "false",
-      "aria-invalid": status && !status.ok ? "true" : void 0,
-      "aria-describedby": "set-status"
-    }
-  ), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon", "aria-pressed": showTok, "aria-label": tokName, "data-tip": tokName, onClick: () => setShowTok((s) => !s) }, /* @__PURE__ */ React.createElement(Icon, { name: showTok ? "eyeOff" : "eye" })))), /* @__PURE__ */ React.createElement("p", { id: "set-status", className: `status${status ? status.ok ? " ok" : " bad" : ""}`, role: "status" }, status ? status.msg : ""), /* @__PURE__ */ React.createElement("div", { className: "row" }, /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: save, disabled: !tok.trim() || !repo.trim() }, T("保存", "Save")), /* @__PURE__ */ React.createElement(Btn, { onClick: test, disabled: testing || !tok.trim() || !repo.trim() }, testing ? T("测试中…", "Testing…") : T("测试连接", "Test connection")), connected && /* @__PURE__ */ React.createElement(Btn, { variant: "danger", onClick: clear }, T("移除凭证", "Remove credentials")))), /* @__PURE__ */ React.createElement("section", { className: "set-sec", "aria-labelledby": "set-key-h" }, /* @__PURE__ */ React.createElement("h3", { id: "set-key-h" }, T("Anthropic API 密钥（可选）", "Anthropic API key (optional)")), /* @__PURE__ */ React.createElement("p", null, T("供「提醒」与「批量定制」使用，每次扫描约 $0.01–0.05。在 ", "Used by Alerts and Batch tailor, about $0.01–0.05 per scan. Get one at "), /* @__PURE__ */ React.createElement("a", { href: "https://console.anthropic.com", target: "_blank", rel: "noreferrer" }, "console.anthropic.com"), T(" 获取。", ".")), /* @__PURE__ */ React.createElement("div", { className: "fld" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "set-key" }, T("密钥", "Key")), /* @__PURE__ */ React.createElement("div", { className: "secret" }, /* @__PURE__ */ React.createElement("input", { id: "set-key", type: showKey ? "text" : "password", value: key, onChange: (e) => setKey(e.target.value), placeholder: "sk-ant-…", autoComplete: "off", spellCheck: "false" }), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon", "aria-pressed": showKey, "aria-label": keyName, "data-tip": keyName, onClick: () => setShowKey((s) => !s) }, /* @__PURE__ */ React.createElement(Icon, { name: showKey ? "eyeOff" : "eye" })))), /* @__PURE__ */ React.createElement("div", { className: "row" }, /* @__PURE__ */ React.createElement(Btn, { onClick: saveKey }, keySaved ? T("已保存", "Saved") : T("保存密钥", "Save key")))), /* @__PURE__ */ React.createElement("p", { className: "set-note" }, T("密钥只存在这个浏览器里，只发给各自的 API。", "Keys stay in this browser and are sent only to their own APIs.")));
-}
 const PROFILE_STARTER = [
   { name: "Contact & Links", content: "Full name:\nLocation (city, country):\nPhone(s):\nEmail:\nLinkedIn:\nPortfolio / GitHub / personal site:\nWork authorization (per region, e.g. citizen / PR / visa / open to sponsorship):" },
   { name: "Professional Summary", content: '2–3 sentences: who you are, years of experience, 2–3 top strengths, and the role/industry you target.\n\ne.g. "Data analyst with 3 years turning messy data into decisions; strong in SQL, Python and dashboarding; targeting analytics roles in fintech."' },
@@ -2083,6 +2110,7 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
   const [dirty, setDirty] = useState(false);
   const [fmtDraft, setFmtDraft] = useState(formatting || "");
   const [glsDraft, setGlsDraft] = useState(glossary || "");
+  useSettingsDraft(dirty || fmtDraft !== (formatting || "") || glsDraft !== (glossary || "") || editingId !== null);
   useEffect(() => {
     setFmtDraft(formatting || "");
   }, [formatting]);
@@ -2124,12 +2152,14 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
     setEditingId(null);
   };
   const handleSaveAll = async () => {
-    setSaving(true);
-    await updateSections(sections, true);
-    setSaving(false);
-    setDirty(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    return HubSettingsRuntime.track(async () => {
+      setSaving(true);
+      await updateSections(sections, true);
+      setSaving(false);
+      setDirty(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    });
   };
   const totalChars = sections.reduce((n, s) => n + (s.content || "").length, 0);
   const SOURCE = { upload: T("上传的", "Uploaded"), manual: T("在这里写的", "Written here"), template: T("模板", "Template"), library: T("来自简历库", "From library") };
@@ -2182,8 +2212,10 @@ Your Company → 公司名称
 Vancouver → 温哥华`
     }
   ), /* @__PURE__ */ React.createElement("div", { className: "save-row" }, /* @__PURE__ */ React.createElement("p", { className: "hint", role: "status" }, !glsN ? T("还没有词条——人名等译法由 Claude 自己判断。", "No entries yet — Claude uses its own judgement for names.") : glsSavedNow ? T(`${glsN} 条——每条翻译提示词都会带上`, `${glsN} ${glsN === 1 ? "entry" : "entries"} — added to every translate prompt`) : T(`${glsN} 条，还没保存`, `${glsN} ${glsN === 1 ? "entry" : "entries"}, not saved yet`)), /* @__PURE__ */ React.createElement(Btn, { onClick: async () => {
-    setGlossary(glsDraft);
-    await saveText("glossary", glsDraft);
+    return HubSettingsRuntime.track(async () => {
+      setGlossary(glsDraft);
+      await saveText("glossary", glsDraft);
+    });
   } }, T("保存词汇表", "Save glossary")))), /* @__PURE__ */ React.createElement("section", { className: "card", "aria-labelledby": "fmt-h" }, /* @__PURE__ */ React.createElement("div", { className: "card-head" }, /* @__PURE__ */ React.createElement("h2", { id: "fmt-h" }, T("简历排版规则", "Resume formatting rules"))), /* @__PURE__ */ React.createElement("p", { className: "hint" }, T(
     "写清楚你要的简历排版。每一条「定制简历」提示词都会带上它——Claude 看不到你上传文件的样式，只能照这里写的来。",
     "How you want your resume laid out. Every tailored-resume prompt carries it — Claude cannot see the styling of the files you upload, only what you write here."
@@ -2215,8 +2247,10 @@ Vancouver → 温哥华`
       )
     }
   ), /* @__PURE__ */ React.createElement("div", { className: "save-row" }, /* @__PURE__ */ React.createElement("p", { className: "hint", role: "status" }, !fmtN ? T("还没有规则——Claude 用它默认的排版。", "No rules yet — Claude uses its default layout.") : fmtSavedNow ? T(`${fmtN} 条规则——每条定制简历提示词都会带上`, `${fmtN} ${fmtN === 1 ? "rule" : "rules"} — included in every tailored-resume prompt`) : T(`${fmtN} 条规则，还没保存`, `${fmtN} ${fmtN === 1 ? "rule" : "rules"}, not saved yet`)), /* @__PURE__ */ React.createElement(Btn, { onClick: async () => {
-    setFormatting(fmtDraft);
-    await saveText("formatting", fmtDraft);
+    return HubSettingsRuntime.track(async () => {
+      setFormatting(fmtDraft);
+      await saveText("formatting", fmtDraft);
+    });
   } }, T("保存规则", "Save rules")))), /* @__PURE__ */ React.createElement(GeneralResumeSection, { resumeDb, formatting, glossary, region })));
 }
 const generalResumeKind = (region) => region === "hongkong" ? "hk" : region === "china" ? "zh" : "en";
@@ -2332,33 +2366,41 @@ CONTENT:
 function LibraryTab({ library, setLibrary, updateSections }) {
   const [expandedId, setExpandedId] = useState(null);
   const handleUpload = async (text, filename) => {
-    const entry = { id: newId(), name: filename.replace(/\.[^.]+$/, "") || "Untitled", content: text, uploadedAt: (/* @__PURE__ */ new Date()).toISOString() };
-    const updated = [entry, ...library];
-    setLibrary(updated);
-    await saveJson("library", updated);
+    return HubSettingsRuntime.track(async () => {
+      const entry = { id: newId(), name: filename.replace(/\.[^.]+$/, "") || "Untitled", content: text, uploadedAt: (/* @__PURE__ */ new Date()).toISOString() };
+      const updated = [entry, ...library];
+      setLibrary(updated);
+      await saveJson("library", updated);
+    });
   };
   const handleDelete = async (id) => {
-    if (!window.confirm(T("删除这份简历？", "Delete this resume?"))) return;
-    const updated = library.filter((r) => r.id !== id);
-    setLibrary(updated);
-    await saveJson("library", updated);
+    return HubSettingsRuntime.track(async () => {
+      if (!window.confirm(T("删除这份简历？", "Delete this resume?"))) return;
+      const updated = library.filter((r) => r.id !== id);
+      setLibrary(updated);
+      await saveJson("library", updated);
+    });
   };
   const handleRename = async (id) => {
-    const cur = library.find((r) => r.id === id);
-    if (!cur) return;
-    const next = window.prompt(T("新名字：", "Rename:"), cur.name);
-    if (!next || next === cur.name) return;
-    const updated = library.map((r) => r.id === id ? { ...r, name: next } : r);
-    setLibrary(updated);
-    await saveJson("library", updated);
+    return HubSettingsRuntime.track(async () => {
+      const cur = library.find((r) => r.id === id);
+      if (!cur) return;
+      const next = window.prompt(T("新名字：", "Rename:"), cur.name);
+      if (!next || next === cur.name) return;
+      const updated = library.map((r) => r.id === id ? { ...r, name: next } : r);
+      setLibrary(updated);
+      await saveJson("library", updated);
+    });
   };
   const handleUseAsProfile = async (entry) => {
-    if (!window.confirm(T(`用「${entry.name}」替换你的整份资料？
+    return HubSettingsRuntime.track(async () => {
+      if (!window.confirm(T(`用「${entry.name}」替换你的整份资料？
 
 现有的各节会被这份简历这一节取代。`, `Replace your whole profile with "${entry.name}"?
 
 All your sections are replaced by one section holding this resume.`))) return;
-    await updateSections([{ id: newId(), name: entry.name, content: entry.content, source: "library", addedAt: (/* @__PURE__ */ new Date()).toISOString() }], true);
+      await updateSections([{ id: newId(), name: entry.name, content: entry.content, source: "library", addedAt: (/* @__PURE__ */ new Date()).toISOString() }], true);
+    });
   };
   const upload = /* @__PURE__ */ React.createElement(FileUploadButton, { onFile: handleUpload, label: T("上传简历…", "Upload resume…"), primary: true });
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
@@ -2394,6 +2436,7 @@ function JobFields({ form, set, idPrefix, error, onTyped }) {
 function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved, onOpenProfile }) {
   const empty = { company: "", role: "", location: "", salaryRange: "", applicationDeadline: "", status: "interested", jdText: "", notes: "", noc: "", weeklyHours: "", empType: "", applyMethod: "", startDate: "", endDate: "", priority: "" };
   const [form, setForm] = useState(empty);
+  useSettingsDraft(!SafeMerge.same(form, empty));
   const [filled, setFilled] = useState(null);
   const [error, setError] = useState("");
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -2412,18 +2455,20 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
   };
   const handleJdUpload = (text) => fillFrom(text, { jdText: text });
   const handleSave = async () => {
-    if (!form.company.trim() && !form.role.trim()) {
-      setError(T("公司和职位名称至少填一个。", "Fill in the company or the job title."));
-      return;
-    }
-    const job = { id: newId(), dateAdded: (/* @__PURE__ */ new Date()).toISOString(), ...form };
-    const updated = [job, ...jobs];
-    setJobs(updated);
-    await saveJson(`${region}:jobs`, updated);
-    if (DEMO && !ghConfigured()) window.dispatchEvent(new CustomEvent("jobapp:toast", { detail: T("已添加——演示数据，不会保存。", "Added — demo data, not saved.") }));
-    setForm(empty);
-    setFilled(null);
-    onSaved?.(job.id);
+    return HubSettingsRuntime.track(async () => {
+      if (!form.company.trim() && !form.role.trim()) {
+        setError(T("公司和职位名称至少填一个。", "Fill in the company or the job title."));
+        return;
+      }
+      const job = { id: newId(), dateAdded: (/* @__PURE__ */ new Date()).toISOString(), ...form };
+      const updated = [job, ...jobs];
+      setJobs(updated);
+      await saveJson(`${region}:jobs`, updated);
+      if (DEMO && !ghConfigured()) window.dispatchEvent(new CustomEvent("jobapp:toast", { detail: T("已添加——演示数据，不会保存。", "Added — demo data, not saved.") }));
+      setForm(empty);
+      setFilled(null);
+      onSaved?.(job.id);
+    });
   };
   const names = { company: T("公司", "company"), role: T("职位", "role"), location: T("地点", "location"), salaryRange: T("薪资", "salary"), applicationDeadline: T("截止日期", "deadline") };
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
@@ -2646,93 +2691,95 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
     setLog((l) => [...l, msg]);
   }
   async function startBatch() {
-    const toProcess = eligible.filter((j) => selected.has(j.id));
-    if (!toProcess.length) return;
-    const key = lsGet("anthropicKey");
-    if (!key) {
-      addLog(T("没有 Anthropic API 密钥——请在「设置」里添加。", "No Anthropic API key — add one in Settings."));
-      return;
-    }
-    setRunning(true);
-    const initProg = {};
-    toProcess.forEach((j) => {
-      initProg[j.id] = "queued";
-    });
-    setProgress(initProg);
-    let updatedJobs = [...jobs];
-    for (let i = 0; i < toProcess.length; i++) {
-      const job = toProcess[i];
-      const pdfKey = `${region}:${job.id}:resume`, pdfPath = pdfGhPath(pdfKey);
-      addLog(`[${i + 1}/${toProcess.length}] ${job.company} — ${job.role} …`);
-      setProgress((p) => ({ ...p, [job.id]: "running" }));
-      try {
-        if (ghConfigured()) {
-          const inRepo = await ghFindDataUrl(pdfPath, "application/pdf");
-          if (inRepo !== null) {
-            if (inRepo) savePdfLocal(pdfKey, inRepo);
-            setProgress((p) => ({ ...p, [job.id]: "skip" }));
-            addLog(T(
-              "  跳过：仓库里已经有这个职位的定制简历，没有动它。要重新定制，先在职位里删掉它。",
-              "  Skipped: your repo already has a tailored resume for this job, left as it is. To tailor it again, delete that one in the job first."
-            ));
-            continue;
+    return HubSettingsRuntime.track(async () => {
+      const toProcess = eligible.filter((j) => selected.has(j.id));
+      if (!toProcess.length) return;
+      const key = lsGet("anthropicKey");
+      if (!key) {
+        addLog(T("没有 Anthropic API 密钥——请在「设置」里添加。", "No Anthropic API key — add one in Settings."));
+        return;
+      }
+      setRunning(true);
+      const initProg = {};
+      toProcess.forEach((j) => {
+        initProg[j.id] = "queued";
+      });
+      setProgress(initProg);
+      let updatedJobs = [...jobs];
+      for (let i = 0; i < toProcess.length; i++) {
+        const job = toProcess[i];
+        const pdfKey = `${region}:${job.id}:resume`, pdfPath = pdfGhPath(pdfKey);
+        addLog(`[${i + 1}/${toProcess.length}] ${job.company} — ${job.role} …`);
+        setProgress((p) => ({ ...p, [job.id]: "running" }));
+        try {
+          if (ghConfigured()) {
+            const inRepo = await ghFindDataUrl(pdfPath, "application/pdf");
+            if (inRepo !== null) {
+              if (inRepo) savePdfLocal(pdfKey, inRepo);
+              setProgress((p) => ({ ...p, [job.id]: "skip" }));
+              addLog(T(
+                "  跳过：仓库里已经有这个职位的定制简历，没有动它。要重新定制，先在职位里删掉它。",
+                "  Skipped: your repo already has a tailored resume for this job, left as it is. To tailor it again, delete that one in the job first."
+              ));
+              continue;
+            }
           }
-        }
-        const prompt = promptBatchTailor(resumeDb, job, formatting, region);
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": key,
-            "anthropic-version": "2023-06-01",
-            "anthropic-dangerous-direct-browser-access": "true"
-          },
-          body: JSON.stringify({
-            model: "claude-sonnet-5-5",
-            max_tokens: 16e3,
-            // Sonnet 5.5 thinks on every request and the thinking counts toward this
-            messages: [{ role: "user", content: prompt }],
-            output_config: { format: { type: "json_schema", schema: TAILOR_SCHEMA } }
-          })
-        });
-        if (!res.ok) {
-          const e = await res.json().catch(() => ({}));
-          throw new Error(`API ${res.status}: ${e.error?.message || "error"}`);
-        }
-        const apiData = await res.json();
-        const text = anthropicText(apiData);
-        const resumeJson = JSON.parse(text);
-        const doc = renderResumePDF(resumeJson);
-        const dataUrl = doc.output("datauristring");
-        if (ghConfigured()) {
-          try {
-            await ghCreateDataUrl(pdfPath, dataUrl);
-          } catch (e) {
-            if (e.exists) throw e;
+          const prompt = promptBatchTailor(resumeDb, job, formatting, region);
+          const res = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": key,
+              "anthropic-version": "2023-06-01",
+              "anthropic-dangerous-direct-browser-access": "true"
+            },
+            body: JSON.stringify({
+              model: "claude-sonnet-5-5",
+              max_tokens: 16e3,
+              // Sonnet 5.5 thinks on every request and the thinking counts toward this
+              messages: [{ role: "user", content: prompt }],
+              output_config: { format: { type: "json_schema", schema: TAILOR_SCHEMA } }
+            })
+          });
+          if (!res.ok) {
+            const e = await res.json().catch(() => ({}));
+            throw new Error(`API ${res.status}: ${e.error?.message || "error"}`);
+          }
+          const apiData = await res.json();
+          const text = anthropicText(apiData);
+          const resumeJson = JSON.parse(text);
+          const doc = renderResumePDF(resumeJson);
+          const dataUrl = doc.output("datauristring");
+          if (ghConfigured()) {
+            try {
+              await ghCreateDataUrl(pdfPath, dataUrl);
+            } catch (e) {
+              if (e.exists) throw e;
+              savePdfLocal(pdfKey, dataUrl);
+              throw new Error(`${e.message} — ${T("这份简历留在了这个浏览器里，还没存进仓库", "the resume is kept in this browser but is not in your repo")}`);
+            }
             savePdfLocal(pdfKey, dataUrl);
-            throw new Error(`${e.message} — ${T("这份简历留在了这个浏览器里，还没存进仓库", "the resume is kept in this browser but is not in your repo")}`);
+          } else {
+            savePdfLocal(pdfKey, dataUrl);
+            await ghWriteDataUrl(pdfPath, dataUrl);
           }
-          savePdfLocal(pdfKey, dataUrl);
-        } else {
-          savePdfLocal(pdfKey, dataUrl);
-          await ghWriteDataUrl(pdfPath, dataUrl);
-        }
-        setProgress((p) => ({ ...p, [job.id]: "done" }));
-        addLog(T("  已保存", "  Saved"));
-        if (i < toProcess.length - 1) await new Promise((r) => setTimeout(r, 2e3));
-      } catch (e) {
-        setProgress((p) => ({ ...p, [job.id]: "error" }));
-        addLog(T(`  失败：${e.message}`, `  Failed: ${e.message}`));
-        if (e.message.includes("429")) {
-          addLog(T("  触发限流——等 30 秒…", "  Rate limited — waiting 30 s…"));
-          await new Promise((r) => setTimeout(r, 3e4));
+          setProgress((p) => ({ ...p, [job.id]: "done" }));
+          addLog(T("  已保存", "  Saved"));
+          if (i < toProcess.length - 1) await new Promise((r) => setTimeout(r, 2e3));
+        } catch (e) {
+          setProgress((p) => ({ ...p, [job.id]: "error" }));
+          addLog(T(`  失败：${e.message}`, `  Failed: ${e.message}`));
+          if (e.message.includes("429")) {
+            addLog(T("  触发限流——等 30 秒…", "  Rate limited — waiting 30 s…"));
+            await new Promise((r) => setTimeout(r, 3e4));
+          }
         }
       }
-    }
-    addLog(T(`
+      addLog(T(`
 完成。定制简历已保存 — 打开各职位查看。`, `
 Done. Tailored resumes saved — open each job to view.`));
-    setRunning(false);
+      setRunning(false);
+    });
   }
   const TAG = { queued: ["tag-neutral", T("排队", "Queued")], running: ["tag-info", T("进行中", "Running")], done: ["tag-success", T("完成", "Done")], error: ["tag-danger", T("失败", "Failed")], skip: ["tag-neutral", T("跳过", "Skipped")] };
   const total = Object.keys(progress).length;
@@ -2777,23 +2824,27 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initi
     return c;
   }, [jobs]);
   const updateStatus = async (id, status) => {
-    const updated = jobs.map((j) => j.id === id ? { ...j, status } : j);
-    setJobs(updated);
-    await saveJson(`${region}:jobs`, updated);
+    return HubSettingsRuntime.track(async () => {
+      const updated = jobs.map((j) => j.id === id ? { ...j, status } : j);
+      setJobs(updated);
+      await saveJson(`${region}:jobs`, updated);
+    });
   };
   const deleteJob = async (id) => {
-    if (!window.confirm(T("删除这条投递？它的定制简历和求职信 PDF 也会一起删除。", "Delete this application? Its tailored resume and cover-letter PDFs are deleted too."))) return;
-    deletePdfLocal(`${region}:${id}:resume`);
-    deletePdfLocal(`${region}:${id}:cover`);
-    for (const type of ["resume", "cover"]) {
-      for (const ext of ["html", "pdf"]) {
-        ghDeleteFile(`data/files/${region}_${id}_${type}.${ext}`).catch(() => {
-        });
+    return HubSettingsRuntime.track(async () => {
+      if (!window.confirm(T("删除这条投递？它的定制简历和求职信 PDF 也会一起删除。", "Delete this application? Its tailored resume and cover-letter PDFs are deleted too."))) return;
+      deletePdfLocal(`${region}:${id}:resume`);
+      deletePdfLocal(`${region}:${id}:cover`);
+      for (const type of ["resume", "cover"]) {
+        for (const ext of ["html", "pdf"]) {
+          ghDeleteFile(`data/files/${region}_${id}_${type}.${ext}`).catch(() => {
+          });
+        }
       }
-    }
-    const updated = jobs.filter((j) => j.id !== id);
-    setJobs(updated);
-    await saveJson(`${region}:jobs`, updated);
+      const updated = jobs.filter((j) => j.id !== id);
+      setJobs(updated);
+      await saveJson(`${region}:jobs`, updated);
+    });
   };
   const clearFilters = () => {
     setFilter("all");
@@ -2849,43 +2900,47 @@ function PdfUploadField({ label, pdfKey }) {
   useEffect(() => {
     if (dataUrl || !ghConfigured()) return;
     (async () => {
-      for (const [ext, mime] of [["pdf", "application/pdf"], ["html", "text/html"]]) {
-        try {
-          const url = await ghReadDataUrl(`data/files/${pdfKey.replace(/:/g, "_")}.${ext}`, mime);
-          if (url) {
-            setDataUrl(url);
-            savePdfLocal(pdfKey, url);
-            return;
+      return HubSettingsRuntime.track(async () => {
+        for (const [ext, mime] of [["pdf", "application/pdf"], ["html", "text/html"]]) {
+          try {
+            const url = await ghReadDataUrl(`data/files/${pdfKey.replace(/:/g, "_")}.${ext}`, mime);
+            if (url) {
+              setDataUrl(url);
+              savePdfLocal(pdfKey, url);
+              return;
+            }
+          } catch {
           }
-        } catch {
         }
-      }
+      });
     })();
   }, [pdfKey]);
   const handleUpload = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    const ext = (file.name.split(".").pop() || "").toLowerCase();
-    if (ext !== "pdf") {
-      setErr({ kind: "error", msg: T("请上传 PDF 文件：定制简历和求职信的提示词会让 Claude 直接做出 PDF，要上传的就是那个文件。", "Upload a PDF: the tailored-resume and cover-letter prompts have Claude make a PDF, and that is the file to upload here.") });
-      return;
-    }
-    setBusy(true);
-    setErr(null);
-    try {
-      const url = await readFileAsDataUrl(file);
-      savePdfLocal(pdfKey, url);
-      setDataUrl(url);
-      setGhSaving(true);
-      await ghWriteDataUrl(pdfGhPath(pdfKey), url);
-    } catch (e2) {
-      const msg = e2.message || T("上传失败", "Upload failed");
-      setErr(msg.includes("GitHub") || msg.includes("configured") ? { kind: "warn", msg: T(`已存在这个浏览器里。同步到 GitHub 失败：${msg}`, `Saved in this browser. Syncing to GitHub failed: ${msg}`) } : { kind: "error", msg });
-    } finally {
-      setBusy(false);
-      setGhSaving(false);
-    }
+    return HubSettingsRuntime.track(async () => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      const ext = (file.name.split(".").pop() || "").toLowerCase();
+      if (ext !== "pdf") {
+        setErr({ kind: "error", msg: T("请上传 PDF 文件：定制简历和求职信的提示词会让 Claude 直接做出 PDF，要上传的就是那个文件。", "Upload a PDF: the tailored-resume and cover-letter prompts have Claude make a PDF, and that is the file to upload here.") });
+        return;
+      }
+      setBusy(true);
+      setErr(null);
+      try {
+        const url = await readFileAsDataUrl(file);
+        savePdfLocal(pdfKey, url);
+        setDataUrl(url);
+        setGhSaving(true);
+        await ghWriteDataUrl(pdfGhPath(pdfKey), url);
+      } catch (e2) {
+        const msg = e2.message || T("上传失败", "Upload failed");
+        setErr(msg.includes("GitHub") || msg.includes("configured") ? { kind: "warn", msg: T(`已存在这个浏览器里。同步到 GitHub 失败：${msg}`, `Saved in this browser. Syncing to GitHub failed: ${msg}`) } : { kind: "error", msg });
+      } finally {
+        setBusy(false);
+        setGhSaving(false);
+      }
+    });
   };
   const handleDelete = () => {
     if (!window.confirm(T("移除这个 PDF？", "Remove this PDF?"))) return;
@@ -2922,24 +2977,30 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
   }, [job.id]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const updateJob = async (patch) => {
-    const updated = jobs.map((j) => j.id === job.id ? { ...j, ...patch } : j);
-    setJobs(updated);
-    await saveJson(`${region}:jobs`, updated);
+    return HubSettingsRuntime.track(async () => {
+      const updated = jobs.map((j) => j.id === job.id ? { ...j, ...patch } : j);
+      setJobs(updated);
+      await saveJson(`${region}:jobs`, updated);
+    });
   };
   const handleSaveAll = async () => {
-    setSaving(true);
-    await updateJob(form);
-    setSaving(false);
-    setEditing(false);
+    return HubSettingsRuntime.track(async () => {
+      setSaving(true);
+      await updateJob(form);
+      setSaving(false);
+      setEditing(false);
+    });
   };
   const cancelEdit = () => {
     setForm((f) => ({ ...job, notes: f.notes }));
     setEditing(false);
   };
   const handleSaveNotes = async () => {
-    await updateJob({ notes: form.notes });
-    setNotesSaved(true);
-    setTimeout(() => setNotesSaved(false), 1500);
+    return HubSettingsRuntime.track(async () => {
+      await updateJob({ notes: form.notes });
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 1500);
+    });
   };
   const t = tierMeta(form.priority);
   const dash = "—";
@@ -2987,6 +3048,7 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
   const [msg, setMsg] = useState("");
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState([]);
+  useSettingsDraft(step !== "done" && (Boolean(pastedText.trim()) || found.length > 0));
   const DEFAULT_PROFILE = "Edit this profile to describe yourself in 2-3 sentences. Include: degree, key skills, relevant experience, target roles, and languages. This is used to score and match jobs — the more specific, the better the results.";
   const [profileOk, setProfileOk] = useState(false);
   const [profileErr, setProfileErr] = useState(null);
@@ -3014,54 +3076,58 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
   useEffect(() => holdFile("watchdogProfile", () => profileNow.current, setProfile), []);
   const anthropicKey = () => lsGet("anthropicKey");
   async function postMessages(key, body) {
-    const send = () => fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
-      },
-      body: JSON.stringify(body)
-    });
-    const res = await send();
-    if (res.status === 429) {
-      setMsg(T("触发限流 — 等待 30 秒后重试…", "Rate limited — waiting 30s and retrying…"));
-      await new Promise((r) => setTimeout(r, 3e4));
-      const retry = await send();
-      if (!retry.ok) {
-        const e = await retry.json().catch(() => ({}));
-        throw new Error(`API ${retry.status}: ${e.error?.message || T("触发限流 — 请等待一分钟后再试。", "Rate limit — wait a minute and try again.")}`);
+    return HubSettingsRuntime.track(async () => {
+      const send = () => fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true"
+        },
+        body: JSON.stringify(body)
+      });
+      const res = await send();
+      if (res.status === 429) {
+        setMsg(T("触发限流 — 等待 30 秒后重试…", "Rate limited — waiting 30s and retrying…"));
+        await new Promise((r) => setTimeout(r, 3e4));
+        const retry = await send();
+        if (!retry.ok) {
+          const e = await retry.json().catch(() => ({}));
+          throw new Error(`API ${retry.status}: ${e.error?.message || T("触发限流 — 请等待一分钟后再试。", "Rate limit — wait a minute and try again.")}`);
+        }
+        return retry.json();
       }
-      return retry.json();
-    }
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      throw new Error(`API ${res.status}: ${e.error?.message || "error"}`);
-    }
-    return res.json();
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(`API ${res.status}: ${e.error?.message || "error"}`);
+      }
+      return res.json();
+    });
   }
   const MAX_CONTINUATIONS = 3;
   async function callClaude(messages, useWebSearch = false) {
-    const key = anthropicKey();
-    if (!key) throw new Error(T("没有 Anthropic API 密钥——请在「设置」里添加。", "No Anthropic API key — add one in Settings."));
-    const body = {
-      model: "claude-sonnet-5-5",
-      max_tokens: 16e3,
-      // Sonnet 5.5 thinks on every request and the thinking counts toward this
-      output_config: { format: { type: "json_schema", schema: JOBS_SCHEMA } }
-    };
-    if (useWebSearch) body.tools = [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }];
-    const turn = [...messages], replies = [];
-    for (let n = 0; ; n++) {
-      const data = await postMessages(key, { ...body, messages: turn });
-      replies.push(data);
-      if (data.stop_reason !== "pause_turn") break;
-      if (n >= MAX_CONTINUATIONS) throw new Error(T("网页搜索暂停次数过多，没有得到完整结果——请减少一次粘贴的内容后再试。", "The web search paused too many times without finishing — paste less at once and try again."));
-      setMsg(T("搜索还在进行，继续…", "The search is still running, continuing…"));
-      turn.push({ role: "assistant", content: data.content });
-    }
-    return anthropicText(replies[replies.length - 1]);
+    return HubSettingsRuntime.track(async () => {
+      const key = anthropicKey();
+      if (!key) throw new Error(T("没有 Anthropic API 密钥——请在「设置」里添加。", "No Anthropic API key — add one in Settings."));
+      const body = {
+        model: "claude-sonnet-5-5",
+        max_tokens: 16e3,
+        // Sonnet 5.5 thinks on every request and the thinking counts toward this
+        output_config: { format: { type: "json_schema", schema: JOBS_SCHEMA } }
+      };
+      if (useWebSearch) body.tools = [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }];
+      const turn = [...messages], replies = [];
+      for (let n = 0; ; n++) {
+        const data = await postMessages(key, { ...body, messages: turn });
+        replies.push(data);
+        if (data.stop_reason !== "pause_turn") break;
+        if (n >= MAX_CONTINUATIONS) throw new Error(T("网页搜索暂停次数过多，没有得到完整结果——请减少一次粘贴的内容后再试。", "The web search paused too many times without finishing — paste less at once and try again."));
+        setMsg(T("搜索还在进行，继续…", "The search is still running, continuing…"));
+        turn.push({ role: "assistant", content: data.content });
+      }
+      return anthropicText(replies[replies.length - 1]);
+    });
   }
   function parseJobs(text) {
     try {
@@ -3072,15 +3138,16 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
     }
   }
   async function scan() {
-    if (!pastedText.trim()) return;
-    setStep("scanning");
-    setFound([]);
-    setSelected(/* @__PURE__ */ new Set());
-    setMsg(T("正在读取粘贴的文本并搜索完整职位详情…", "Reading pasted text and searching for full job details…"));
-    try {
-      const trimmedText = pastedText.slice(0, 8e3);
-      const trimmedProfile = profile.slice(0, 500);
-      const resultText = await callClaude([{ role: "user", content: `Extract ALL job listings from the email text below. Then search the web for full descriptions.
+    return HubSettingsRuntime.track(async () => {
+      if (!pastedText.trim()) return;
+      setStep("scanning");
+      setFound([]);
+      setSelected(/* @__PURE__ */ new Set());
+      setMsg(T("正在读取粘贴的文本并搜索完整职位详情…", "Reading pasted text and searching for full job details…"));
+      try {
+        const trimmedText = pastedText.slice(0, 8e3);
+        const trimmedProfile = profile.slice(0, 500);
+        const resultText = await callClaude([{ role: "user", content: `Extract ALL job listings from the email text below. Then search the web for full descriptions.
 
 RULES:
 - Extract EVERY job listing in the email — do not skip any
@@ -3093,26 +3160,27 @@ For each job return: company (from career page), role (exact title from career p
 
 EMAIL TEXT:
 ${trimmedText}` }], true);
-      const rawJobs = parseJobs(resultText);
-      if (!rawJobs.length) {
-        setMsg(T("未能提取到任何职位。请尝试复制更多邮件内容。", "Could not extract any job listings. Try copying more of the email."));
+        const rawJobs = parseJobs(resultText);
+        if (!rawJobs.length) {
+          setMsg(T("未能提取到任何职位。请尝试复制更多邮件内容。", "Could not extract any job listings. Try copying more of the email."));
+          setStep("review");
+          return;
+        }
+        const merged = rawJobs.map((j, i) => ({
+          ...j,
+          score: j.score || 5,
+          reason: j.reason || "",
+          _id: `j${i}_${Date.now()}`
+        })).sort((a, b) => b.score - a.score);
+        setFound(merged);
+        setSelected(new Set(merged.filter((j) => j.score >= 7).map((j) => j._id)));
+        setMsg(T(`找到 ${merged.length} 个职位 — 已预选 ${merged.filter((j) => j.score >= 7).length} 个高匹配（≥7）。`, `${merged.length} jobs found — ${merged.filter((j) => j.score >= 7).length} high-fit (≥7) pre-selected.`));
         setStep("review");
-        return;
+      } catch (e) {
+        setMsg(T(`错误：${e.message}`, `Error: ${e.message}`));
+        setStep("review");
       }
-      const merged = rawJobs.map((j, i) => ({
-        ...j,
-        score: j.score || 5,
-        reason: j.reason || "",
-        _id: `j${i}_${Date.now()}`
-      })).sort((a, b) => b.score - a.score);
-      setFound(merged);
-      setSelected(new Set(merged.filter((j) => j.score >= 7).map((j) => j._id)));
-      setMsg(T(`找到 ${merged.length} 个职位 — 已预选 ${merged.filter((j) => j.score >= 7).length} 个高匹配（≥7）。`, `${merged.length} jobs found — ${merged.filter((j) => j.score >= 7).length} high-fit (≥7) pre-selected.`));
-      setStep("review");
-    } catch (e) {
-      setMsg(T(`错误：${e.message}`, `Error: ${e.message}`));
-      setStep("review");
-    }
+    });
   }
   const SEARCH_SKIP = "skip any US, UK, or other country results";
   const SEARCH_NONE = "Do NOT include US jobs, remote-US jobs, or jobs from any other country.";
@@ -3147,47 +3215,49 @@ ${trimmedText}` }], true);
   };
   const regionSearch = REGION_SEARCH[region] || REGION_SEARCH.canada;
   async function manualSearch() {
-    if (!profile || profile.startsWith("Edit this profile")) {
-      setMsg(T("请先写好你的资料概述——Claude 要靠它决定搜哪些职位。", "Write your profile summary first — Claude needs it to know which jobs to search for."));
-      return;
-    }
-    setStep("scanning");
-    setFound([]);
-    setSelected(/* @__PURE__ */ new Set());
-    const { label: loc2, hint, skip = SEARCH_SKIP, none = SEARCH_NONE } = regionSearch;
-    setMsg(T(`正在搜索 ${loc2} 的职位…`, `Searching for jobs in ${loc2}…`));
-    try {
-      const trimmedProfile = profile.slice(0, 500);
-      const utc = (d) => d.toISOString().slice(0, 16).replace("T", " ") + " UTC";
-      const now = /* @__PURE__ */ new Date(), since = new Date(now.getTime() - 24 * 3600 * 1e3);
-      const resultText = await callClaude([{ role: "user", content: `Find real job postings for this person, located in ${loc2} and published in the last 24 hours (between ${utc(since)} and ${utc(now)}). The results fill a "new in ${loc2}, last 24 h" list, so leave out any posting outside ${loc2} (${skip}), any older posting, and any posting whose date you cannot find. ${none}
+    return HubSettingsRuntime.track(async () => {
+      if (!profile || profile.startsWith("Edit this profile")) {
+        setMsg(T("请先写好你的资料概述——Claude 要靠它决定搜哪些职位。", "Write your profile summary first — Claude needs it to know which jobs to search for."));
+        return;
+      }
+      setStep("scanning");
+      setFound([]);
+      setSelected(/* @__PURE__ */ new Set());
+      const { label: loc2, hint, skip = SEARCH_SKIP, none = SEARCH_NONE } = regionSearch;
+      setMsg(T(`正在搜索 ${loc2} 的职位…`, `Searching for jobs in ${loc2}…`));
+      try {
+        const trimmedProfile = profile.slice(0, 500);
+        const utc = (d) => d.toISOString().slice(0, 16).replace("T", " ") + " UTC";
+        const now = /* @__PURE__ */ new Date(), since = new Date(now.getTime() - 24 * 3600 * 1e3);
+        const resultText = await callClaude([{ role: "user", content: `Find real job postings for this person, located in ${loc2} and published in the last 24 hours (between ${utc(since)} and ${utc(now)}). The results fill a "new in ${loc2}, last 24 h" list, so leave out any posting outside ${loc2} (${skip}), any older posting, and any posting whose date you cannot find. ${none}
 
 Person: ${trimmedProfile}
 Where to look: ${hint}. You have 5 web searches. Company career pages (Workday, Greenhouse, Lever) carry the real job details and posting dates, so start from ${loc2}-based companies that are hiring now for the role type in the profile, and go to their career pages.
 
 For each job return: company, role (the exact title on the career page), location, description, url (the career page link), salary (or ""), score (1-10 fit with the person), reason.` }], true);
-      const rawJobs = parseJobs(resultText);
-      if (!rawJobs.length) {
-        const len = (resultText || "").length;
-        const tail = (resultText || "(empty)").slice(-500);
-        setMsg(T(`无法从响应中解析 JSON（${len} 字符）。响应结尾："…${tail}"`, `Could not parse JSON from response (${len} chars). End of response: "…${tail}"`));
+        const rawJobs = parseJobs(resultText);
+        if (!rawJobs.length) {
+          const len = (resultText || "").length;
+          const tail = (resultText || "(empty)").slice(-500);
+          setMsg(T(`无法从响应中解析 JSON（${len} 字符）。响应结尾："…${tail}"`, `Could not parse JSON from response (${len} chars). End of response: "…${tail}"`));
+          setStep("review");
+          return;
+        }
+        const merged = rawJobs.map((j, i) => ({
+          ...j,
+          score: j.score || 5,
+          reason: j.reason || "",
+          _id: `j${i}_${Date.now()}`
+        })).sort((a, b) => b.score - a.score);
+        setFound(merged);
+        setSelected(new Set(merged.filter((j) => j.score >= 7).map((j) => j._id)));
+        setMsg(T(`在 ${loc2} 找到 ${merged.length} 个职位 — 已预选 ${merged.filter((j) => j.score >= 7).length} 个高匹配（≥7）。`, `${merged.length} jobs found in ${loc2} — ${merged.filter((j) => j.score >= 7).length} high-fit (≥7) pre-selected.`));
         setStep("review");
-        return;
+      } catch (e) {
+        setMsg(T(`错误：${e.message}`, `Error: ${e.message}`));
+        setStep("review");
       }
-      const merged = rawJobs.map((j, i) => ({
-        ...j,
-        score: j.score || 5,
-        reason: j.reason || "",
-        _id: `j${i}_${Date.now()}`
-      })).sort((a, b) => b.score - a.score);
-      setFound(merged);
-      setSelected(new Set(merged.filter((j) => j.score >= 7).map((j) => j._id)));
-      setMsg(T(`在 ${loc2} 找到 ${merged.length} 个职位 — 已预选 ${merged.filter((j) => j.score >= 7).length} 个高匹配（≥7）。`, `${merged.length} jobs found in ${loc2} — ${merged.filter((j) => j.score >= 7).length} high-fit (≥7) pre-selected.`));
-      setStep("review");
-    } catch (e) {
-      setMsg(T(`错误：${e.message}`, `Error: ${e.message}`));
-      setStep("review");
-    }
+    });
   }
   const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
   const fuzzy = (a, b) => {
@@ -3196,29 +3266,31 @@ For each job return: company, role (the exact title on the career page), locatio
     return na === nb || na.length > 3 && nb.length > 3 && (na.includes(nb) || nb.includes(na));
   };
   async function addToTracker() {
-    setAdding(true);
-    const toAdd = found.filter((j) => selected.has(j._id));
-    const newJobs = [];
-    let skipped = 0;
-    for (const j of toAdd) {
-      if (jobs.some((e) => fuzzy(e.company, j.company) && fuzzy(e.role, j.role))) {
-        skipped++;
-        continue;
+    return HubSettingsRuntime.track(async () => {
+      setAdding(true);
+      const toAdd = found.filter((j) => selected.has(j._id));
+      const newJobs = [];
+      let skipped = 0;
+      for (const j of toAdd) {
+        if (jobs.some((e) => fuzzy(e.company, j.company) && fuzzy(e.role, j.role))) {
+          skipped++;
+          continue;
+        }
+        newJobs.push({ id: newId(), dateAdded: (/* @__PURE__ */ new Date()).toISOString(), company: j.company || "", role: j.role || "", location: j.location || "", salaryRange: j.salary || "", applicationDeadline: "", status: "interested", jdText: j.description || "", notes: [j.url ? `Apply: ${j.url}` : "", j.salary ? `Salary: ${j.salary}` : ""].filter(Boolean).join("\n") });
       }
-      newJobs.push({ id: newId(), dateAdded: (/* @__PURE__ */ new Date()).toISOString(), company: j.company || "", role: j.role || "", location: j.location || "", salaryRange: j.salary || "", applicationDeadline: "", status: "interested", jdText: j.description || "", notes: [j.url ? `Apply: ${j.url}` : "", j.salary ? `Salary: ${j.salary}` : ""].filter(Boolean).join("\n") });
-    }
-    if (!newJobs.length) {
-      setMsg(T(`所选的 ${skipped} 个职位都已在你的追踪中（按公司+职位模糊匹配）。`, `All ${skipped} selected job${skipped !== 1 ? "s" : ""} already in your tracker (fuzzy-matched by company + role).`));
+      if (!newJobs.length) {
+        setMsg(T(`所选的 ${skipped} 个职位都已在你的追踪中（按公司+职位模糊匹配）。`, `All ${skipped} selected job${skipped !== 1 ? "s" : ""} already in your tracker (fuzzy-matched by company + role).`));
+        setAdding(false);
+        return;
+      }
+      const updated = [...jobs, ...newJobs];
+      setJobs(updated);
+      await saveJson(`${region}:jobs`, updated);
+      setAdded(newJobs);
+      setMsg(T(`已添加 ${newJobs.length} 个职位。${skipped ? ` 跳过 ${skipped} 个（已在追踪中）。` : ""}`, `${newJobs.length} job${newJobs.length !== 1 ? "s" : ""} added.${skipped ? ` ${skipped} skipped (already in tracker).` : ""}`));
+      setStep("done");
       setAdding(false);
-      return;
-    }
-    const updated = [...jobs, ...newJobs];
-    setJobs(updated);
-    await saveJson(`${region}:jobs`, updated);
-    setAdded(newJobs);
-    setMsg(T(`已添加 ${newJobs.length} 个职位。${skipped ? ` 跳过 ${skipped} 个（已在追踪中）。` : ""}`, `${newJobs.length} job${newJobs.length !== 1 ? "s" : ""} added.${skipped ? ` ${skipped} skipped (already in tracker).` : ""}`));
-    setStep("done");
-    setAdding(false);
+    });
   }
   const hasKey = !!anthropicKey();
   const toggle = (id) => {
@@ -3462,6 +3534,7 @@ function DiagList({ items, onAdd, onRemove, onToggle, placeholder, checkable, la
 }
 function DiagnosisTab({ diagnosis, setDiagnosis }) {
   const d = diagnosis || DIAG_DEFAULT();
+  useSettingsDraft(diagnosis !== null && !SafeMerge.same(diagnosis, baseCache[PATHS.diagnosis]));
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const patch = (p) => setDiagnosis({ ...d, ...p });
@@ -3473,13 +3546,15 @@ function DiagnosisTab({ diagnosis, setDiagnosis }) {
     onToggle: (id) => patch({ [key]: (d[key] || []).map((x) => x.id === id ? { ...x, done: !x.done } : x) })
   });
   const save = async () => {
-    setSaving(true);
-    const next = { ...d, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
-    setDiagnosis(next);
-    await saveJson("diagnosis", next);
-    setSaving(false);
-    setSavedFlash(true);
-    setTimeout(() => setSavedFlash(false), 1800);
+    return HubSettingsRuntime.track(async () => {
+      setSaving(true);
+      const next = { ...d, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+      setDiagnosis(next);
+      await saveJson("diagnosis", next);
+      setSaving(false);
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1800);
+    });
   };
   const stageBtn = (val, zh, en, desc) => /* @__PURE__ */ React.createElement("button", { type: "button", className: "stat choice", "aria-pressed": d.stage === val, onClick: () => patch({ stage: d.stage === val ? "" : val }) }, /* @__PURE__ */ React.createElement("b", null, T(zh, en)), /* @__PURE__ */ React.createElement("span", { className: "lbl" }, desc));
   const lastSaved = d.updatedAt ? new Date(d.updatedAt).toLocaleString(lang === "zh" ? "zh-CN" : "en-GB", { dateStyle: "medium", timeStyle: "short" }) : "";
@@ -3547,19 +3622,26 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
     let cancelled = false;
     setLoading(true);
     setLoadErr(null);
+    jobRegionLoading = true;
+    jobRegionError = null;
     (async () => {
-      try {
-        const j = DEMO && !ghConfigured() ? sampleJobs(region) : await loadJsonStrict(`${region}:jobs`);
-        if (!cancelled) {
-          setJobs(Array.isArray(j) ? j : []);
-          setLoading(false);
+      return HubSettingsRuntime.track(async () => {
+        try {
+          const j = DEMO && !ghConfigured() ? sampleJobs(region) : await loadJsonStrict(`${region}:jobs`);
+          if (!cancelled) {
+            setJobs(Array.isArray(j) ? j : []);
+            setLoading(false);
+          }
+        } catch (e) {
+          if (!cancelled) {
+            setLoadErr(e);
+            setLoading(false);
+            jobRegionError = e;
+          }
+        } finally {
+          jobRegionLoading = false;
         }
-      } catch (e) {
-        if (!cancelled) {
-          setLoadErr(e);
-          setLoading(false);
-        }
-      }
+      });
     })();
     return () => {
       cancelled = true;
@@ -3657,7 +3739,6 @@ function GhostTab({ eyebrow }) {
     "Liveness alone is enough; two of the other three → “probably not hiring”, one → “check first”. It cannot know what the employer intends, whether the role is already promised to someone, or whether a job board’s date is right; and this page never opens the links (a browser page may not read other sites). To check liveness, run node ghost-check.mjs links.txt --live on your computer and paste the lines it prints back here."
   )))));
 }
-const HALF_CIRCLE = /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "18", height: "18", fill: "none", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "8", stroke: "currentColor", strokeWidth: "2" }), /* @__PURE__ */ React.createElement("path", { d: "M12 4a8 8 0 0 1 0 16z", fill: "currentColor" }));
 const GEAR = /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "18", height: "18", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinejoin: "round", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("path", { d: "M10.34 5.10L10.58 2.51L13.42 2.51L13.66 5.10A7.1 7.1 0 0 1 15.71 5.95L17.71 4.28L19.72 6.29L18.05 8.29A7.1 7.1 0 0 1 18.90 10.34L21.49 10.58L21.49 13.42L18.90 13.66A7.1 7.1 0 0 1 18.05 15.71L19.72 17.71L17.71 19.72L15.71 18.05A7.1 7.1 0 0 1 13.66 18.90L13.42 21.49L10.58 21.49L10.34 18.90A7.1 7.1 0 0 1 8.29 18.05L6.29 19.72L4.28 17.71L5.95 15.71A7.1 7.1 0 0 1 5.10 13.66L2.51 13.42L2.51 10.58L5.10 10.34A7.1 7.1 0 0 1 5.95 8.29L4.28 6.29L6.29 4.28L8.29 5.95A7.1 7.1 0 0 1 10.34 5.10Z" }), /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "3" }));
 function App() {
   useLangToggle();
@@ -3689,7 +3770,7 @@ function App() {
   const [ghOk, setGhOk] = useState(false);
   const [saveErr, setSaveErr] = useState("");
   const [info, setInfo] = useState("");
-  const themeRef = useRef(null), gearRef = useRef(null);
+  const gearRef = useRef(null);
   const latest = useRef({});
   useEffect(() => {
     document.getElementById("loading").style.display = "none";
@@ -3713,36 +3794,38 @@ function App() {
       return;
     }
     (async () => {
-      let rawSecs, oldDb, fmt, gls, lib, diag;
-      setSharedLoading(true);
-      try {
-        [rawSecs, oldDb, fmt, gls, lib, diag] = await Promise.all([
-          loadJsonStrict("resumeSections"),
-          loadTextStrict("resumeDb"),
-          loadTextStrict("formatting"),
-          loadTextStrict("glossary"),
-          loadJsonStrict("library"),
-          loadJsonStrict("diagnosis")
-        ]);
-      } catch (e) {
-        setSharedErr(e);
+      return HubSettingsRuntime.track(async () => {
+        let rawSecs, oldDb, fmt, gls, lib, diag;
+        setSharedLoading(true);
+        try {
+          [rawSecs, oldDb, fmt, gls, lib, diag] = await Promise.all([
+            loadJsonStrict("resumeSections"),
+            loadTextStrict("resumeDb"),
+            loadTextStrict("formatting"),
+            loadTextStrict("glossary"),
+            loadJsonStrict("library"),
+            loadJsonStrict("diagnosis")
+          ]);
+        } catch (e) {
+          setSharedErr(e);
+          setSharedLoading(false);
+          setLoaded(true);
+          return;
+        }
+        setSharedErr(null);
+        setDiagnosis(diag && !Array.isArray(diag) ? diag : null);
+        let secs = rawSecs;
+        if ((!secs || secs.length === 0) && oldDb.trim()) {
+          secs = [{ id: newId(), name: "My Profile", content: oldDb, source: "manual", addedAt: (/* @__PURE__ */ new Date()).toISOString() }];
+        }
+        setSections(secs);
+        setResumeDb(combineSections(secs));
+        setFormatting(fmt);
+        setGlossary(gls);
+        setLibrary(lib);
         setSharedLoading(false);
         setLoaded(true);
-        return;
-      }
-      setSharedErr(null);
-      setDiagnosis(diag && !Array.isArray(diag) ? diag : null);
-      let secs = rawSecs;
-      if ((!secs || secs.length === 0) && oldDb.trim()) {
-        secs = [{ id: newId(), name: "My Profile", content: oldDb, source: "manual", addedAt: (/* @__PURE__ */ new Date()).toISOString() }];
-      }
-      setSections(secs);
-      setResumeDb(combineSections(secs));
-      setFormatting(fmt);
-      setGlossary(gls);
-      setLibrary(lib);
-      setSharedLoading(false);
-      setLoaded(true);
+      });
     })();
   }, [sharedTry]);
   useEffect(() => {
@@ -3792,45 +3875,40 @@ function App() {
     };
   }, []);
   const updateSections = async (newSecs, persist = true) => {
-    setSections(newSecs);
-    const combined = combineSections(newSecs);
-    setResumeDb(combined);
-    if (persist) {
-      const r = await saveJson("resumeSections", newSecs);
-      if (r) await saveText("resumeDb", combineSections(r.data), { derived: true });
-    }
+    return HubSettingsRuntime.track(async () => {
+      setSections(newSecs);
+      const combined = combineSections(newSecs);
+      setResumeDb(combined);
+      if (persist) {
+        const r = await saveJson("resumeSections", newSecs);
+        if (r) await saveText("resumeDb", combineSections(r.data), { derived: true });
+      }
+    });
   };
   const handleGhChange = async (ok) => {
-    setGhOk(ok);
-    if (ok) {
-      setSharedTry((t) => t + 1);
-      setConnGen((g) => g + 1);
+    return HubSettingsRuntime.track(async () => {
+      setGhOk(ok);
+      if (ok) {
+        setSharedTry((t) => t + 1);
+        setConnGen((g) => g + 1);
+      }
+    });
+  };
+  latest.current = { ghOk, handleGhChange, sharedLoading, sharedErr };
+  window.jobSettingsBridge = {
+    reload() {
+      ReactDOM.flushSync(() => {
+        setGhOk(ghConfigured());
+        setSharedTry((t) => t + 1);
+        setConnGen((g) => g + 1);
+      });
+    },
+    status: () => ({ loading: latest.current.sharedLoading || jobRegionLoading, error: latest.current.sharedErr || jobRegionError }),
+    refresh() {
+      _langSubs.slice().forEach((fn) => fn());
     }
   };
-  latest.current = { ghOk, handleGhChange };
-  const settingsOpts = (focus) => {
-    let root = null;
-    return {
-      strings: Appearance.STRINGS[lang],
-      focus,
-      sections: [() => {
-        const box = document.createElement("div");
-        root = ReactDOM.createRoot(box);
-        ReactDOM.flushSync(() => root.render(/* @__PURE__ */ React.createElement(SettingsSections, { ghOk: latest.current.ghOk, onGhChange: (ok) => latest.current.handleGhChange(ok) })));
-        return box;
-      }],
-      onClose: () => {
-        const r = root;
-        root = null;
-        if (r) setTimeout(() => r.unmount(), 0);
-      }
-    };
-  };
-  const openSettings = (opener, focus) => Appearance.openSettings(opener || gearRef.current, settingsOpts(focus));
-  useEffect(() => {
-    if (themeRef.current) Appearance.bindToggle(themeRef.current);
-    if (gearRef.current) Appearance.bindSettings(gearRef.current, () => settingsOpts());
-  }, []);
+  const openSettings = (opener, focus) => window.SuiteSettings?.open(focus === "#set-key" ? "ai" : focus === "appearance" ? "appearance" : "connection");
   const go = (t, opts = {}) => {
     if (t !== tab || location.hash) {
       try {
@@ -3861,7 +3939,7 @@ function App() {
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("a", { className: "skip", href: "#main", onClick: skip }, T("跳到内容", "Skip to content")), /* @__PURE__ */ React.createElement("header", { className: "topbar" }, /* @__PURE__ */ React.createElement("a", { className: "brand", href: tabHref("tracker"), "aria-label": T("ApplyLedger 首页", "ApplyLedger home"), onClick: (e) => {
     e.preventDefault();
     go("tracker");
-  } }, /* @__PURE__ */ React.createElement(BrandMark, null), /* @__PURE__ */ React.createElement("b", null, "ApplyLedger"), /* @__PURE__ */ React.createElement("span", null, T("求职投递，每个地区一条管线——数据存在你自己的私有仓库", "Job applications, one pipeline per region — kept in a private repo you own."))), /* @__PURE__ */ React.createElement("span", { className: `pill${pill.warn ? " warn" : ""}`, title: pill.short + pill.long }, pill.short, /* @__PURE__ */ React.createElement("span", { className: "long" }, pill.long)), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost lang-btn", onClick: toggleLang, title: T("切换语言", "Switch language"), lang: lang === "en" ? "zh" : "en" }, T("EN", "中文")), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon", id: "theme", ref: themeRef, "aria-label": T("深色模式", "Dark mode"), "aria-pressed": "false", title: T("深色模式", "Dark mode") }, HALF_CIRCLE), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon", id: "nl-settings-button", ref: gearRef, "aria-haspopup": "dialog", "aria-label": T("设置", "Settings"), title: T("设置", "Settings") }, GEAR), /* @__PURE__ */ React.createElement("a", { className: "btn btn-ghost gh", href: "https://github.com/NickkkLian/Job-Tracker", rel: "noopener" }, "GitHub")), /* @__PURE__ */ React.createElement("div", { className: "shell" }, /* @__PURE__ */ React.createElement("nav", { className: "nav", "aria-label": T("页面", "Sections") }, /* @__PURE__ */ React.createElement("div", { className: "nav-in" }, /* @__PURE__ */ React.createElement("div", { className: "nav-region" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "region", className: "eyebrow" }, T("地区", "Region")), /* @__PURE__ */ React.createElement("select", { id: "region", value: region, onChange: (e) => setRegion(e.target.value) }, REGIONS.map((r) => /* @__PURE__ */ React.createElement("option", { key: r.id, value: r.id }, rName(r))))), /* @__PURE__ */ React.createElement("div", { className: "nav-links" }, TABS.filter((t) => t.scope === "region").map(navLink), /* @__PURE__ */ React.createElement("p", { className: "group eyebrow" }, T("所有地区共用", "Shared by all regions")), TABS.filter((t) => t.scope === "shared").map(navLink)))), /* @__PURE__ */ React.createElement("main", { id: "main", className: "main" }, /* @__PURE__ */ React.createElement("div", { className: "main-in" }, !ghOk && !DEMO && /* @__PURE__ */ React.createElement("section", { className: "card connect", "aria-labelledby": "connect-h" }, /* @__PURE__ */ React.createElement("h2", { id: "connect-h" }, T("连接你的私有数据仓库", "Connect your private data repo")), /* @__PURE__ */ React.createElement("p", null, T("ApplyLedger 把你的投递存在你自己的 GitHub 私有仓库里。连接之前，在这里添加的东西都不会保存。", "ApplyLedger keeps your applications in a private GitHub repo you own. Until you connect one, nothing you add here is saved.")), /* @__PURE__ */ React.createElement("div", { className: "acts" }, /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: (e) => openSettings(e.currentTarget, "#set-repo") }, T("连接…", "Connect…")), /* @__PURE__ */ React.createElement("a", { href: "?demo=1&tab=tracker" }, T("先看演示", "Try the demo")))), loaded && /* @__PURE__ */ React.createElement(
+  } }, /* @__PURE__ */ React.createElement(BrandMark, null), /* @__PURE__ */ React.createElement("b", null, "ApplyLedger"), /* @__PURE__ */ React.createElement("span", null, T("求职投递，每个地区一条管线——数据存在你自己的私有仓库", "Job applications, one pipeline per region — kept in a private repo you own."))), /* @__PURE__ */ React.createElement("span", { className: `pill${pill.warn ? " warn" : ""}`, title: pill.short + pill.long }, pill.short, /* @__PURE__ */ React.createElement("span", { className: "long" }, pill.long)), /* @__PURE__ */ React.createElement("a", { className: "btn btn-ghost gh", href: "https://github.com/NickkkLian/Job-Tracker", rel: "noopener" }, "GitHub"), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon suite-gear", id: "nl-settings-button", onClick: (e) => openSettings(e.currentTarget), ref: gearRef, "aria-haspopup": "dialog", "aria-label": T("设置", "Settings"), "aria-keyshortcuts": "Meta+, Control+,", title: T("设置", "Settings") }, GEAR, /* @__PURE__ */ React.createElement("span", null, T("设置", "Settings")))), /* @__PURE__ */ React.createElement("div", { className: "shell" }, /* @__PURE__ */ React.createElement("nav", { className: "nav", "aria-label": T("页面", "Sections") }, /* @__PURE__ */ React.createElement("div", { className: "nav-in" }, /* @__PURE__ */ React.createElement("div", { className: "nav-region" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "region", className: "eyebrow" }, T("地区", "Region")), /* @__PURE__ */ React.createElement("select", { id: "region", value: region, onChange: (e) => setRegion(e.target.value) }, REGIONS.map((r) => /* @__PURE__ */ React.createElement("option", { key: r.id, value: r.id }, rName(r))))), /* @__PURE__ */ React.createElement("div", { className: "nav-links" }, TABS.filter((t) => t.scope === "region").map(navLink), /* @__PURE__ */ React.createElement("p", { className: "group eyebrow" }, T("所有地区共用", "Shared by all regions")), TABS.filter((t) => t.scope === "shared").map(navLink)))), /* @__PURE__ */ React.createElement("main", { id: "main", className: "main" }, /* @__PURE__ */ React.createElement("div", { className: "main-in" }, !ghOk && !DEMO && /* @__PURE__ */ React.createElement("section", { className: "card connect", "aria-labelledby": "connect-h" }, /* @__PURE__ */ React.createElement("h2", { id: "connect-h" }, T("连接你的私有数据仓库", "Connect your private data repo")), /* @__PURE__ */ React.createElement("p", null, T("ApplyLedger 把你的投递存在你自己的 GitHub 私有仓库里。连接之前，在这里添加的东西都不会保存。", "ApplyLedger keeps your applications in a private GitHub repo you own. Until you connect one, nothing you add here is saved.")), /* @__PURE__ */ React.createElement("div", { className: "acts" }, /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: (e) => openSettings(e.currentTarget, "#set-repo") }, T("连接…", "Connect…")), /* @__PURE__ */ React.createElement("a", { href: "?demo=1&tab=tracker" }, T("先看演示", "Try the demo")))), loaded && /* @__PURE__ */ React.createElement(
     RegionApp,
     {
       key: `${region}:${connGen}`,
@@ -3897,5 +3975,11 @@ initTips();
 ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));
 
 </script>
+<script src="assets/settings-standard/backup.js"></script>
+<script src="assets/settings-standard/adapter-helpers.js"></script>
+<script src="assets/settings-standard/field-group.js"></script>
+<script src="assets/job-backup.js"></script>
+<script src="assets/settings-adapter.js"></script>
+<script src="assets/settings-standard/panel.js"></script>
 </body>
 </html>

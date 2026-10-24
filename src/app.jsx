@@ -96,29 +96,27 @@ function sampleProfile() {
   return { sections, library };
 }
 
-// If token/repo are empty, pre-fill them from a `pha-config` entry in localStorage when one exists; never overwrites values already set.
-// Not on GitHub Pages: every public demo shares the origin nickkklian.github.io, and a connection saved in another demo
-// must not connect this one (a trailing dot in the host name is the same site). Elsewhere the product family shares one
-// connection on purpose.
-try {
-  const _pha = JSON.parse(localStorage.getItem('pha-config') || 'null');
-  if (/\.github\.io\.?$/.test(location.hostname)) {
-    // Until 2026-09-24 the copy below ran on GitHub Pages too. Undo it where it happened: a copy equals the shared entry
-    // (token and repo), and then the copy and the leftover shared entry both go. A connection made in this app itself is
-    // left alone.
-    if (_pha && _pha.token && localStorage.getItem('jobapp:githubToken') === _pha.token
-        && localStorage.getItem('jobapp:githubRepo') === _pha.owner + '/' + _pha.repo) {
-      localStorage.removeItem('jobapp:githubToken');
-      localStorage.removeItem('jobapp:githubRepo');
-      localStorage.removeItem('pha-config');
+// Shared connections are resolved only on the hub; original app storage remains for old pages.
+let jobConnection={},jobSourcePaused=false;
+const jobDrafts=new Map(),jobFailedPaths=new Set();
+let jobRegionLoading=false,jobRegionError=null;
+function useSettingsDraft(dirty){
+  const id=useRef(Symbol('job-draft'));
+  useEffect(()=>{jobDrafts.set(id.current,Boolean(dirty));return()=>jobDrafts.delete(id.current);},[dirty]);
+}
+function initializeJobConnection(){
+  if(DEMO)return;
+  try{
+    if(localStorage.getItem('jobapp:connection')===null){
+      const oldRepo=localStorage.getItem('jobapp:githubRepo')||'',parts=oldRepo.split('/');
+      const local={owner:parts[0]||'',repo:parts[1]||'',token:localStorage.getItem('jobapp:githubToken')||''};
+      const raw=JSON.stringify(local);localStorage.setItem('jobapp:connection',raw);
+      if(localStorage.getItem('jobapp:connection')!==raw)throw new HubSettingsContract.SettingsError('readback');
     }
-  } else if (_pha && _pha.token) {
-    if (!localStorage.getItem('jobapp:githubRepo') && _pha.owner && _pha.repo)
-      localStorage.setItem('jobapp:githubRepo', _pha.owner + '/' + _pha.repo);
-    if (!localStorage.getItem('jobapp:githubToken'))
-      localStorage.setItem('jobapp:githubToken', _pha.token);
-  }
-} catch (e) {}
+    jobConnection=HubSettingsRuntime.resolve('Job-Tracker',HubSettingsContract.object(localStorage.getItem('jobapp:connection'))).config;
+  }catch{/* Invalid storage is shown in Settings without replacing it. */}
+}
+initializeJobConnection();
 
 const PATHS = {
   resumeDb:       'data/resumeDb.txt',
@@ -171,10 +169,7 @@ const fileHolders = {};
 const saveQueues = {};
 
 function ghCfg() {
-  return {
-    token: localStorage.getItem(LOCAL_PRE + 'githubToken') || '',
-    repo:  localStorage.getItem(LOCAL_PRE + 'githubRepo')  || '',
-  };
+  return DEMO||jobSourcePaused?{token:'',repo:''}:{token:jobConnection.token||'',repo:jobConnection.owner&&jobConnection.repo?jobConnection.owner+'/'+jobConnection.repo:''};
 }
 
 function ghHdrs(tok) {
@@ -194,10 +189,11 @@ const isJsonPath = path => /\.json$/i.test(path);
 function parseFile(path, text) { return isJsonPath(path) ? (text ? JSON.parse(text) : []) : (text || ''); }
 
 // One read of a file, past the browser cache (a save merges against it): { text, sha }, or null when it does not exist
-async function ghFetchFile(path) {
+async function ghFetchFile(path) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
   const { token, repo } = ghCfg();
   const [o, r] = repo.split('/');
   const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}?t=${Date.now()}`, { headers: ghHdrs(token), cache: 'no-store' });
+  HubSettingsRuntime.fileRead(jobConnection,path,res.status);
   if (res.status === 404) return null;
   if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`GitHub ${res.status}: ${e.message||'error'}`); }
   const d = await res.json();
@@ -213,9 +209,9 @@ async function ghFetchFile(path) {
     if (!b64) throw new Error(`GitHub sent no content for ${path} (${d.size} bytes)`);
   }
   return { text: frB64(b64), sha: d.sha };
-}
+});}
 
-async function ghRead(path) {
+async function ghRead(path) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
   const { token, repo } = ghCfg();
   if (!token || !repo) return null;
   const f = await ghFetchFile(path);
@@ -223,7 +219,7 @@ async function ghRead(path) {
   baseCache[path] = parseFile(path, text);   // a .json file that does not parse throws here: not a read that worked
   if (f) shaCache[path] = f.sha; else delete shaCache[path];
   return text;
-}
+});}
 
 function ghPut(path, text, sha) {
   const { token, repo } = ghCfg();
@@ -264,10 +260,11 @@ function ghWrite(path, value, opts = {}) {
   q.waiting = w;
   w.done = q.chain.then(() => { if (q.waiting === w) q.waiting = null; return ghWriteNow(path, w.value, w.opts, q); });
   q.chain = w.done.catch(() => {});
-  return w.done;
+  return HubSettingsRuntime.track(()=>w.done);
 }
 
-async function ghWriteNow(path, value, opts, q) {
+async function ghWriteNow(path, value, opts, q) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
+  try{
   const { token, repo } = ghCfg();
   if (!token || !repo) throw new Error('GitHub not configured');
   const json = isJsonPath(path);
@@ -276,7 +273,7 @@ async function ghWriteNow(path, value, opts, q) {
   const r = await SafeMerge.save({
     data: sent, sha: shaCache[path] || null, base: path in baseCache ? baseCache[path] : null, T,
     put: (d, sha) => ghPut(path, json ? JSON.stringify(d) : d, sha),
-    get: async () => { const f = await ghFetchFile(path); remoteNow = parseFile(path, f && f.text); return { json: remoteNow, sha: f ? f.sha : null }; },
+    get: async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */ const f = await ghFetchFile(path); remoteNow = parseFile(path, f && f.text); return { json: remoteNow, sha: f ? f.sha : null }; });},
     askFn: opts.derived ? async () => 'mine'
       : (conflicts, t) => SafeMerge.ask(conflicts.map(c => ({ ...c, path: [path, ...c.path.map((p, i) => typeof p === 'object'
         ? { ...p, label: itemLabel(itemAt(remoteNow, c.path, i) || itemAt(sent, c.path, i)) || p.label } : p)] })), t),
@@ -288,17 +285,18 @@ async function ghWriteNow(path, value, opts, q) {
     const h = fileHolders[path];
     if (h) { const next = SafeMerge.rebase(sent, r.data, h.get()); ReactDOM.flushSync(() => h.set(next)); }
   }
-  return r;
-}
+  jobFailedPaths.delete(path);return r;
+  }catch(error){jobFailedPaths.add(path);throw error;}
+});}
 
 // Tests the given token and repository (by default the saved ones) without saving anything
-async function testGhConnection(token = ghCfg().token, repo = ghCfg().repo) {
+async function testGhConnection(token = ghCfg().token, repo = ghCfg().repo) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
   if (!token || !repo) throw new Error('Not configured');
   const [o, r] = repo.split('/');
   const res = await fetch(`https://api.github.com/repos/${o}/${r}`, { headers: ghHdrs(token) });
   if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`${res.status}: ${e.message||'error'}`); }
   return res.json();
-}
+});}
 
 // ── Binary / data-URL file operations (for PDF and HTML resume files) ──
 
@@ -308,7 +306,7 @@ function pdfGhPath(pdfKey) {
 }
 
 // Write a data URL as a binary file to GitHub (raw base64, not re-encoded)
-async function ghWriteDataUrl(path, dataUrl) {
+async function ghWriteDataUrl(path, dataUrl) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
   const base64 = (dataUrl||'').split(',')[1];
   if (!base64) throw new Error('Invalid data URL');
   const { token, repo } = ghCfg();
@@ -321,10 +319,10 @@ async function ghWriteDataUrl(path, dataUrl) {
     if (c.ok) { const d = await c.json(); shaCache[path] = d.sha; }
   }
 
-  const doWrite = async () => {
+  const doWrite = async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     const body = { message: `jobapp: update ${path}`, content: base64, ...(shaCache[path] ? {sha: shaCache[path]} : {}) };
     return fetch(url, { method:'PUT', headers: ghHdrs(token), body: JSON.stringify(body) });
-  };
+  });};
 
   let res = await doWrite();
   if (res.status === 409) {
@@ -336,11 +334,11 @@ async function ghWriteDataUrl(path, dataUrl) {
   if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`GitHub ${res.status}: ${e.message||'error'}`); }
   const d = await res.json();
   shaCache[path] = d.content.sha;
-}
+});}
 
 // Write a binary file only if the repo does not have it yet. No sha is sent, so GitHub refuses (422) a file that exists
 // by then, and nothing is replaced.
-async function ghCreateDataUrl(path, dataUrl) {
+async function ghCreateDataUrl(path, dataUrl) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
   const base64 = (dataUrl||'').split(',')[1];
   if (!base64) throw new Error('Invalid data URL');
   const { token, repo } = ghCfg();
@@ -358,11 +356,11 @@ async function ghCreateDataUrl(path, dataUrl) {
     throw new Error(`GitHub ${res.status}: ${e.message||'error'}`);
   }
   shaCache[path] = (await res.json()).content.sha;
-}
+});}
 
 // Whether a binary file is in the repo: its data URL when it is ('' when it is too big for the Contents API to send its
 // content), null when GitHub answers 404. Any other answer throws: "not in the repo" is never concluded from a failed read.
-async function ghFindDataUrl(path, mimeType) {
+async function ghFindDataUrl(path, mimeType) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
   const { token, repo } = ghCfg();
   if (!token || !repo) throw new Error('GitHub not configured');
   const [o, r] = repo.split('/');
@@ -372,10 +370,10 @@ async function ghFindDataUrl(path, mimeType) {
   const d = await res.json();
   shaCache[path] = d.sha;
   return d.content ? `data:${mimeType};base64,${d.content.replace(/\n/g,'')}` : '';
-}
+});}
 
 // Read a binary file from GitHub and return as a data URL
-async function ghReadDataUrl(path, mimeType) {
+async function ghReadDataUrl(path, mimeType) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
   const { token, repo } = ghCfg();
   if (!token || !repo) return null;
   const [o, r] = repo.split('/');
@@ -385,10 +383,10 @@ async function ghReadDataUrl(path, mimeType) {
   const d = await res.json();
   shaCache[path] = d.sha;
   return `data:${mimeType};base64,${d.content.replace(/\n/g,'')}`;
-}
+});}
 
 // Delete a file from GitHub (best-effort — used when deleting jobs)
-async function ghDeleteFile(path) {
+async function ghDeleteFile(path) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
   const { token, repo } = ghCfg();
   if (!token || !repo) return;
   const [o, r] = repo.split('/');
@@ -402,18 +400,18 @@ async function ghDeleteFile(path) {
   const body = { message: `jobapp: delete ${path}`, sha: shaCache[path] };
   const res = await fetch(url, { method:'DELETE', headers: ghHdrs(token), body: JSON.stringify(body) });
   if (res.ok) delete shaCache[path];
-}
+});}
 
 // Storage helpers
-async function loadText(key)  { try { return await ghRead(keyToPath(key)) || ''; } catch { return ''; } }
-async function saveText(key, v, opts){ if (DEMO && !ghConfigured()) return; try { return await ghWrite(keyToPath(key), v, opts); } catch(e){ console.error(e); dispatchSaveErr(e); } }
-async function loadJson(key)  { try { const t = await ghRead(keyToPath(key)); return t ? JSON.parse(t) : []; } catch { return []; } }
+async function loadText(key)  {return HubSettingsRuntime.track(async()=>{/* settings workflow */ try { return await ghRead(keyToPath(key)) || ''; } catch { return ''; } });}
+async function saveText(key, v, opts){return HubSettingsRuntime.track(async()=>{/* settings workflow */ if (DEMO && !ghConfigured()) return; try { return await ghWrite(keyToPath(key), v, opts); } catch(e){ console.error(e); dispatchSaveErr(e); } });}
+async function loadJson(key)  {return HubSettingsRuntime.track(async()=>{/* settings workflow */ try { const t = await ghRead(keyToPath(key)); return t ? JSON.parse(t) : []; } catch { return []; } });}
 // Reads that must not fail quietly: a missing file (404) is empty, anything else is an error the view shows. loadJson and
 // loadText turn every error into "empty", so a bad token looked exactly like "no applications yet" — and the next save
 // could then overwrite the real file with a nearly empty one.
-async function loadJsonStrict(key) { const t = await ghRead(keyToPath(key)); return t ? JSON.parse(t) : []; }
-async function loadTextStrict(key) { return (await ghRead(keyToPath(key))) || ''; }
-async function saveJson(key, v){ if (DEMO && !ghConfigured()) return; try { return await ghWrite(keyToPath(key), v); } catch(e){ console.error(e); dispatchSaveErr(e); } }
+async function loadJsonStrict(key) {return HubSettingsRuntime.track(async()=>{/* settings workflow */ const t = await ghRead(keyToPath(key)); return t ? JSON.parse(t) : []; });}
+async function loadTextStrict(key) {return HubSettingsRuntime.track(async()=>{/* settings workflow */ return (await ghRead(keyToPath(key))) || ''; });}
+async function saveJson(key, v){return HubSettingsRuntime.track(async()=>{/* settings workflow */ if (DEMO && !ghConfigured()) return; try { return await ghWrite(keyToPath(key), v); } catch(e){ console.error(e); dispatchSaveErr(e); } });}
 
 function dispatchSaveErr(e) { window.dispatchEvent(new CustomEvent('jobapp:saveerror', {detail: e})); }
 
@@ -424,7 +422,7 @@ function combineSections(sections) {
   return sections.map(s => `[${s.name}]\n${s.content || ''}`).join('\n\n---\n\n');
 }
 
-function lsGet(k)  { return localStorage.getItem(LOCAL_PRE + k) || ''; }
+function lsGet(k)  { if(DEMO&&['anthropicKey','githubToken','githubRepo'].includes(k))return '';return localStorage.getItem(LOCAL_PRE + k) || ''; }
 function lsSet(k,v){ localStorage.setItem(LOCAL_PRE + k, v); }
 function lsDel(k)  { localStorage.removeItem(LOCAL_PRE + k); }
 
@@ -803,7 +801,7 @@ function loadPdfJs() {
   return pdfjsPromise;
 }
 
-async function extractPdfText(file) {
+async function extractPdfText(file) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
   const lib = await loadPdfJs();
   const buf = await file.arrayBuffer();
   const pdf = await lib.getDocument({ data: buf }).promise;
@@ -823,9 +821,9 @@ async function extractPdfText(file) {
     parts.push(lines.filter(Boolean).join('\n'));
   }
   return parts.join('\n\n').trim();
-}
+});}
 
-async function readFileAsText(file) {
+async function readFileAsText(file) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
   const ext = (file.name.split('.').pop() || '').toLowerCase();
   if (['txt','md','markdown'].includes(ext)) return file.text();
   if (ext === 'docx') {
@@ -840,7 +838,7 @@ async function readFileAsText(file) {
   }
   if (ext === 'doc') throw new Error('.doc not supported — save as .docx first');
   throw new Error(`Unsupported: .${ext} — use .txt, .md, .docx, or .pdf`);
-}
+});}
 
 function downloadText(filename, content, mime='text/plain') {
   const blob = new Blob([content], { type: `${mime};charset=utf-8` });
@@ -862,12 +860,33 @@ function readFileAsDataUrl(file) {
 
 // PDF/HTML localStorage helpers (device-local, not synced to GitHub)
 const PDF_LS_PRE = 'jobapp-pdf:';
-function savePdfLocal(key, dataUrl) {
-  try { localStorage.setItem(PDF_LS_PRE + key, dataUrl); return true; }
-  catch(e) { console.warn('localStorage quota exceeded:', e); return false; }
+const pdfScope=()=>encodeURIComponent((jobConnection.owner||'')+'/'+(jobConnection.repo||''));
+function pdfCacheKey(key){return 'jobapp-pdf-v2:'+pdfScope()+':'+key;}
+function migratePdfCache(){
+  if(DEMO||!HubSettingsContract.complete(jobConnection))return;
+  const scope=pdfScope(),marker='jobapp:legacy-pdf-source';
+  try{
+    let original=localStorage.getItem(marker);
+    if(original===null){localStorage.setItem(marker,scope);if(localStorage.getItem(marker)!==scope)return;original=scope;}
+    if(original!==scope)return;
+    for(const key of Object.keys(localStorage).filter(k=>k.startsWith(PDF_LS_PRE))){
+      const target=pdfCacheKey(key.slice(PDF_LS_PRE.length));
+      if(localStorage.getItem(target)===null)localStorage.setItem(target,localStorage.getItem(key));
+    }
+  }catch{/* Original recovery bytes remain if quota prevents an additive copy. */}
 }
-function loadPdfLocal(key) { return localStorage.getItem(PDF_LS_PRE + key) || null; }
-function deletePdfLocal(key) { localStorage.removeItem(PDF_LS_PRE + key); }
+migratePdfCache();
+function savePdfLocal(key,dataUrl){
+  if(DEMO)return true;
+  try{localStorage.setItem(pdfCacheKey(key),dataUrl);return localStorage.getItem(pdfCacheKey(key))===dataUrl;}
+  catch(error){console.warn('Local PDF cache unavailable');return false;}
+}
+function loadPdfLocal(key){return DEMO?null:localStorage.getItem(pdfCacheKey(key));}
+function deletePdfLocal(key){
+  if(DEMO)return;
+  localStorage.removeItem(pdfCacheKey(key));
+  if(localStorage.getItem('jobapp:legacy-pdf-source')===pdfScope())localStorage.removeItem(PDF_LS_PRE+key);
+}
 
 function safeName(s) { return (s||'file').replace(/[^\w\s-]/g,'').replace(/\s+/g,'_').slice(0,60) || 'file'; }
 function stripMd(md) {
@@ -1001,13 +1020,7 @@ function Icon({ name, size=18, className }) {
 }
 // The product mark: the family frame and seal, and three bars that get shorter (applications narrowing to offers)
 function BrandMark() {
-  return (
-    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true" focusable="false">
-      <rect x="2.5" y="2.5" width="19" height="19" rx="5" stroke="currentColor" strokeWidth="2"/>
-      <rect x="14" y="6" width="4" height="4" rx="1" fill="var(--point)"/>
-      <path d="M7.5 17V9M11.5 17v-5M15.5 17v-2.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-    </svg>
-  );
+  return <img className="app-logo" src="assets/app-logo/logo.svg" width="32" height="32" alt="" />;
 }
 
 function Card({ children, className='' }) {
@@ -1094,7 +1107,7 @@ function ErrorCard({ title, error, onRetry, openSettings }) {
 }
 
 // The name of an icon-only button, on mouse hover, keyboard focus or a long press. Ported from Clipbind (initTips in
-// content-organizer/js/app.js) unchanged but for where it keeps its handle: it listens on document and finds [data-tip],
+// the shared tooltip pattern) unchanged but for where it keeps its handle: it listens on document and finds [data-tip],
 // so it does not care that React draws the buttons.
 function initTips(){
   var tip = document.createElement('div');
@@ -1182,14 +1195,14 @@ function FileUploadButton({ onFile, label=T('上传文件…','Upload file…'),
   const ref = useRef(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const handle = async e => {
+  const handle = async e => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
     setErr(''); setBusy(true);
     try { const t = await readFileAsText(file); if (!t.trim()) { setErr(T('文件为空或无法读取','File is empty or unreadable')); return; } onFile(t, file.name); }
     catch(e) { setErr(e.message||T('读取文件失败','Failed to read file')); }
     finally { setBusy(false); }
-  };
+  });};
   return (
     <span className="upload">
       <Btn variant={primary?'primary':'secondary'} onClick={()=>ref.current?.click()} disabled={busy}>
@@ -1240,10 +1253,10 @@ function Dialog({ labelId, onClose, wide, children }) {
 // in a new tab, close. Clicking the text selects all of it, as before.
 function PromptBlock({ prompt, onClose, id }) {
   const [state, setState] = useState('idle');   // idle | copied | failed
-  const copy = async () => {
+  const copy = async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     try { await navigator.clipboard.writeText(prompt); setState('copied'); setTimeout(() => setState(s => s === 'copied' ? 'idle' : s), 2000); }
     catch (e) { setState('failed'); }
-  };
+  });};
   return (
     <>
       <label htmlFor={id} className="sr-only">{T('提示词','Prompt')}</label>
@@ -1424,100 +1437,8 @@ function MdView({ text }) {
 // SETTINGS PANEL (GitHub only)
 // ════════════════════════════════════════════════════════════════
 
-// Settings: two sections inside the family Settings dialog. appearance.js draws the dialog with its Theme and
-// Appearance groups and a Done button; App renders these sections into it. Keys stay in this browser and go only to
-// their own APIs. The dialog is no longer opened on first load (a visitor opening the public address is "not
-// connected", and a modal on arrival hid the whole page); a connect card on every view opens it instead.
-function SettingsSections({ ghOk, onGhChange }) {
-  const [tok, setTok]         = useState(lsGet('githubToken'));
-  const [repo, setRepo]       = useState(lsGet('githubRepo'));
-  const [key, setKey]         = useState(lsGet('anthropicKey'));
-  const [showTok, setShowTok] = useState(false);
-  const [showKey, setShowKey] = useState(false);
-  const [connected, setConnected] = useState(ghOk);
-  const [status, setStatus]   = useState(null);   // { ok, msg } — the line under the token field
-  const [testing, setTesting] = useState(false);
-  const [keySaved, setKeySaved] = useState(false);
+// Settings lives in the pinned suite panel; contextual links open its named section.
 
-  const save = () => {
-    lsSet('githubToken', tok.trim()); lsSet('githubRepo', repo.trim());
-    const ok = ghConfigured(); setConnected(ok); onGhChange?.(ok);
-    setStatus({ ok:true, msg: T('已保存。','Saved.') });
-  };
-  // The repository and token typed here are saved only when the test works. They used to be saved before the test, so
-  // after a failed one the page still showed the first repository's data while every save went to the new repository.
-  const test = async () => {
-    const t = tok.trim(), rp = repo.trim();
-    setTesting(true); setStatus(null);
-    try {
-      const d = await testGhConnection(t, rp);
-      lsSet('githubToken', t); lsSet('githubRepo', rp);
-      setStatus({ ok:true, msg: `✓ ${T('已连接','Connected')} — ${d.full_name} (${d.private ? T('私有','private') : T('公开','public')})` });
-      setConnected(true); onGhChange?.(true);
-    } catch(e) {
-      setStatus({ ok:false, msg: `✗ ${T('连接失败','Couldn’t connect')} — ${e.message}. ${T('请确认令牌勾选了 repo 权限。没有保存。','Check that the token has the repo scope. Nothing was saved.')}` });
-    } finally { setTesting(false); }
-  };
-  const clear = () => {
-    if (!window.confirm(T('移除 GitHub 凭证？','Remove GitHub credentials?'))) return;
-    lsDel('githubToken'); lsDel('githubRepo'); setTok(''); setRepo(''); setConnected(false); setStatus(null); onGhChange?.(false);
-  };
-  const saveKey = () => { lsSet('anthropicKey', key.trim()); setKeySaved(true); setTimeout(() => setKeySaved(false), 2000); };
-  const tokName = showTok ? T('隐藏令牌','Hide token') : T('显示令牌','Show token');
-  const keyName = showKey ? T('隐藏密钥','Hide key') : T('显示密钥','Show key');
-
-  return (
-    <div className="set-stack">
-      <section className="set-sec" aria-labelledby="set-repo-h">
-        <h3 id="set-repo-h">{T('私有数据仓库','Private data repo')}</h3>
-        <details open={!connected}>
-          <summary>{T('怎么设置','How to set it up')}</summary>
-          <ol>
-            <li>{T('新建一个私有 GitHub 仓库，例如 ','Create a private GitHub repo, for example ')}<code>your-username/jobapp-data</code></li>
-            <li>{T('打开 ','Open ')}<a href="https://github.com/settings/tokens/new" target="_blank" rel="noreferrer">github.com/settings/tokens/new</a></li>
-            <li>{T('勾选 repo 权限，生成并复制令牌','Tick the repo scope, generate the token and copy it')}</li>
-            <li>{T('把仓库名和令牌填在下面，保存','Fill in the repository and the token below, then save')}</li>
-          </ol>
-        </details>
-        <div className="fld">
-          <label htmlFor="set-repo">{T('仓库（owner/repo-name）','Repository (owner/repo-name)')}</label>
-          <input id="set-repo" type="text" value={repo} onChange={e=>setRepo(e.target.value)} placeholder="your-username/jobapp-data" autoComplete="off" spellCheck="false" />
-        </div>
-        <div className="fld">
-          <label htmlFor="set-token">{T('个人访问令牌','Personal access token')}</label>
-          <div className="secret">
-            <input id="set-token" type={showTok?'text':'password'} value={tok} onChange={e=>setTok(e.target.value)} placeholder="ghp_…" autoComplete="off" spellCheck="false"
-              aria-invalid={status && !status.ok ? 'true' : undefined} aria-describedby="set-status" />
-            <button type="button" className="btn btn-ghost btn-icon" aria-pressed={showTok} aria-label={tokName} data-tip={tokName} onClick={()=>setShowTok(s=>!s)}>
-              <Icon name={showTok ? 'eyeOff' : 'eye'} />
-            </button>
-          </div>
-        </div>
-        <p id="set-status" className={`status${status ? (status.ok ? ' ok' : ' bad') : ''}`} role="status">{status ? status.msg : ''}</p>
-        <div className="row">
-          <Btn variant="primary" onClick={save} disabled={!tok.trim()||!repo.trim()}>{T('保存','Save')}</Btn>
-          <Btn onClick={test} disabled={testing||!tok.trim()||!repo.trim()}>{testing ? T('测试中…','Testing…') : T('测试连接','Test connection')}</Btn>
-          {connected && <Btn variant="danger" onClick={clear}>{T('移除凭证','Remove credentials')}</Btn>}
-        </div>
-      </section>
-      <section className="set-sec" aria-labelledby="set-key-h">
-        <h3 id="set-key-h">{T('Anthropic API 密钥（可选）','Anthropic API key (optional)')}</h3>
-        <p>{T('供「提醒」与「批量定制」使用，每次扫描约 $0.01–0.05。在 ','Used by Alerts and Batch tailor, about $0.01–0.05 per scan. Get one at ')}<a href="https://console.anthropic.com" target="_blank" rel="noreferrer">console.anthropic.com</a>{T(' 获取。','.')}</p>
-        <div className="fld">
-          <label htmlFor="set-key">{T('密钥','Key')}</label>
-          <div className="secret">
-            <input id="set-key" type={showKey?'text':'password'} value={key} onChange={e=>setKey(e.target.value)} placeholder="sk-ant-…" autoComplete="off" spellCheck="false" />
-            <button type="button" className="btn btn-ghost btn-icon" aria-pressed={showKey} aria-label={keyName} data-tip={keyName} onClick={()=>setShowKey(s=>!s)}>
-              <Icon name={showKey ? 'eyeOff' : 'eye'} />
-            </button>
-          </div>
-        </div>
-        <div className="row"><Btn onClick={saveKey}>{keySaved ? T('已保存','Saved') : T('保存密钥','Save key')}</Btn></div>
-      </section>
-      <p className="set-note">{T('密钥只存在这个浏览器里，只发给各自的 API。','Keys stay in this browser and are sent only to their own APIs.')}</p>
-    </div>
-  );
-}
 
 // ════════════════════════════════════════════════════════════════
 // PROFILE TAB
@@ -1558,6 +1479,7 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
   const [dirty, setDirty]           = useState(false);   // section edits live on this page until Save all writes them
   const [fmtDraft, setFmtDraft]     = useState(formatting || '');
   const [glsDraft, setGlsDraft]     = useState(glossary || '');
+  useSettingsDraft(dirty||fmtDraft!==(formatting||'')||glsDraft!==(glossary||'')||editingId!==null);
 
   // keep the drafts in step when the saved values change from outside (first load)
   useEffect(() => { setFmtDraft(formatting || ''); }, [formatting]);
@@ -1589,11 +1511,11 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
     if (editName.trim()) local(sections.map(s => s.id === id ? {...s, name: editName.trim()} : s));
     setEditingId(null);
   };
-  const handleSaveAll = async () => {
+  const handleSaveAll = async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     setSaving(true);
     await updateSections(sections, true);   // true = written to GitHub
     setSaving(false); setDirty(false); setSaved(true); setTimeout(() => setSaved(false), 1500);
-  };
+  });};
 
   const totalChars = sections.reduce((n, s) => n + (s.content || '').length, 0);
   const SOURCE = { upload:T('上传的','Uploaded'), manual:T('在这里写的','Written here'), template:T('模板','Template'), library:T('来自简历库','From library') };
@@ -1681,7 +1603,7 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
             <p className="hint" role="status">{!glsN ? T('还没有词条——人名等译法由 Claude 自己判断。','No entries yet — Claude uses its own judgement for names.')
               : glsSavedNow ? T(`${glsN} 条——每条翻译提示词都会带上`, `${glsN} ${glsN === 1 ? 'entry' : 'entries'} — added to every translate prompt`)
               : T(`${glsN} 条，还没保存`, `${glsN} ${glsN === 1 ? 'entry' : 'entries'}, not saved yet`)}</p>
-            <Btn onClick={async () => { setGlossary(glsDraft); await saveText('glossary', glsDraft); }}>{T('保存词汇表','Save glossary')}</Btn>
+            <Btn onClick={async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */ setGlossary(glsDraft); await saveText('glossary', glsDraft); });}}>{T('保存词汇表','Save glossary')}</Btn>
           </div>
         </section>
 
@@ -1696,7 +1618,7 @@ function ProfileTab({ sections, updateSections, formatting, setFormatting, gloss
             <p className="hint" role="status">{!fmtN ? T('还没有规则——Claude 用它默认的排版。','No rules yet — Claude uses its default layout.')
               : fmtSavedNow ? T(`${fmtN} 条规则——每条定制简历提示词都会带上`, `${fmtN} ${fmtN === 1 ? 'rule' : 'rules'} — included in every tailored-resume prompt`)
               : T(`${fmtN} 条规则，还没保存`, `${fmtN} ${fmtN === 1 ? 'rule' : 'rules'}, not saved yet`)}</p>
-            <Btn onClick={async () => { setFormatting(fmtDraft); await saveText('formatting', fmtDraft); }}>{T('保存规则','Save rules')}</Btn>
+            <Btn onClick={async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */ setFormatting(fmtDraft); await saveText('formatting', fmtDraft); });}}>{T('保存规则','Save rules')}</Btn>
           </div>
         </section>
 
@@ -1855,24 +1777,24 @@ CONTENT:
 function LibraryTab({ library, setLibrary, updateSections }) {
   const [expandedId, setExpandedId] = useState(null);
 
-  const handleUpload = async (text, filename) => {
+  const handleUpload = async (text, filename) => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     const entry = { id: newId(), name: filename.replace(/\.[^.]+$/,'') || 'Untitled', content: text, uploadedAt: new Date().toISOString() };
     const updated = [entry, ...library];
     setLibrary(updated); await saveJson('library', updated);
-  };
-  const handleDelete = async id => {
+  });};
+  const handleDelete = async id => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     if (!window.confirm(T('删除这份简历？','Delete this resume?'))) return;
     const updated = library.filter(r=>r.id!==id); setLibrary(updated); await saveJson('library', updated);
-  };
-  const handleRename = async id => {
+  });};
+  const handleRename = async id => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     const cur = library.find(r=>r.id===id); if (!cur) return;
     const next = window.prompt(T('新名字：','Rename:'), cur.name); if (!next||next===cur.name) return;
     const updated = library.map(r=>r.id===id?{...r,name:next}:r); setLibrary(updated); await saveJson('library', updated);
-  };
-  const handleUseAsProfile = async entry => {
+  });};
+  const handleUseAsProfile = async entry => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     if (!window.confirm(T(`用「${entry.name}」替换你的整份资料？\n\n现有的各节会被这份简历这一节取代。`,`Replace your whole profile with "${entry.name}"?\n\nAll your sections are replaced by one section holding this resume.`))) return;
     await updateSections([{ id: newId(), name: entry.name, content: entry.content, source: 'library', addedAt: new Date().toISOString() }], true);
-  };
+  });};
   const upload = <FileUploadButton onFile={handleUpload} label={T('上传简历…','Upload resume…')} primary />;
 
   return (
@@ -2002,6 +1924,7 @@ function JobFields({ form, set, idPrefix, error, onTyped }) {
 function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, region, onSaved, onOpenProfile }) {
   const empty = { company:'', role:'', location:'', salaryRange:'', applicationDeadline:'', status:'interested', jdText:'', notes:'', noc:'', weeklyHours:'', empType:'', applyMethod:'', startDate:'', endDate:'', priority:'' };
   const [form, setForm]     = useState(empty);
+  useSettingsDraft(!SafeMerge.same(form,empty));
   const [filled, setFilled] = useState(null);   // { keys } — which empty fields the last fill wrote
   const [error, setError]   = useState('');
   const set = (k, v) => setForm(f => ({...f, [k]:v}));
@@ -2018,7 +1941,7 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
   };
   const handleJdUpload = text => fillFrom(text, { jdText: text });
 
-  const handleSave = async () => {
+  const handleSave = async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     if (!form.company.trim() && !form.role.trim()) { setError(T('公司和职位名称至少填一个。','Fill in the company or the job title.')); return; }
     const job = { id: newId(), dateAdded: new Date().toISOString(), ...form };
     const updated = [job, ...jobs];
@@ -2026,7 +1949,7 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
     if (DEMO && !ghConfigured()) window.dispatchEvent(new CustomEvent('jobapp:toast', { detail: T('已添加——演示数据，不会保存。','Added — demo data, not saved.') }));
     setForm(empty); setFilled(null);
     onSaved?.(job.id);
-  };
+  });};
   const names = { company:T('公司','company'), role:T('职位','role'), location:T('地点','location'), salaryRange:T('薪资','salary'), applicationDeadline:T('截止日期','deadline') };
 
   return (
@@ -2260,7 +2183,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
 
   function addLog(msg) { setLog(l => [...l, msg]); }
 
-  async function startBatch() {
+  async function startBatch() {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     const toProcess = eligible.filter(j=>selected.has(j.id));
     if (!toProcess.length) return;
     const key = lsGet('anthropicKey');
@@ -2359,7 +2282,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
 
     addLog(T(`\n完成。定制简历已保存 — 打开各职位查看。`,`\nDone. Tailored resumes saved — open each job to view.`));
     setRunning(false);
-  }
+  });}
 
   const TAG = { queued:['tag-neutral', T('排队','Queued')], running:['tag-info', T('进行中','Running')], done:['tag-success', T('完成','Done')], error:['tag-danger', T('失败','Failed')], skip:['tag-neutral', T('跳过','Skipped')] };
   const total = Object.keys(progress).length;
@@ -2436,11 +2359,11 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initi
 
   const counts = useMemo(() => { const c = {}; jobs.forEach(j => { c[j.status] = (c[j.status]||0) + 1; }); return c; }, [jobs]);
 
-  const updateStatus = async (id, status) => {
+  const updateStatus = async (id, status) => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     const updated = jobs.map(j=>j.id===id?{...j,status}:j); setJobs(updated); await saveJson(`${region}:jobs`, updated);
-  };
+  });};
 
-  const deleteJob = async id => {
+  const deleteJob = async id => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     if (!window.confirm(T('删除这条投递？它的定制简历和求职信 PDF 也会一起删除。','Delete this application? Its tailored resume and cover-letter PDFs are deleted too.'))) return;
     // Clean up localStorage cache
     deletePdfLocal(`${region}:${id}:resume`);
@@ -2453,7 +2376,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initi
     }
     const updated = jobs.filter(j=>j.id!==id);
     setJobs(updated); await saveJson(`${region}:jobs`, updated);
-  };
+  });};
   const clearFilters = () => { setFilter('all'); setTierFilter('all'); setSearch(''); };
   const title = T('追踪','Tracker');
 
@@ -2578,17 +2501,17 @@ function PdfUploadField({ label, pdfKey }) {
   // nothing cached here: pull it from the repo (another device may have uploaded it); .pdf first, then the older .html
   useEffect(() => {
     if (dataUrl || !ghConfigured()) return;
-    (async () => {
+    (async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
       for (const [ext, mime] of [['pdf','application/pdf'],['html','text/html']]) {
         try {
           const url = await ghReadDataUrl(`data/files/${pdfKey.replace(/:/g,'_')}.${ext}`, mime);
           if (url) { setDataUrl(url); savePdfLocal(pdfKey, url); return; }
         } catch {}
       }
-    })();
+    });})();
   }, [pdfKey]);
 
-  const handleUpload = async e => {
+  const handleUpload = async e => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
     const ext = (file.name.split('.').pop() || '').toLowerCase();
@@ -2607,7 +2530,7 @@ function PdfUploadField({ label, pdfKey }) {
         : { kind:'error', msg });
     }
     finally { setBusy(false); setGhSaving(false); }
-  };
+  });};
 
   const handleDelete = () => {
     if (!window.confirm(T('移除这个 PDF？','Remove this PDF?'))) return;
@@ -2660,15 +2583,15 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
   useEffect(() => { if (h1.current) h1.current.focus(); }, [job.id]);   // opening a job lands on its name
 
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
-  const updateJob = async patch => {
+  const updateJob = async patch => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     const updated = jobs.map(j=>j.id===job.id?{...j,...patch}:j); setJobs(updated); await saveJson(`${region}:jobs`, updated);
-  };
-  const handleSaveAll = async () => { setSaving(true); await updateJob(form); setSaving(false); setEditing(false); };
+  });};
+  const handleSaveAll = async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */ setSaving(true); await updateJob(form); setSaving(false); setEditing(false); });};
   const cancelEdit = () => { setForm(f => ({ ...job, notes: f.notes })); setEditing(false); };
-  const handleSaveNotes = async () => {
+  const handleSaveNotes = async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     await updateJob({ notes: form.notes });
     setNotesSaved(true); setTimeout(()=>setNotesSaved(false),1500);
-  };
+  });};
 
   const t = tierMeta(form.priority);
   const dash = '—';
@@ -2765,6 +2688,7 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
   const [msg, setMsg]             = useState('');
   const [adding, setAdding]       = useState(false);
   const [added, setAdded]         = useState([]);
+  useSettingsDraft(step!=='done'&&(Boolean(pastedText.trim())||found.length>0));
 
   const DEFAULT_PROFILE = 'Edit this profile to describe yourself in 2-3 sentences. Include: degree, key skills, relevant experience, target roles, and languages. This is used to score and match jobs — the more specific, the better the results.';
 
@@ -2788,7 +2712,7 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
   const anthropicKey = () => lsGet('anthropicKey');
 
   // One request, with one retry after 30 s when rate limited. Returns the parsed reply.
-  async function postMessages(key, body) {
+  async function postMessages(key, body) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     const send = () => fetch('https://api.anthropic.com/v1/messages', {
       method:'POST',
       headers:{
@@ -2809,13 +2733,13 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
     }
     if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`API ${res.status}: ${e.error?.message||'error'}`); }
     return res.json();
-  }
+  });}
 
   // A web search runs on Anthropic's side and can stop mid-turn with stop_reason "pause_turn". The turn is continued by
   // sending the conversation back with the paused assistant turn appended (no extra user message), at most
   // MAX_CONTINUATIONS times; the answer is the JSON text of the last assistant turn.
   const MAX_CONTINUATIONS = 3;
-  async function callClaude(messages, useWebSearch = false) {
+  async function callClaude(messages, useWebSearch = false) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     const key = anthropicKey();
     if (!key) throw new Error(T('没有 Anthropic API 密钥——请在「设置」里添加。','No Anthropic API key — add one in Settings.'));
     const body = {
@@ -2834,13 +2758,13 @@ function WatchdogTab({ region, jobs, setJobs, resumeDb, onOpenKey, openSettings 
       turn.push({ role:'assistant', content: data.content });
     }
     return anthropicText(replies[replies.length - 1]);
-  }
+  });}
 
   function parseJobs(text) {
     try { const o = JSON.parse(text || ''); return Array.isArray(o.jobs) ? o.jobs : []; } catch { return []; }
   }
 
-  async function scan() {
+  async function scan() {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     if (!pastedText.trim()) return;
     setStep('scanning'); setFound([]); setSelected(new Set());
     setMsg(T('正在读取粘贴的文本并搜索完整职位详情…','Reading pasted text and searching for full job details…'));
@@ -2880,7 +2804,7 @@ ${trimmedText}` }], true);
       setMsg(T(`找到 ${merged.length} 个职位 — 已预选 ${merged.filter(j=>j.score>=7).length} 个高匹配（≥7）。`,`${merged.length} jobs found — ${merged.filter(j=>j.score>=7).length} high-fit (≥7) pre-selected.`));
       setStep('review');
     } catch(e) { setMsg(T(`错误：${e.message}`,`Error: ${e.message}`)); setStep('review'); }
-  }
+  });}
 
   // Where "Discover new jobs" searches, for every region in REGIONS: the place named in the prompt and a short hint of
   // its cities. `skip` and `none` are the prompt's two "not elsewhere" lines; the default names the US and the UK, which
@@ -2906,7 +2830,7 @@ ${trimmedText}` }], true);
   };
   const regionSearch = REGION_SEARCH[region] || REGION_SEARCH.canada;
 
-  async function manualSearch() {
+  async function manualSearch() {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     if (!profile || profile.startsWith('Edit this profile')) {
       setMsg(T('请先写好你的资料概述——Claude 要靠它决定搜哪些职位。','Write your profile summary first — Claude needs it to know which jobs to search for.'));
       return;
@@ -2944,13 +2868,13 @@ For each job return: company, role (the exact title on the career page), locatio
       setMsg(T(`在 ${loc} 找到 ${merged.length} 个职位 — 已预选 ${merged.filter(j=>j.score>=7).length} 个高匹配（≥7）。`,`${merged.length} jobs found in ${loc} — ${merged.filter(j=>j.score>=7).length} high-fit (≥7) pre-selected.`));
       setStep('review');
     } catch(e) { setMsg(T(`错误：${e.message}`,`Error: ${e.message}`)); setStep('review'); }
-  }
+  });}
 
   // Fuzzy match for duplicate detection — handles "RBC" vs "Royal Bank of Canada", "Analyst" vs "Financial Analyst I"
   const norm = s => (s||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
   const fuzzy = (a, b) => { const na=norm(a), nb=norm(b); if (!na||!nb) return false; return na===nb || (na.length>3 && nb.length>3 && (na.includes(nb) || nb.includes(na))); };
 
-  async function addToTracker() {
+  async function addToTracker() {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     setAdding(true);
     const toAdd = found.filter(j => selected.has(j._id));
     const newJobs = [];
@@ -2967,7 +2891,7 @@ For each job return: company, role (the exact title on the career page), locatio
     setMsg(T(`已添加 ${newJobs.length} 个职位。${skipped ? ` 跳过 ${skipped} 个（已在追踪中）。` : ''}`,`${newJobs.length} job${newJobs.length!==1?'s':''} added.${skipped ? ` ${skipped} skipped (already in tracker).` : ''}`));
     setStep('done');
     setAdding(false);
-  }
+  });}
 
   const hasKey = !!anthropicKey();
   const toggle = id => { const s = new Set(selected); s.has(id)?s.delete(id):s.add(id); setSelected(s); };
@@ -3471,6 +3395,7 @@ function DiagList({ items, onAdd, onRemove, onToggle, placeholder, checkable, la
 
 function DiagnosisTab({ diagnosis, setDiagnosis }) {
   const d = diagnosis || DIAG_DEFAULT();
+  useSettingsDraft(diagnosis!==null&&!SafeMerge.same(diagnosis,baseCache[PATHS.diagnosis]));
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
 
@@ -3482,13 +3407,13 @@ function DiagnosisTab({ diagnosis, setDiagnosis }) {
     onRemove: id => patch({ [key]: (d[key]||[]).filter(x => x.id !== id) }),
     onToggle: id => patch({ [key]: (d[key]||[]).map(x => x.id === id ? { ...x, done: !x.done } : x) }),
   });
-  const save = async () => {
+  const save = async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     setSaving(true);
     const next = { ...d, updatedAt: new Date().toISOString() };
     setDiagnosis(next);
     await saveJson('diagnosis', next);
     setSaving(false); setSavedFlash(true); setTimeout(() => setSavedFlash(false), 1800);
-  };
+  });};
   // the two stages are toggle buttons: pressing the chosen one again clears the choice, as before
   const stageBtn = (val, zh, en, desc) => (
     <button type="button" className="stat choice" aria-pressed={d.stage === val} onClick={() => patch({ stage: d.stage === val ? '' : val })}>
@@ -3563,13 +3488,13 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true); setLoadErr(null);
-    (async () => {
+    setLoading(true); setLoadErr(null);jobRegionLoading=true;jobRegionError=null;
+    (async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
       try {
         const j = (DEMO && !ghConfigured()) ? sampleJobs(region) : await loadJsonStrict(`${region}:jobs`);
         if (!cancelled) { setJobs(Array.isArray(j) ? j : []); setLoading(false); }
-      } catch (e) { if (!cancelled) { setLoadErr(e); setLoading(false); } }
-    })();
+      } catch (e) { if (!cancelled) { setLoadErr(e); setLoading(false);jobRegionError=e; } }finally{jobRegionLoading=false;}
+    });})();
     return () => { cancelled=true; };
   }, [region, attempt]);
   useEffect(() => { onCount(loading ? null : jobs.length); }, [loading, jobs.length]);
@@ -3726,7 +3651,6 @@ function GhostTab({ eyebrow }) {
 // MAIN APP — the family shell: top bar (band), navigation (sage), the view, the honest footer (band)
 // ════════════════════════════════════════════════════════════════
 
-const HALF_CIRCLE = <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>;
 const GEAR = <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M10.34 5.10L10.58 2.51L13.42 2.51L13.66 5.10A7.1 7.1 0 0 1 15.71 5.95L17.71 4.28L19.72 6.29L18.05 8.29A7.1 7.1 0 0 1 18.90 10.34L21.49 10.58L21.49 13.42L18.90 13.66A7.1 7.1 0 0 1 18.05 15.71L19.72 17.71L17.71 19.72L15.71 18.05A7.1 7.1 0 0 1 13.66 18.90L13.42 21.49L10.58 21.49L10.34 18.90A7.1 7.1 0 0 1 8.29 18.05L6.29 19.72L4.28 17.71L5.95 15.71A7.1 7.1 0 0 1 5.10 13.66L2.51 13.42L2.51 10.58L5.10 10.34A7.1 7.1 0 0 1 5.95 8.29L4.28 6.29L6.29 4.28L8.29 5.95A7.1 7.1 0 0 1 10.34 5.10Z"/><circle cx="12" cy="12" r="3"/></svg>;
 
 function App() {
@@ -3757,7 +3681,7 @@ function App() {
   const [ghOk, setGhOk]             = useState(false);
   const [saveErr, setSaveErr]       = useState('');
   const [info, setInfo]             = useState('');
-  const themeRef = useRef(null), gearRef = useRef(null);
+  const gearRef = useRef(null);
   const latest = useRef({});
 
   useEffect(() => {
@@ -3778,7 +3702,7 @@ function App() {
       if (DEMO) { const demo = sampleProfile(); setSections(demo.sections); setResumeDb(combineSections(demo.sections)); setLibrary(demo.library); }
       setLoaded(true); return;
     }
-    (async () => {
+    (async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
       let rawSecs, oldDb, fmt, gls, lib, diag;
       setSharedLoading(true);
       try {
@@ -3804,7 +3728,7 @@ function App() {
       setLibrary(lib);
       setSharedLoading(false);
       setLoaded(true);
-    })();
+    });})();
   }, [sharedTry]);
 
   // a failed save stays on screen until dismissed: the change is on this page only and is lost on reload
@@ -3845,7 +3769,7 @@ function App() {
     return () => { window.removeEventListener('popstate', h); window.removeEventListener('hashchange', h); };
   }, []);
 
-  const updateSections = async (newSecs, persist = true) => {
+  const updateSections = async (newSecs, persist = true) => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     setSections(newSecs);
     const combined = combineSections(newSecs);
     setResumeDb(combined);
@@ -3856,40 +3780,24 @@ function App() {
       const r = await saveJson('resumeSections', newSecs);
       if (r) await saveText('resumeDb', combineSections(r.data), { derived: true });
     }
-  };
+  });};
 
   // Reconnecting in Settings reads the shared files again exactly as the first load does (loadJsonStrict / loadTextStrict,
   // diagnosis included): a failed read shows the error card on the shared views, where every save of shared data lives,
   // instead of empty data that the next save would write over the repo (2026-09-23). A missing file (404) is still empty.
   // The region's applications are read again too (RegionApp is keyed by connGen): connected to another repository, the
   // page used to keep the first one's applications, and the next change wrote them over the new repository's file.
-  const handleGhChange = async ok => {
+  const handleGhChange = async ok => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     setGhOk(ok);
     if (ok) { setSharedTry(t => t + 1); setConnGen(g => g + 1); }
+  });};
+  latest.current = { ghOk, handleGhChange,sharedLoading,sharedErr };
+  window.jobSettingsBridge={
+    reload(){ReactDOM.flushSync(()=>{setGhOk(ghConfigured());setSharedTry(t=>t+1);setConnGen(g=>g+1);});},
+    status:()=>({loading:latest.current.sharedLoading||jobRegionLoading,error:latest.current.sharedErr||jobRegionError}),
+    refresh(){_langSubs.slice().forEach(fn=>fn());},
   };
-  latest.current = { ghOk, handleGhChange };
-
-  // Settings is the family dialog (appearance.js); the two connection sections are React, rendered into it on open
-  // and unmounted on close. `focus` names the field to land on (the connect card goes straight to Repository).
-  const settingsOpts = focus => {
-    let root = null;
-    return {
-      strings: Appearance.STRINGS[lang],
-      focus,
-      sections: [() => {
-        const box = document.createElement('div');
-        root = ReactDOM.createRoot(box);
-        ReactDOM.flushSync(() => root.render(<SettingsSections ghOk={latest.current.ghOk} onGhChange={ok => latest.current.handleGhChange(ok)} />));
-        return box;
-      }],
-      onClose: () => { const r = root; root = null; if (r) setTimeout(() => r.unmount(), 0); },
-    };
-  };
-  const openSettings = (opener, focus) => Appearance.openSettings(opener || gearRef.current, settingsOpts(focus));
-  useEffect(() => {
-    if (themeRef.current) Appearance.bindToggle(themeRef.current);
-    if (gearRef.current) Appearance.bindSettings(gearRef.current, () => settingsOpts());
-  }, []);
+  const openSettings = (opener,focus) => window.SuiteSettings?.open(focus==='#set-key'?'ai':focus==='appearance'?'appearance':'connection');
 
   const go = (t, opts = {}) => {
     if (t !== tab || location.hash) { try { history.pushState(null, '', tabHref(t)); } catch (e) {} }
@@ -3918,10 +3826,8 @@ function App() {
           <BrandMark /><b>ApplyLedger</b><span>{T('求职投递，每个地区一条管线——数据存在你自己的私有仓库','Job applications, one pipeline per region — kept in a private repo you own.')}</span>
         </a>
         <span className={`pill${pill.warn ? ' warn' : ''}`} title={pill.short + pill.long}>{pill.short}<span className="long">{pill.long}</span></span>
-        <button type="button" className="btn btn-ghost lang-btn" onClick={toggleLang} title={T('切换语言','Switch language')} lang={lang === 'en' ? 'zh' : 'en'}>{T('EN','中文')}</button>
-        <button type="button" className="btn btn-ghost btn-icon" id="theme" ref={themeRef} aria-label={T('深色模式','Dark mode')} aria-pressed="false" title={T('深色模式','Dark mode')}>{HALF_CIRCLE}</button>
-        <button type="button" className="btn btn-ghost btn-icon" id="nl-settings-button" ref={gearRef} aria-haspopup="dialog" aria-label={T('设置','Settings')} title={T('设置','Settings')}>{GEAR}</button>
         <a className="btn btn-ghost gh" href="https://github.com/NickkkLian/Job-Tracker" rel="noopener">GitHub</a>
+        <button type="button" className="btn btn-ghost btn-icon suite-gear" id="nl-settings-button" onClick={e=>openSettings(e.currentTarget)} ref={gearRef} aria-haspopup="dialog" aria-label={T('设置','Settings')} aria-keyshortcuts="Meta+, Control+," title={T('设置','Settings')}>{GEAR}<span>{T('设置','Settings')}</span></button>
       </header>
 
       <div className="shell">

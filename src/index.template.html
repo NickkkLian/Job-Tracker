@@ -3,19 +3,24 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script src="assets/settings-standard/core.js"></script>
 <script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem('nl-theme'),s=L.getItem('nl-scheme');if(s===null){var o=L.getItem('theme')||L.getItem('qm-theme');if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="ApplyLedger: job applications, one pipeline per region, kept in a private repo you own. A tracker, a pipeline chart and an hours ledger for the Canadian Experience Class; the AI prompts run in your own Claude.ai.">
 <meta name="theme-color" content="#f7e9e8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#130e15" media="(prefers-color-scheme: dark)">
 <title>ApplyLedger</title>
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="assets/app-logo/logo.svg" type="image/svg+xml">
+<link rel="icon" href="assets/app-logo/32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="assets/app-logo/128.png" sizes="128x128">
+<link rel="manifest" href="app.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500..600;1,9..144,400&family=Inter:wght@400..600&family=Space+Mono:wght@400;700&display=swap">
 <link rel="stylesheet" href="design-tokens.css">
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="assets/settings-standard/panel.css">
+<link rel="stylesheet" href="assets/settings-adapter.css">
 <script src="vendor/react-18.3.1.production.min.js"></script>
 <script src="vendor/react-dom-18.3.1.production.min.js"></script>
 <script src="vendor/mammoth-1.8.0.browser.min.js"></script>
@@ -25,7 +30,7 @@
 <body>
 <!-- the page before React mounts: the band with the mark, and three skeleton lines -->
 <div id="loading" aria-busy="true">
-  <header class="topbar"><span class="brand"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true" focusable="false"><rect x="2.5" y="2.5" width="19" height="19" rx="5" stroke="currentColor" stroke-width="2"/><rect x="14" y="6" width="4" height="4" rx="1" fill="var(--point)"/><path d="M7.5 17V9M11.5 17v-5M15.5 17v-2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><b>ApplyLedger</b></span></header>
+  <header class="topbar"><span class="brand"><img class="app-logo" src="assets/app-logo/logo.svg" width="32" height="32" alt=""><b>ApplyLedger</b></span></header>
   <div class="boot-main"><span class="sr-only" id="loading-text">Loading ApplyLedger…</span><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
 </div>
 <div id="root" style="display:none"></div>
@@ -259,5 +264,11 @@ const SafeMerge = (() => {
 /*__APP_JS__*/
 
 </script>
+<script src="assets/settings-standard/backup.js"></script>
+<script src="assets/settings-standard/adapter-helpers.js"></script>
+<script src="assets/settings-standard/field-group.js"></script>
+<script src="assets/job-backup.js"></script>
+<script src="assets/settings-adapter.js"></script>
+<script src="assets/settings-standard/panel.js"></script>
 </body>
 </html>

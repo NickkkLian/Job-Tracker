@@ -4,10 +4,10 @@ function kitLabel(value) { if (typeof value === 'string') return value; const pr
 
 function KitCopy({ id, label, value }) {
   const [state, setState] = useState('');
-  const copy = async () => {
+  const copy = async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     try { await navigator.clipboard.writeText(value); setState('copied'); }
     catch { setState('failed'); }
-  };
+  });};
   return <div className="kit-copy">
     <div className="kit-copy-head"><label htmlFor={id}>{label}</label><button type="button" className="btn" data-copy={id} disabled={!value} onClick={copy}>{state === 'copied' ? T('已复制','Copied') : T('复制','Copy')}</button></div>
     <textarea id={id} value={value || ''} readOnly rows={value?.length > 450 ? 9 : 2} onFocus={e => e.target.select()} />
@@ -18,6 +18,7 @@ function KitCopy({ id, label, value }) {
 function KitAnswer({ kit, answer, record, busy, update }) {
   const saved = typeof record.answers?.[answer.id] === 'string' ? record.answers[answer.id] : answer.text || '';
   const [draft, setDraft] = useState(saved);
+  useSettingsDraft(draft!==saved);
   useEffect(() => setDraft(saved), [saved]);
   const id = `answer-${kit.id}-${answer.id}`;
   return <div className="kit-answer">
@@ -41,7 +42,7 @@ function ApplyKitCard({ kit, record, busy, update, focused }) {
   }, [focused]);
   const count = ApplyKits.days(kit.deadline, localISO(new Date()));
   const countdown = count == null ? T('未注明截止日期','No published deadline') : count < 0 ? T(`已过 ${-count} 天`, `${-count} days past`) : count === 0 ? T('今天到期','Due today') : T(`还有 ${count} 天`, `${count} days left`);
-  const download = async () => {
+  const download = async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     setDownloading(true); setDownloadError('');
     try {
       const data = await ghFindDataUrl(kit.resume.path, 'application/pdf');
@@ -53,7 +54,7 @@ function ApplyKitCard({ kit, record, busy, update, focused }) {
       a.href = url; a.download = kit.resume.path.split('/').pop(); a.click(); setTimeout(() => URL.revokeObjectURL(url), 30000);
     } catch (e) { setDownloadError(e.message); }
     finally { setDownloading(false); }
-  };
+  });};
   return <details className={`card apply-kit${focused ? ' kit-focused' : ''}`} ref={ref} data-kit={kit.id}>
     <summary>
       <span className="kit-summary"><span className="eyebrow">{kit.company}{kit.optional ? ` · ${T('可选','Optional')}` : ''}</span><h2>{kit.role}</h2><span className="kit-date">{kit.deadline || '—'} · {countdown} · {kitLabel(kit.deadlineKind)}</span></span>
@@ -108,7 +109,7 @@ function ApplyTab({ openSettings }) {
     }).catch(e => {if(!cancelled){setError(e); setLoading(false);}});
     return () => {cancelled=true;};
   }, [attempt]);
-  const update = async (id, transform) => {
+  const update = async (id, transform) => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
     if (busy || error || loading || !ghConfigured()) return;
     setBusy(true); setSaveError('');
     const rows=now.current, record=rows.find(r => r.id === id) || {id};
@@ -116,7 +117,7 @@ function ApplyTab({ openSettings }) {
     try {const r=await ghWrite(ApplyKits.progressPath, next); setProgress(ApplyKits.validateProgress(r.data));}
     catch(e){setSaveError(e.message);}
     finally {setBusy(false);}
-  };
+  });};
   return <>
     <PageHead eyebrow={T('所有地区共用','Shared by all regions')} title={T('去投递','Apply')} sub={T('材料、准备和下一步，都在同一处。','Your materials, preparation and next step, together.')} />
     {loading ? <div className="card" aria-busy="true">{T('正在读取申请材料…','Loading application kits…')}</div> : error ? <ErrorCard title={T('没能读取申请材料，未保存任何更改','Couldn’t read application kits; no changes saved')} error={error} onRetry={() => setAttempt(x => x+1)} openSettings={openSettings}/> : !kits.length ? <section className="card"><h2>{T('还没有申请材料包','No application kits yet')}</h2><p>{T('由资料维护者审核材料包后上传到你的私有仓库，即可在这里使用。','Your kit maintainer can review and upload application kits to your private repository to make them available here.')}</p></section> : <>

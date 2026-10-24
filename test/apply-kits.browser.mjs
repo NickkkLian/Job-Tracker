@@ -9,6 +9,7 @@ const harness=process.env.HARNESS_ROOT;
 if(!harness){console.error('Set HARNESS_ROOT to the shared app-harness folder (it holds cdp.mjs and page.mjs).');process.exit(2);}
 const {launch}=await import(pathToFileURL(path.join(harness,'cdp.mjs')));
 const {testPage}=await import(pathToFileURL(path.join(harness,'page.mjs')));
+const {settingsClick}=await import(pathToFileURL(path.join(harness,'tests/settings-pointer.mjs')));
 const app=path.resolve(process.argv[2] || '.');
 const KITS='data/apply-kits.json', PROGRESS='data/apply-kit-progress.json';
 const bi=(en,zh)=>({en,zh});
@@ -89,7 +90,10 @@ await scenario('S37_phone_bilingual_theme_and_no_overflow',async p=>{
  await ready(p);await p.size(375,812);assert.equal(await p.eval('innerWidth'),375);
  await p.until("(()=>{const n=document.querySelector('.nav-links').getBoundingClientRect(),a=document.querySelector('.nav [aria-current=page]').getBoundingClientRect();return a.left>=n.left&&a.right<=n.right})()");
  assert.ok(await p.eval('document.documentElement.scrollWidth<=innerWidth'));
- await p.click('.lang-btn');await p.until("document.querySelector('h1').textContent==='去投递'");assert.ok(await p.eval('document.documentElement.scrollWidth<=innerWidth'));
- await p.click('#theme');await sleep(150);assert.ok(await p.eval('document.documentElement.scrollWidth<=innerWidth'));
+ assert.equal(await p.eval("document.querySelectorAll('.topbar .lang-btn,.topbar #theme').length"),0);
+ await settingsClick(p,'#nl-settings-button');await p.until("document.querySelector('#suite-settings').open");
+ await p.eval("for(const [id,value]of [['suite-language','zh'],['suite-theme-mode','app'],['suite-theme','dark']]){const e=document.getElementById(id);e.value=value;e.dispatchEvent(new Event('change',{bubbles:true}));}");
+ await settingsClick(p,'#suite-appearance-save');await p.until("localStorage.getItem('pha-lang')==='zh'");await settingsClick(p,'#suite-close');
+ await p.until("document.querySelector('h1').textContent==='去投递'");assert.ok(await p.eval('document.documentElement.scrollWidth<=innerWidth'));
 });
 console.log(`\nJob-Tracker Apply extension: ${pass} passed; ${fail} failed.`);process.exitCode=fail?1:0;
