@@ -153,12 +153,14 @@ label{font-size:var(--text-sm)}
 /* ===== cards ===== */
 .card{background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5);box-shadow:var(--shadow-1)}
 /* Apply uses the app's existing paper, ink, controls and spacing. */
-.apply-kit{margin:var(--space-3) 0;overflow-wrap:anywhere;scroll-margin-top:var(--space-5)}
+.kit-list{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--space-3)}
+.apply-kit{margin:0;flex:0 1 24rem;width:100%;min-width:0;overflow-wrap:anywhere;scroll-margin-top:var(--space-5)}
+.apply-kit[open]{flex-basis:46rem}
 .apply-kit > summary{display:flex;align-items:center;gap:var(--space-3);cursor:pointer;min-height:44px;list-style:none}
 .apply-kit > summary::-webkit-details-marker{display:none}
 .apply-kit > summary::after{content:'+';font-size:24px;color:var(--text-2);flex:none}
 .apply-kit[open] > summary::after{content:'−'}
-.kit-summary{display:grid;gap:var(--space-1);flex:1;min-width:0}
+.kit-summary{display:grid;gap:var(--space-1);min-width:0;max-width:var(--measure)}
 .kit-summary h2{font:var(--weight-medium) var(--text-lg)/1.35 var(--font-sans);letter-spacing:0;margin:0}
 .kit-date{font-size:var(--text-xs);color:var(--text-2)}
 .kit-body{border-top:1px solid var(--border);margin-top:var(--space-4);padding-top:var(--space-4);display:grid;gap:var(--space-3);min-width:0}
@@ -178,8 +180,19 @@ label{font-size:var(--text-sm)}
 .kit-personal input{width:100%;min-width:0}.kit-personal .btn{justify-self:start}
 .kit-sources{font-size:var(--text-sm);color:var(--text-2)}
 .kit-sources summary{min-height:44px;cursor:pointer;display:flex;align-items:center}
-.kit-record{border-top:1px solid var(--border);padding-top:var(--space-4);display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center}
+.kit-record{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center}
 .kit-record p{font-size:var(--text-sm);color:var(--text-2);flex:1 1 200px}
+.kit-status,.kit-result-line{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2)}
+.kit-result{flex-basis:100%;font-size:var(--text-sm)}
+.kit-result-note{white-space:pre-wrap;font-size:var(--text-sm);color:var(--text-2);max-width:var(--measure)}
+.kit-result p{margin:var(--space-1) 0}
+.kit-outcome-editor{max-width:38rem}
+.kit-outcome-editor > summary{display:flex;align-items:center;min-height:44px;cursor:pointer;color:var(--accent-text);text-decoration:underline}
+.kit-outcome-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-3);padding:var(--space-3);border-radius:var(--radius-sm);background:var(--surface-2)}
+.kit-outcome-form label{display:grid;gap:var(--space-1);min-width:0}
+.kit-outcome-form input,.kit-outcome-form select,.kit-outcome-form textarea{width:100%;min-width:0;min-height:44px}
+.kit-outcome-form textarea{resize:vertical}
+.kit-outcome-note,.kit-outcome-form .acts{grid-column:1/-1}
 .kit-focused{border-color:var(--accent-text)}
 .kit-save-error{position:sticky;top:var(--space-2);z-index:2;background:var(--paper);padding:var(--space-3);border:1px solid currentColor}
 @media(max-width:600px){.apply-kit{padding:var(--space-4)}.apply-kit > summary{flex-wrap:wrap}.kit-summary{flex-basis:calc(100% - 32px)}.apply-kit > summary::after{order:1}.apply-kit > summary > .tag{order:2}.kit-copy-head{align-items:flex-start}}

@@ -2,6 +2,7 @@
 const ApplyKits = (() => {
   const path = 'data/apply-kits.json';
   const progressPath = 'data/apply-kit-progress.json';
+  const outcomes = ['declined', 'interview', 'offer', 'withdrawn'];
   const text = v => typeof v === 'string' ? v : '';
   const day = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v + 'T12:00:00Z')) && new Date(v + 'T12:00:00Z').toISOString().slice(0,10) === v;
   const label = v => v == null || typeof v === 'string' || (typeof v === 'object' && !Array.isArray(v) && ['en','zh'].every(l => v[l] == null || typeof v[l] === 'string'));
@@ -36,7 +37,10 @@ const ApplyKits = (() => {
       || (r.answers != null && (typeof r.answers !== 'object' || Array.isArray(r.answers)))
       || (r.completed != null && (typeof r.completed !== 'object' || Array.isArray(r.completed)))
       || (r.appliedAt != null && (typeof r.appliedAt !== 'string' || !Number.isFinite(Date.parse(r.appliedAt))))
-      || (r.appliedDate != null && !day(r.appliedDate)) || (r.followUpDate != null && !day(r.followUpDate)))) throw new Error('Invalid application progress');
+      || (r.appliedDate != null && !day(r.appliedDate)) || (r.followUpDate != null && !day(r.followUpDate))
+      || (r.outcome != null && r.outcome !== '' && !outcomes.includes(r.outcome))
+      || (r.outcomeDate != null && r.outcomeDate !== '' && !day(r.outcomeDate))
+      || (r.outcomeNote != null && typeof r.outcomeNote !== 'string'))) throw new Error('Invalid application progress');
     return rows;
   }
   function sort(rows) { return [...rows].sort((a,b) => (a.deadline || '9999').localeCompare(b.deadline || '9999') || a.company.localeCompare(b.company)); }
@@ -48,5 +52,16 @@ const ApplyKits = (() => {
     return { ...record, appliedAt: now.toISOString(), appliedDate: iso(now), followUpDate: iso(follow) };
   }
   function hashId(hash) { try { return /^#apply\//.test(hash) ? decodeURIComponent(hash.slice(7)) : ''; } catch { return ''; } }
-  return { path, progressPath, validate, validateProgress, sort, days, applied, hashId, url, file };
+  function setOutcome(record, outcome, date, note = '') {
+    const next = {...record};
+    if (!outcome) {
+      delete next.outcome; delete next.outcomeDate; delete next.outcomeNote;
+    } else {
+      if (!outcomes.includes(outcome) || !day(date) || typeof note !== 'string') throw new Error('Invalid application outcome');
+      Object.assign(next, {outcome, outcomeDate:date, outcomeNote:note.trim()});
+    }
+    return next;
+  }
+  function followUp(record) { return record.appliedAt && !['declined','withdrawn'].includes(record.outcome) && day(record.followUpDate) ? record.followUpDate : ''; }
+  return { path, progressPath, outcomes, validate, validateProgress, sort, days, applied, setOutcome, followUp, hashId, url, file };
 })();

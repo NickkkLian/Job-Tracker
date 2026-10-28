@@ -36,3 +36,21 @@ test('progress rejects malformed records and retains unrelated content',()=>{
 test('deep links decode safely',()=>{
  assert.equal(k.hashId('#apply/ubc'),'ubc');assert.equal(k.hashId('#apply/%ZZ'),'');assert.equal(k.hashId('#other'),'');
 });
+test('outcomes set, change and clear without losing application progress',()=>{
+ const original={id:'a',appliedAt:'2026-10-20T12:00:00Z',appliedDate:'2026-10-20',followUpDate:'2026-10-27',answers:{start:'Saved answer'},completed:{practice:true},extra:'keep'};
+ for(const value of ['declined','interview','offer','withdrawn']) {
+  const saved=k.setOutcome(original,value,'2026-10-28','  A fictional update.  ');
+  assert.equal(saved.outcome,value);assert.equal(saved.outcomeDate,'2026-10-28');assert.equal(saved.outcomeNote,'A fictional update.');
+  assert.equal(saved.answers,original.answers);assert.equal(saved.completed,original.completed);assert.equal(saved.extra,'keep');
+  assert.equal(k.followUp(saved),['declined','withdrawn'].includes(value)?'':'2026-10-27');
+  const cleared=k.setOutcome(saved,'');
+  assert.equal(JSON.stringify(cleared),JSON.stringify(original));assert.equal(k.followUp(cleared),'2026-10-27');
+ }
+ assert.equal(original.outcome,undefined);assert.equal(k.followUp({id:'a'}),'');
+ assert.throws(()=>k.setOutcome(original,'unknown','2026-10-28',''));
+ assert.throws(()=>k.setOutcome(original,'offer','2026-02-30',''));
+});
+test('outcome validation accepts legacy and outcome-only records, rejects malformed fields',()=>{
+ for(const r of [{id:'a'},{id:'a',outcome:'declined'},{id:'a',outcome:'interview',outcomeDate:'2026-10-28',outcomeNote:'Synthetic note',extra:true},{id:'a',outcome:null,outcomeDate:null,outcomeNote:null}]) assert.equal(k.validateProgress([r])[0],r);
+ for(const r of [{outcome:'unknown'},{outcomeDate:'2026-02-30'},{outcomeNote:{}},{outcome:[]}]) assert.throws(()=>k.validateProgress([{id:'a',...r}]));
+});

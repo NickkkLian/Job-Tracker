@@ -18,9 +18,15 @@ const fixtures=[kit('later','2026-10-30'),kit('first','2026-10-22'),{...kit('opt
 const PDF='%PDF-1.4\n% fictional selected attachment\n%%EOF\n';
 const storage={'pha-config':{owner:'o',repo:'jobdata',token:'test-token'}};
 const API='https://api.github.com/repos/o/jobdata/contents/';
-function setup({kits=fixtures,records=[],failReads=false,failSave=false,clipboardFails=false}={}) {
+function setup({kits=fixtures,records=[],failReads=false,failSave=false,clipboardFails=false,legacy=false}={}) {
  const {url,dir}=testPage(app,{seed:{[KITS]:kits,[PROGRESS]:records,'data/canada_jobs.json':[]},storage,failReads});
  let html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
+ if(legacy){
+  // Keep the harness injection, replacing only the app's generated page.
+  const marker='<meta charset="utf-8">', old=fs.readFileSync(process.env.LEGACY_PAGE,'utf8');
+  assert.ok(old.includes(marker));
+  html=html.slice(0,html.indexOf(marker))+old.slice(old.indexOf(marker));
+ }
  const script=`<script>window.__copies=[];Object.defineProperty(navigator,'clipboard',{value:{writeText:async t=>{${clipboardFails?'throw new Error("denied");':'__copies.push(t);'}}},configurable:true});var originalFetch=fetch;window.fetch=async function(u,o){if(String(u).includes('/contents/data/apply-kits/')&&String(u).endsWith('.pdf')===false&&String(u).includes('.pdf?'))return new Response(JSON.stringify({content:btoa(${JSON.stringify(PDF)}),sha:'pdf-v1'}));${failSave?`if(o?.method==='PUT'&&String(u).includes('${PROGRESS}'))return new Response(JSON.stringify({message:'test write failure'}),{status:500});`:''}return originalFetch(u,o);};</script>`;
  fs.writeFileSync(path.join(dir,'index.html'),html.replace('<meta charset="utf-8">',script+'<meta charset="utf-8">'));
  return {url,dir};
@@ -32,7 +38,8 @@ async function outside(p,records){await p.eval(`fetch(${JSON.stringify(API+PROGR
 async function reopen(p,url){await p.eval(`location.href=${JSON.stringify(url+'?tab=apply#apply/first')}`);await ready(p);await p.until("document.querySelector('[data-kit=first]').open");}
 let pass=0,fail=0;
 async function scenario(name,fn,opts={}){
- const b=await launch();try{const page=setup(opts);const p=await b.open(page.url+'?tab=apply#apply/first');await fn(p,page,b);const errors=p.errors.filter(x=>!/Failed to load resource|favicon/.test(x));assert.deepEqual(errors,[]);console.log('PASS '+name);pass++;}catch(e){console.log('FAIL '+name+': '+e.stack);fail++;}finally{await b.close();}
+ if(process.env.ONLY_SCENARIOS && !process.env.ONLY_SCENARIOS.split(',').some(id=>name.startsWith(id+'_')))return;
+ const b=await launch();let p;try{const page=setup(opts);p=await b.open(page.url+'?tab=apply#apply/first');await fn(p,page,b);const errors=p.errors.filter(x=>!/Failed to load resource|favicon/.test(x));assert.deepEqual(errors,[]);console.log('PASS '+name);pass++;}catch(e){console.log('FAIL '+name+': '+e.stack);if(p)console.log('PAGE:',await p.eval('document.body.innerText.slice(0,1500)'),p.errors);fail++;}finally{await b.close();}
 }
 await scenario('S28_apply_renders_sorted_kits_and_deep_link',async p=>{
  await ready(p);assert.deepEqual(await p.eval("[...document.querySelectorAll('[data-kit]')].map(e=>e.dataset.kit)"),['first','later','optional']);
@@ -65,7 +72,7 @@ await scenario('S31_mark_applied_and_personal_answers_survive_reload',async(p,{u
  const diff=(Date.parse(r.followUpDate+'T12:00:00Z')-Date.parse(r.appliedDate+'T12:00:00Z'))/864e5;assert.equal(diff,7);
  // Fake GitHub is in page memory: seed the next document with the persisted remote file.
  await p.eval(`localStorage.setItem('apply-test-reloaded',${JSON.stringify(JSON.stringify(saved))})`);
- const {dir}=setup({records:saved});const next='file://'+path.join(dir,'index.html');await reopen(p,next);
+ const next=setup({records:saved});await reopen(p,next.url);
  assert.equal(await p.eval("document.querySelector('[data-applied=first]').disabled"),true);assert.equal(await p.eval("document.querySelector('#answer-first-start').value"),'2027-01-05');
 });
 await scenario('S32_stale_save_merges_other_records_and_preserves_kit_data',async p=>{
@@ -96,4 +103,60 @@ await scenario('S37_phone_bilingual_theme_and_no_overflow',async p=>{
  await settingsClick(p,'#suite-appearance-save');await p.until("localStorage.getItem('pha-lang')==='zh'");await settingsClick(p,'#suite-close');
  await p.until("document.querySelector('h1').textContent==='去投递'");assert.ok(await p.eval('document.documentElement.scrollWidth<=innerWidth'));
 });
+const appliedRecord={id:'first',appliedAt:'2026-10-20T12:00:00Z',appliedDate:'2026-10-20',followUpDate:'2026-10-27',answers:{start:'Saved answer'},unknown:'keep'};
+async function field(p,selector,value){await p.eval(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(Object.getPrototypeOf(e),'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event(e.tagName==='SELECT'?'change':'input',{bubbles:true}));})()`);}
+await scenario('S38_existing_result_in_list_and_page_without_closed_followup',async p=>{
+ await ready(p);
+ for(const selector of ['[data-kit=first] > summary','[data-kit=first] .kit-record']){
+  const text=await p.eval(`document.querySelector(${JSON.stringify(selector)}).textContent`);
+  assert.ok(text.includes('Declined'));assert.ok(text.includes('2026-10-28'));assert.ok(text.includes('Fictional response <thanks>'));
+  assert.ok(!text.includes('Follow up:'));
+ }
+ assert.equal(await p.eval("document.querySelectorAll('[data-kit=first] script').length"),0);
+ const out=process.env.EVIDENCE_DIR;
+ if(out){
+  fs.mkdirSync(out,{recursive:true});
+  for(const [name,w,h] of [['desktop',1280,900],['phone',375,812]]){
+   await p.size(w,h);await p.eval("document.querySelector('[data-kit=first]').scrollIntoView({block:'start'})");
+   assert.ok(await p.eval('document.documentElement.scrollWidth<=innerWidth'));
+   await p.shot(path.join(out,`outcome-${name}.png`));
+  }
+  await p.click('[data-kit=first] .kit-outcome-editor > summary');await p.shot(path.join(out,'outcome-phone-editor.png'));
+  await p.click('[data-kit=first] > summary');await p.eval('scrollTo(0,0)');await p.shot(path.join(out,'outcome-phone-list.png'));
+  await p.size(1280,900);await p.eval('scrollTo(0,0)');await p.shot(path.join(out,'outcome-desktop-list.png'));
+  await settingsClick(p,'#nl-settings-button');await p.until("document.querySelector('#suite-settings').open");
+  await p.eval("for(const [id,value]of [['suite-language','zh'],['suite-theme-mode','app'],['suite-theme','dark']]){const e=document.getElementById(id);e.value=value;e.dispatchEvent(new Event('change',{bubbles:true}));}");
+  await settingsClick(p,'#suite-appearance-save');await p.until("localStorage.getItem('pha-lang')==='zh'");await settingsClick(p,'#suite-close');
+  await p.until("document.querySelector('[data-kit=first] > summary').textContent.includes('未录用')");
+  await p.size(375,812);assert.ok(await p.eval('document.documentElement.scrollWidth<=innerWidth'));await p.shot(path.join(out,'outcome-phone-zh-dark.png'));
+ }
+},{records:[{...appliedRecord,outcome:'declined',outcomeDate:'2026-10-28',outcomeNote:'Fictional response <thanks>'}]});
+await scenario('S39_set_all_results_reload_and_clear_preserves_progress',async(p,{url})=>{
+ await ready(p);await p.click('[data-kit=first] .kit-outcome-editor > summary');
+ for(const value of ['declined','interview','offer','withdrawn']){
+  await field(p,'#outcome-first',value);await field(p,'#outcome-date-first','2026-10-28');await field(p,'#outcome-note-first','Synthetic '+value);
+  await p.click('[data-save-outcome=first]');await p.until(`document.querySelector('[data-kit=first] > summary').textContent.includes('Synthetic ${value}')`);
+  const r=(await remote(p)).find(r=>r.id==='first');assert.equal(r.outcome,value);assert.equal(r.outcomeDate,'2026-10-28');assert.equal(r.answers.start,'Saved answer');assert.equal(r.unknown,'keep');
+  assert.equal(await p.eval("document.querySelector('[data-kit=first] .kit-record').textContent.includes('Follow up:')"),!['declined','withdrawn'].includes(value));
+ }
+ const saved=await remote(p),next=setup({records:saved});await reopen(p,next.url);
+ assert.ok(await p.eval("document.querySelector('[data-kit=first] > summary').textContent.includes('Withdrawn')"));
+ await p.click('[data-kit=first] .kit-outcome-editor > summary');await p.click('[data-clear-outcome=first]');
+ await p.until("document.querySelector('[data-kit=first] .kit-record').textContent.includes('Follow up:')");
+ const r=(await remote(p)).find(r=>r.id==='first');assert.equal(r.outcome,undefined);assert.equal(r.outcomeDate,undefined);assert.equal(r.outcomeNote,undefined);assert.equal(r.appliedDate,'2026-10-20');assert.equal(r.answers.start,'Saved answer');
+},{records:[appliedRecord]});
+await scenario('S40_failed_result_save_keeps_saved_result_and_draft',async p=>{
+ await ready(p);await p.click('[data-kit=first] .kit-outcome-editor > summary');await field(p,'#outcome-first','offer');await p.click('[data-save-outcome=first]');
+ await p.until("document.querySelector('[role=alert]')?.textContent.includes('Save failed')");
+ assert.ok(!(await p.eval("document.querySelector('[data-kit=first] > summary').textContent")).includes('Offer'));
+ assert.equal(await p.eval("document.querySelector('#outcome-first').value"),'offer');assert.equal((await remote(p))[0].outcome,undefined);
+},{records:[appliedRecord],failSave:true});
+if(process.env.LEGACY_PAGE) await scenario('S41_old_page_stale_saves_preserve_new_outcome_on_same_record',async p=>{
+ await ready(p);const result={...appliedRecord,outcome:'declined',outcomeDate:'2026-10-28',outcomeNote:'Fictional update'};
+ await outside(p,[result,{id:'elsewhere',unknown:'keep'}]);await p.click('[data-kit=first] [data-action=practice]');
+ await p.until("!document.querySelector('[data-kit=first] [data-action=practice]').disabled");
+ assert.equal((await remote(p)).find(r=>r.id==='first').outcome,'declined');
+ await field(p,'#answer-first-start-edit','Updated synthetic answer');await p.click('[data-kit=first] .kit-personal button');await p.until("document.querySelector('#answer-first-start').value==='Updated synthetic answer'");
+ const rows=await remote(p),r=rows.find(r=>r.id==='first');assert.equal(r.outcome,'declined');assert.equal(r.outcomeDate,result.outcomeDate);assert.equal(r.outcomeNote,result.outcomeNote);assert.equal(rows.find(r=>r.id==='elsewhere').unknown,'keep');
+},{records:[appliedRecord],legacy:true});
 console.log(`\nJob-Tracker Apply extension: ${pass} passed; ${fail} failed.`);process.exitCode=fail?1:0;

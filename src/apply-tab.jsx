@@ -32,6 +32,30 @@ function KitAnswer({ kit, answer, record, busy, update }) {
   </div>;
 }
 
+function kitOutcomeLabel(value) {
+  return ({declined:T('未录用','Declined'),interview:T('面试','Interview'),offer:T('录用','Offer'),withdrawn:T('已撤回','Withdrawn')})[value] || '';
+}
+
+function KitOutcome({ kit, record, busy, update }) {
+  const saved=record.outcome || '', savedDate=record.outcomeDate || '', savedNote=record.outcomeNote || '';
+  const [outcome,setOutcome]=useState(saved), [date,setDate]=useState(savedDate || localISO(new Date())), [note,setNote]=useState(savedNote);
+  const dirty=outcome!==saved || (!!outcome && (date!==savedDate || note!==savedNote));
+  useSettingsDraft(dirty);
+  useEffect(() => {setOutcome(saved);setDate(savedDate || localISO(new Date()));setNote(savedNote);}, [saved,savedDate,savedNote]);
+  return <div className="kit-result">
+    <div className="kit-result-line"><b>{T('申请结果','Application outcome')}</b><span>{saved ? kitOutcomeLabel(saved) : T('尚无结果','No outcome yet')}{savedDate && ` · ${savedDate}`}</span></div>
+    {saved && savedNote && <p className="kit-result-note">{savedNote}</p>}
+    <details className="kit-outcome-editor"><summary>{saved ? T('更改结果','Edit outcome') : T('记录结果','Record outcome')}</summary>
+      <form className="kit-outcome-form" onSubmit={e => {e.preventDefault();if(outcome) update(kit.id,r => ApplyKits.setOutcome(r,outcome,date,note));}}>
+        <label htmlFor={`outcome-${kit.id}`}>{T('结果','Outcome')}<select id={`outcome-${kit.id}`} value={outcome} required disabled={busy} onChange={e=>setOutcome(e.target.value)}><option value="" disabled>{T('选择结果','Choose outcome')}</option>{ApplyKits.outcomes.map(value => <option key={value} value={value}>{kitOutcomeLabel(value)}</option>)}</select></label>
+        <label htmlFor={`outcome-date-${kit.id}`}>{T('日期','Date')}<input id={`outcome-date-${kit.id}`} type="date" required value={date} disabled={busy} onChange={e=>setDate(e.target.value)}/></label>
+        <label className="kit-outcome-note" htmlFor={`outcome-note-${kit.id}`}>{T('简短备注（可选）','Short note (optional)')}<textarea id={`outcome-note-${kit.id}`} rows={2} maxLength={500} value={note} disabled={busy} onChange={e=>setNote(e.target.value)}/></label>
+        <div className="acts"><button type="submit" className="btn btn-primary" data-save-outcome={kit.id} disabled={busy || !outcome || !date || !dirty}>{busy ? T('保存中…','Saving…') : T('保存结果','Save outcome')}</button>{saved && <button type="button" className="btn" data-clear-outcome={kit.id} disabled={busy} onClick={()=>update(kit.id,r=>ApplyKits.setOutcome(r,''))}>{T('清除结果','Clear outcome')}</button>}</div>
+      </form>
+    </details>
+  </div>;
+}
+
 function ApplyKitCard({ kit, record, busy, update, focused }) {
   const ref = useRef(null);
   const [salary, setSalary] = useState(false);
@@ -57,10 +81,14 @@ function ApplyKitCard({ kit, record, busy, update, focused }) {
   });};
   return <details className={`card apply-kit${focused ? ' kit-focused' : ''}`} ref={ref} data-kit={kit.id}>
     <summary>
-      <span className="kit-summary"><span className="eyebrow">{kit.company}{kit.optional ? ` · ${T('可选','Optional')}` : ''}</span><h2>{kit.role}</h2><span className="kit-date">{kit.deadline || '—'} · {countdown} · {kitLabel(kit.deadlineKind)}</span></span>
-      <span className={`tag ${record.appliedAt ? 'tag-success' : 'tag-neutral'}`}>{record.appliedAt ? T('已投递','Applied') : T('待投递','To apply')}</span>
+      <span className="kit-summary"><span className="eyebrow">{kit.company}{kit.optional ? ` · ${T('可选','Optional')}` : ''}</span><h2>{kit.role}</h2><span className="kit-status"><span className={`tag ${record.outcome === 'offer' ? 'tag-success' : record.outcome === 'interview' ? 'tag-warning' : record.outcome ? 'tag-neutral' : record.appliedAt ? 'tag-info' : 'tag-neutral'}`}>{kitOutcomeLabel(record.outcome) || (record.appliedAt ? T('已投递','Applied') : T('待投递','To apply'))}</span>{record.outcome && record.outcomeDate && <span className="kit-date">{record.outcomeDate}</span>}</span>{record.outcome && record.outcomeNote && <span className="kit-result-note">{record.outcomeNote}</span>}<span className="kit-date">{kit.deadline || '—'} · {countdown} · {kitLabel(kit.deadlineKind)}</span></span>
     </summary>
     <div className="kit-body">
+      <div className="kit-record">
+        <button type="button" className="btn btn-primary" data-applied={kit.id} disabled={busy || !!record.appliedAt || ['declined','withdrawn'].includes(record.outcome)} onClick={() => update(kit.id, r => ApplyKits.applied(r))}>{busy ? T('保存中…','Saving…') : record.appliedAt ? T('已记录投递','Application recorded') : T('标记已投递','Mark applied')}</button>
+        <p>{record.appliedAt ? <>{T('投递日期：','Applied: ')}{record.appliedDate || record.appliedAt.slice(0,10)}{ApplyKits.followUp(record) && <> · {T('跟进日期：','Follow up: ')}{ApplyKits.followUp(record)}</>}</> : !['declined','withdrawn'].includes(record.outcome) && T('实际发送后点击。将记录当天日期，并在一周后跟进。','Click after sending. Records the date and a follow-up date one week later.')}</p>
+        <KitOutcome kit={kit} record={record} busy={busy} update={update}/>
+      </div>
       <div className="acts"><a className="btn" href={kit.postingUrl} target="_blank" rel="noreferrer">{T('打开职位','Open posting')} <Icon name="open" size={14}/></a><a href={`#apply/${encodeURIComponent(kit.id)}`}>{T('此申请的链接','Link to this application')}</a></div>
       <p className="kit-notice">{kitLabel(kit.reviewNote)}</p>
       <h3>{T('是否合适','Fit and gaps')}</h3><p>{kitLabel(kit.fit)}</p>
@@ -86,9 +114,6 @@ function ApplyKitCard({ kit, record, busy, update, focused }) {
       </section>
       <section><h3>{T('按顺序操作','Steps in order')}</h3><ol className="how">{kit.steps.map((s,i) => <li key={i}>{kitLabel(s)}</li>)}</ol></section>
       <details className="kit-sources"><summary>{T('材料依据','Sources for this kit')}</summary><ul>{(kit.sources || []).map((s,i) => <li key={i}>{kitLabel(s.label)}{ApplyKits.url(s.url) && <> · <a href={s.url} target="_blank" rel="noreferrer">{T('来源','Source')}</a></>}</li>)}</ul></details>
-      <div className="kit-record"><button type="button" className="btn btn-primary" data-applied={kit.id} disabled={busy || !!record.appliedAt} onClick={() => update(kit.id, r => ApplyKits.applied(r))}>{busy ? T('保存中…','Saving…') : record.appliedAt ? T('已记录投递','Application recorded') : T('标记已投递','Mark applied')}</button>
-        <p>{record.appliedAt ? <>{T('投递日期：','Applied: ')}{record.appliedDate || record.appliedAt.slice(0,10)} · {T('跟进日期：','Follow up: ')}{record.followUpDate}</> : T('实际发送后点击。将记录当天日期，并在一周后跟进。','Click after sending. Records the date and a follow-up date one week later.')}</p>
-      </div>
     </div>
   </details>;
 }
@@ -124,7 +149,7 @@ function ApplyTab({ openSettings }) {
       <p className="hint">{T(`${kits.length} 份申请 · 按截止日期排序 · 投递记录保存到你的仓库`,`${kits.length} applications · nearest deadline first · progress saved to your repo`)}</p>
       {selected && !kits.some(k => k.id === selected) && <p className="field-err" role="alert">{T('这个链接没有对应的申请，请从下面选择。','This link has no matching application. Choose one below.')}</p>}
       {saveError && <p className="field-err kit-save-error" role="alert">{T('保存失败；刚才的操作未记录，请重试。','Save failed; the last action was not recorded. Please retry.')} {saveError}</p>}
-      {kits.map(kit => <ApplyKitCard key={kit.id} kit={kit} record={progress.find(r => r.id === kit.id) || {id:kit.id}} busy={busy} update={update} focused={selected === kit.id}/>)}
+      <div className="kit-list">{kits.map(kit => <ApplyKitCard key={kit.id} kit={kit} record={progress.find(r => r.id === kit.id) || {id:kit.id}} busy={busy} update={update} focused={selected === kit.id}/>)}</div>
     </>}
   </>;
 }

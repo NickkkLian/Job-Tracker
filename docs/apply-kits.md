@@ -61,7 +61,10 @@ Progress keeps kit content separate:
     "completed": {"practice": "2026-10-27T19:00:00.000Z"},
     "appliedAt": "2026-10-28T22:00:00.000Z",
     "appliedDate": "2026-10-28",
-    "followUpDate": "2026-11-04"
+    "followUpDate": "2026-11-04",
+    "outcome": "declined",
+    "outcomeDate": "2026-11-02",
+    "outcomeNote": "The fictional employer has filled the role."
   }
 ]
 ```
@@ -73,3 +76,20 @@ not an automatic reminder or message. The app never submits applications, sends
 email, adds calendar entries or changes the task list. Unknown fields and unrelated
 progress records survive conflict merges. Blank personal answers have disabled
 copy buttons until an actual answer is saved.
+
+Each application can record one current outcome: `declined`, `interview`, `offer`
+or `withdrawn`. The collapsed Apply list and open application show its translated
+label, date and short note. Use **Record outcome** / **Edit outcome** near the top
+of the application, choose a result and date, add an optional note (up to 500
+characters), then **Save outcome**. The date defaults to today in the user's local
+calendar. Outcomes can also be recorded when an older record has no applied date.
+
+Declined and withdrawn are closed: their follow-up reminder is hidden without
+deleting its stored date. Interview and offer keep it visible. **Clear outcome**
+removes all three outcome fields and restores an existing follow-up date. It does
+not remove application dates, preparation, personal answers or unrelated fields.
+No migration is needed: records without these fields, or with just an outcome,
+remain valid. Failed saves retain the draft and show the previously saved result.
+The existing field-preserving transforms and three-way merge keep outcomes when
+an older page saves another field, including after first encountering an outcome
+written by another page. Regional Tracker statuses remain separate from Apply kits.
