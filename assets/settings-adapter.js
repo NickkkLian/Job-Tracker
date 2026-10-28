@@ -32,7 +32,7 @@
   appControls(container,settings){
    H.controls(container,T('各地区、提醒资料、诊断与简历格式仍在原页面。重置偏好不会删除文件或本机 PDF 恢复缓存。','Regions, alert profile, diagnosis and resume formatting remain with their pages. Reset preferences keeps data files and local PDF recovery.'),[{text:T('重新加载已保存文件','Reload saved files'),action:async()=>{if(R.pending)return;if(!await settings.confirm('Discard this page’s unsaved edits and reload the saved private files? Local PDF recovery remains.','放弃此页面尚未保存的编辑，并重新加载已保存私有文件？本机 PDF 恢复仍保留。','Reload','重新加载'))return;jobDrafts.clear();adapter.invalidate();try{await R.track(()=>adapter.reload());}catch{}settings.refresh();}}]);kit.shortcuts(container);
   },
-  install(){},
+  install(){const gear=document.getElementById('nl-settings-button');if(gear)SuiteHeaderEntry.mount(gear);},
  };
  async function getBackup(){if(!backup)backup=await createJobBackup(adapter);return backup;}
 })();

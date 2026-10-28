@@ -3827,7 +3827,7 @@ function App() {
         </a>
         <span className={`pill${pill.warn ? ' warn' : ''}`} title={pill.short + pill.long}>{pill.short}<span className="long">{pill.long}</span></span>
         <a className="btn btn-ghost gh" href="https://github.com/NickkkLian/Job-Tracker" rel="noopener">GitHub</a>
-        <button type="button" className="btn btn-ghost btn-icon suite-gear" id="nl-settings-button" onClick={e=>openSettings(e.currentTarget)} ref={gearRef} aria-haspopup="dialog" aria-label={T('设置','Settings')} aria-keyshortcuts="Meta+, Control+," title={T('设置','Settings')}>{GEAR}<span>{T('设置','Settings')}</span></button>
+        <span data-settings-slot=""><button type="button" className="btn btn-ghost btn-icon suite-gear" id="nl-settings-button" onClick={e=>openSettings(e.currentTarget)} ref={node=>{gearRef.current=node;if(node)window.SuiteHeaderEntry?.mount(node);}} aria-haspopup="dialog" aria-label="Settings / 设置" aria-keyshortcuts="Meta+, Control+," title="Settings / 设置 (⌘,)">{GEAR}</button></span>
       </header>
 
       <div className="shell">
