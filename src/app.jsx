@@ -5,12 +5,12 @@ const { useState, useEffect, useRef, useMemo } = React;
 // English by default, 中文 via the toggle. T(zh, en) picks the string; stored enum values
 // (status / region ids) and the AI prompt templates are never translated.
 // ════════════════════════════════════════════════════════════════
-let lang = (() => { try { return localStorage.getItem('pha-lang') === 'zh' ? 'zh' : 'en'; } catch (e) { return 'en'; } })();
+let lang = (() => { try { return localStorage.getItem(HubSettingsContract.preferenceKey("pha-lang")) === 'zh' ? 'zh' : 'en'; } catch (e) { return 'en'; } })();
 const T = (zh, en) => lang === 'en' ? en : zh;
 let _langSubs = [];
 function toggleLang() {
   lang = lang === 'en' ? 'zh' : 'en';
-  try { localStorage.setItem('pha-lang', lang); } catch (e) {}
+  try { localStorage.setItem(HubSettingsContract.preferenceKey("pha-lang"), lang); } catch (e) {}
   document.documentElement.lang = lang === 'en' ? 'en' : 'zh';
   _langSubs.slice().forEach(fn => { try { fn(); } catch (e) {} });
 }

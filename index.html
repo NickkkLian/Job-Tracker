@@ -3,9 +3,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-5nyhwSzTgu2n7ZAL4gvhru/QlXgk4oq6kTJUzThiFGQ=' 'sha256-fKQZmKTZa8V4D4jRPG1kdnpiVO8m+8u3vqQQFRv0R7A=' 'sha256-zUljNOCcGJqhUut0AUBMLBegfB+VaBR3d3G9X8N6xNs='">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-9Q4lbDxmkKa0OiSEdhM3shTqoTB8RwPSia5TbLdwrmM=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-86SMueAWpdMCCoB2nUeaRtBXgRYhMJGlMt/mDnBTOTE='">
 <script src="assets/settings-standard/core.js"></script>
-<script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem('nl-theme'),s=L.getItem('nl-scheme');if(s===null){var o=L.getItem('theme')||L.getItem('qm-theme');if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
+<script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem(HubSettingsContract.preferenceKey("nl-theme")),s=L.getItem(HubSettingsContract.preferenceKey("nl-scheme"));if(s===null){var o=L.getItem(HubSettingsContract.preferenceKey("theme"))||L.getItem(HubSettingsContract.preferenceKey("qm-theme"));if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="ApplyLedger: job applications, one pipeline per region, kept in a private repo you own. A tracker, a pipeline chart and an hours ledger for the Canadian Experience Class; the AI prompts run in your own Claude.ai.">
 <meta name="theme-color" content="#f7e9e8" media="(prefers-color-scheme: light)">
@@ -37,7 +37,7 @@
   <div class="boot-main"><span class="sr-only" id="loading-text">Loading ApplyLedger…</span><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
 </div>
 <div id="root" style="display:none"></div>
-<script>try{if(localStorage.getItem('pha-lang')==='zh'){document.documentElement.lang='zh';document.getElementById('loading-text').textContent='正在加载 ApplyLedger…';}}catch(e){}</script>
+<script>try{if(localStorage.getItem(HubSettingsContract.preferenceKey("pha-lang"))==='zh'){document.documentElement.lang='zh';document.getElementById('loading-text').textContent='正在加载 ApplyLedger…';}}catch(e){}</script>
 
 <script>
 /* safe-merge v1 — source of truth: the safe-merge library, kept outside this app. This block, from this comment to the
@@ -704,7 +704,7 @@ function ApplyTab({ openSettings }) {
 const { useState, useEffect, useRef, useMemo } = React;
 let lang = (() => {
   try {
-    return localStorage.getItem("pha-lang") === "zh" ? "zh" : "en";
+    return localStorage.getItem(HubSettingsContract.preferenceKey("pha-lang")) === "zh" ? "zh" : "en";
   } catch (e) {
     return "en";
   }
@@ -714,7 +714,7 @@ let _langSubs = [];
 function toggleLang() {
   lang = lang === "en" ? "zh" : "en";
   try {
-    localStorage.setItem("pha-lang", lang);
+    localStorage.setItem(HubSettingsContract.preferenceKey("pha-lang"), lang);
   } catch (e) {
   }
   document.documentElement.lang = lang === "en" ? "en" : "zh";
