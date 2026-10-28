@@ -3797,7 +3797,7 @@ function App() {
     status:()=>({loading:latest.current.sharedLoading||jobRegionLoading,error:latest.current.sharedErr||jobRegionError}),
     refresh(){_langSubs.slice().forEach(fn=>fn());},
   };
-  const openSettings = (opener,focus) => window.SuiteSettings?.open(focus==='#set-key'?'ai':focus==='appearance'?'appearance':'connection');
+  const openSettings = (opener,focus) => window.SuiteSettings?.open(focus==='#set-key'?'ai':focus==='appearance'?'app':focus?'connection':'app');
 
   const go = (t, opts = {}) => {
     if (t !== tab || location.hash) { try { history.pushState(null, '', tabHref(t)); } catch (e) {} }
