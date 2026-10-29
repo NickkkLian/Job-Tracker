@@ -34,3 +34,18 @@ node test/apply-kits.browser.mjs .
 
 The shared suite stays outside this checkout; the extension is kept here so it can
 be reviewed and run without modifying another workspace.
+
+The approved pipeline redesign has two additional browser checks. From the parent
+workspace, with the same offline browser and local HTTP environment, run:
+
+```sh
+HARNESS_ROOT=/absolute/path/to/app-harness node Job-Tracker/test/pipeline.browser.mjs green
+HARNESS_ROOT=/absolute/path/to/app-harness node Job-Tracker/test/pipeline-gaps.browser.mjs green
+```
+
+The first checks keyboard Move to, saved status, focus and announcement, populated
+columns, per-region tier folding, phone order, filters and the one-row header.
+The second measures text/SVG gaps at 1440 and 390 with the invented 110-job real
+and busy mixes. `red` uses `BASELINE_ROOT` (default `.tmp/baseline`) for the gap
+check. Results go to the parent workspace's `evidence/red` or `evidence/green`.
+The shared measurement helper includes visible descendants of `display: contents`.

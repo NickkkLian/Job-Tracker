@@ -16,11 +16,11 @@ const bi=(en,zh)=>({en,zh});
 const kit=(id,deadline) => ({id,company:'Fictional '+id,role:'Automation apprentice '+id,deadline,deadlineKind:bi('Employer close','雇主截止日期'),postingUrl:'https://example.com/'+id,applyDate:'2026-10-21',resume:{path:`data/apply-kits/${id}/resume.pdf`,reason:bi('Chosen test PDF','测试 PDF')},fit:bi('A practice case can demonstrate a gap; no professional experience is implied.','练习可展示思路，不代表职业经验。'),reviewNote:bi('Draft for review','待审核草稿'),sideDoor:bi('No verified referral','无已核实内推'),coverLetter:'Dear Fictional team,\n\nExact punctuation: “hello” & <not markup>.\nNick',answers:[{id:'auth',label:bi('Work authorization','工作授权'),text:'I hold a PGWP, an open work permit.'},{id:'start',label:bi('Start date','入职日期'),text:'',editable:true,prompt:bi('Your actual date','实际日期')}],actions:[{id:'practice',date:'2026-10-20',minutes:30,title:bi('Practice before applying','投递前练习'),outcome:bi('Synthetic only','仅合成数据')}],steps:[bi('Review, then submit yourself.','检查后自行提交。')],formNote:bi('Prepared answers; extra questions unverified.','预备答案，额外问题未核实。'),salary:{text:'CAD 40,000–50,000 from the fictional posting.',source:'https://example.com/salary',note:bi('Only if asked','仅被问到时')},sources:[]});
 const fixtures=[kit('later','2026-10-30'),kit('first','2026-10-22'),{...kit('optional',''),optional:true}];
 const PDF='%PDF-1.4\n% fictional selected attachment\n%%EOF\n';
-const storage={'pha-config':{owner:'o',repo:'jobdata',token:'test-token'}};
+const storage={'pha-config':{owner:'o',repo:'jobdata',token:'test-token'},'jobapp:connection':{owner:'o',repo:'jobdata',token:'test-token'}};
 const API='https://api.github.com/repos/o/jobdata/contents/';
 function setup({kits=fixtures,records=[],failReads=false,failSave=false,clipboardFails=false,legacy=false}={}) {
  const {url,dir}=testPage(app,{seed:{[KITS]:kits,[PROGRESS]:records,'data/canada_jobs.json':[]},storage,failReads});
- let html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
+ let html=fs.readFileSync(path.join(dir,'index.html'),'utf8').replace('<head>','<head><meta name="settings-host" content="same-origin-v1"><meta name="settings-manager" content="/?app=Job-Tracker#keys-and-connections">');
  if(legacy){
   // Keep the harness injection, replacing only the app's generated page.
   const marker='<meta charset="utf-8">', old=fs.readFileSync(process.env.LEGACY_PAGE,'utf8');
@@ -46,7 +46,7 @@ await scenario('S28_apply_renders_sorted_kits_and_deep_link',async p=>{
  assert.equal(await p.eval("document.querySelector('[data-kit=first]').open"),true);
  await p.eval("location.hash='#apply/later'");await p.until("document.querySelector('[data-kit=later]').open");
  await p.eval("location.hash='#apply/missing'");await p.until("document.querySelector('main').textContent.includes('no matching application')");
- await p.click('a[href="?tab=tracker"]');await p.until("document.querySelector('h1').textContent.includes('Tracker')");
+ await p.click('#root .brand');await p.until("document.querySelector('h1').textContent.includes('Tracker')");
  assert.equal(await p.eval('location.hash'),'');
 });
 await scenario('S29_copy_exact_cover_answers_and_salary_only_when_asked',async p=>{
@@ -95,12 +95,10 @@ await scenario('S36_invalid_kit_rejected',async p=>{
 },{kits:[{...kit('broken','2026-10-22'),postingUrl:'javascript:alert(1)'}]});
 await scenario('S37_phone_bilingual_theme_and_no_overflow',async p=>{
  await ready(p);await p.size(375,812);assert.equal(await p.eval('innerWidth'),375);
- await p.until("(()=>{const n=document.querySelector('.nav-links').getBoundingClientRect(),a=document.querySelector('.nav [aria-current=page]').getBoundingClientRect();return a.left>=n.left&&a.right<=n.right})()");
+ await p.click('.phone-menu>summary');assert.ok(await p.eval("document.querySelector('.phone-menu-items [aria-current=page]').checkVisibility()"));await p.key('Escape');
  assert.ok(await p.eval('document.documentElement.scrollWidth<=innerWidth'));
  assert.equal(await p.eval("document.querySelectorAll('.topbar .lang-btn,.topbar #theme').length"),0);
- await settingsClick(p,'#nl-settings-button');await p.until("document.querySelector('#suite-settings').open");
- await p.eval("for(const [id,value]of [['suite-language','zh'],['suite-theme-mode','app'],['suite-theme','dark']]){const e=document.getElementById(id);e.value=value;e.dispatchEvent(new Event('change',{bubbles:true}));}");
- await settingsClick(p,'#suite-appearance-save');await p.until("localStorage.getItem('pha-lang')==='zh'");await settingsClick(p,'#suite-close');
+ await p.click('#suite-language-toggle');await p.click('#suite-theme-toggle');await p.until("localStorage.getItem('pha-lang')==='zh'");
  await p.until("document.querySelector('h1').textContent==='去投递'");assert.ok(await p.eval('document.documentElement.scrollWidth<=innerWidth'));
 });
 const appliedRecord={id:'first',appliedAt:'2026-10-20T12:00:00Z',appliedDate:'2026-10-20',followUpDate:'2026-10-27',answers:{start:'Saved answer'},unknown:'keep'};
@@ -124,9 +122,7 @@ await scenario('S38_existing_result_in_list_and_page_without_closed_followup',as
   await p.click('[data-kit=first] .kit-outcome-editor > summary');await p.shot(path.join(out,'outcome-phone-editor.png'));
   await p.click('[data-kit=first] > summary');await p.eval('scrollTo(0,0)');await p.shot(path.join(out,'outcome-phone-list.png'));
   await p.size(1280,900);await p.eval('scrollTo(0,0)');await p.shot(path.join(out,'outcome-desktop-list.png'));
-  await settingsClick(p,'#nl-settings-button');await p.until("document.querySelector('#suite-settings').open");
-  await p.eval("for(const [id,value]of [['suite-language','zh'],['suite-theme-mode','app'],['suite-theme','dark']]){const e=document.getElementById(id);e.value=value;e.dispatchEvent(new Event('change',{bubbles:true}));}");
-  await settingsClick(p,'#suite-appearance-save');await p.until("localStorage.getItem('pha-lang')==='zh'");await settingsClick(p,'#suite-close');
+  await p.click('#suite-language-toggle');await p.click('#suite-theme-toggle');await p.until("localStorage.getItem('pha-lang')==='zh'");
   await p.until("document.querySelector('[data-kit=first] > summary').textContent.includes('未录用')");
   await p.size(375,812);assert.ok(await p.eval('document.documentElement.scrollWidth<=innerWidth'));await p.shot(path.join(out,'outcome-phone-zh-dark.png'));
  }
