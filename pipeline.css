@@ -57,7 +57,8 @@
 .pipeline-card.job{cursor:pointer}
 .pipeline-card .job-open{padding-bottom:0}
 .pipeline-card .entry-lines{padding:0 11px 10px}
-.job-move{position:relative;inset:auto;flex:none;display:inline-block}
+/* Out of flow, bottom-right: when the metadata line is full it no longer wraps onto an empty row of its own. */
+.job-move{position:absolute;inset:auto 8px 8px auto;z-index:2;display:inline-block}
 .job-move>summary{padding:1px 4px;box-shadow:none;color:var(--accent-text)}
 .pipeline-card:hover .job-move>summary,.pipeline-card:focus-within .job-move>summary{box-shadow:0 0 0 1px var(--ledger-rule)}
 @media(max-width:899px){
