@@ -2221,7 +2221,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
     for (let i=0; i<toProcess.length; i++) {
       const job = toProcess[i];
       const pdfKey = `${region}:${job.id}:resume`, pdfPath = pdfGhPath(pdfKey);
-      addLog(`[${i+1}/${toProcess.length}] ${job.company} — ${job.role} …`);
+      addLog(T(`第 ${i+1} 个职位，共 ${toProcess.length} 个：${job.company} — ${job.role} …`, `Job ${i+1} of ${toProcess.length}: ${job.company} — ${job.role} …`));
       setProgress(p=>({...p,[job.id]:'running'}));
 
       try {
@@ -2302,11 +2302,11 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
       }
     }
 
-    addLog(T(`\n完成。定制简历已保存 — 打开各职位查看。`,`\nDone. Tailored resumes saved — open each job to view.`));
+    addLog(T('\n已处理完所选职位。请查看每个职位的结果；失败原因见上方记录。','\nFinished checking the selected jobs. Review each result; any failures are explained above.'));
     setRunning(false);
   });}
 
-  const TAG = { queued:['tag-neutral', T('排队','Queued')], running:['tag-info', T('进行中','Running')], done:['tag-success', T('完成','Done')], error:['tag-danger', T('失败','Failed')], skip:['tag-neutral', T('跳过','Skipped')] };
+  const TAG = { queued:['tag-neutral', T('等待前面的职位处理完','Waiting for earlier jobs')], running:['tag-info', T('正在生成简历','Creating resume')], done:['tag-success', T('简历已保存','Resume saved')], error:['tag-danger', T('未保存到 GitHub，见下方记录','Not saved to GitHub; see log')], skip:['tag-neutral', T('已有简历，已保留','Existing resume kept')] };
   const total = Object.keys(progress).length;
   const finished = Object.values(progress).filter(s => s === 'done' || s === 'error' || s === 'skip').length;
   const plural = (n, one, many) => n === 1 ? one : many;
@@ -2320,7 +2320,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
         <p className="bt-count">{T(`${eligible.length} 个「感兴趣」的职位可以定制`, `${eligible.length} Interested ${plural(eligible.length, 'job', 'jobs')} to tailor`)}</p>
         <span className="btn-row">
           <button type="button" className="btn-link" onClick={() => setSelected(new Set(eligible.map(j=>j.id)))} disabled={running}>{T('全选','Select all')}</button>
-          <button type="button" className="btn-link" onClick={() => setSelected(new Set())} disabled={running}>{T('清除','Clear')}</button>
+          <button type="button" className="btn-link" onClick={() => setSelected(new Set())} disabled={running}>{T('取消全选','Deselect all')}</button>
         </span>
       </div>
       {eligible.length ? (
@@ -2339,12 +2339,12 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
       {running && total > 0 && (
         <div className="bt-progress">
           <div className="progress" role="progressbar" aria-label={T('进度','Progress')} aria-valuemin={0} aria-valuemax={total} aria-valuenow={finished}><i style={{ transform: `scaleX(${finished / total})` }}></i></div>
-          <p className="hint" role="status">{T(`正在定制第 ${Math.min(finished + 1, total)} / ${total} 份…`, `Tailoring ${Math.min(finished + 1, total)} of ${total}…`)}</p>
+          <p className="hint" role="status">{T(`正在定制第 ${Math.min(finished + 1, total)} / ${total} 份…`, `Tailoring resume ${Math.min(finished + 1, total)} of ${total}…`)}</p>
         </div>
       )}
       {log.length > 0 && <pre className="sunken bt-log" role="log" aria-live="polite">{log.join('\n')}</pre>}
       <div className="dlg-acts">
-        <span className="hint bt-sel">{T(`已选 ${selected.size} 个`, `${selected.size} selected`)}</span>
+        <span className="hint bt-sel">{T(`已选 ${selected.size} 个`, `${selected.size} jobs selected`)}</span>
         <Btn onClick={onClose} disabled={running}>{log.length && !running ? T('关闭','Close') : T('取消','Cancel')}</Btn>
         <Btn variant="primary" onClick={startBatch} disabled={running || !selected.size || !eligible.length}>
           {running ? T('处理中…','Working…') : T(`定制 ${selected.size} 份简历`, `Tailor ${selected.size} ${plural(selected.size, 'resume', 'resumes')}`)}
@@ -2521,7 +2521,7 @@ function PdfUploadField({ label, pdfKey }) {
     } catch(e2) {
       const msg = e2.message || T('上传失败','Upload failed');
       setErr(msg.includes('GitHub') || msg.includes('configured')
-        ? { kind:'warn', msg: T(`已存在这个浏览器里。同步到 GitHub 失败：${msg}`, `Saved in this browser. Syncing to GitHub failed: ${msg}`) }
+        ? { kind:'warn', msg: T(`已保存在这个浏览器里，但未保存到 GitHub：${msg}`, `Saved in this browser, but not saved to GitHub: ${msg}`) }
         : { kind:'error', msg });
     }
     finally { setBusy(false); setGhSaving(false); }
@@ -2968,7 +2968,7 @@ For each job return: company, role (the exact title on the career page), locatio
                   <span className="num">{T(`已选 ${selected.size} / ${found.length}`, `${selected.size} of ${found.length} selected`)}</span>
                   <span className="btn-row">
                     <button type="button" className="btn-link" onClick={()=>setSelected(new Set(found.map(j=>j._id)))}>{T('全选','Select all')}</button>
-                    <button type="button" className="btn-link" onClick={()=>setSelected(new Set())}>{T('清除','Clear')}</button>
+                    <button type="button" className="btn-link" onClick={()=>setSelected(new Set())}>{T('取消全选','Deselect all')}</button>
                     <button type="button" className="btn-link" onClick={()=>setStep('setup')}>{T('← 返回','← Back')}</button>
                   </span>
                 </div>
@@ -3008,7 +3008,7 @@ For each job return: company, role (the exact title on the career page), locatio
                           <div className="form-grid two al-edit">
                             {f('company', T('公司','Company'))}{f('role', T('职位','Role'))}{f('location', T('地点','Location'))}{f('salary', T('薪资','Salary'))}
                             {f('url', T('申请链接','Apply URL'), true)}{f('description', T('职位描述','Job description'), true)}
-                            <div className="form-acts fld wide"><Btn onClick={()=>setEditingId(null)}>{T('完成','Done')}</Btn></div>
+                            <div className="form-acts fld wide"><Btn onClick={()=>setEditingId(null)}>{T('简历已保存','Resume saved')}</Btn></div>
                           </div>
                         )}
                       </li>
