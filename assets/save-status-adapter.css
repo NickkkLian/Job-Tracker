@@ -1,0 +1,14 @@
+/* ApplyLedger's native band owns placement; the shared view owns only its contents. */
+.topbar:has(#job-save-status){gap:8px!important}
+.topbar #job-save-status{--save-status-color:var(--on-band);--save-status-border:var(--band-line);--save-status-font-size:12px;flex:0 1 auto;white-space:normal;margin-left:auto}
+.topbar .brand{flex:0 0 auto!important;overflow:visible!important}
+.topbar>.pill{display:none}
+.topbar:has(#job-save-status[data-save-state=error]),.topbar:has(#job-save-status[data-save-state=offline]),.topbar:has(#job-save-status[data-save-state=local]){height:auto;min-height:var(--topbar-h);flex-wrap:wrap!important;padding-block:6px!important}
+@media(max-width:639px){
+ .topbar:has(#job-save-status){display:grid;grid-template-columns:44px minmax(0,1fr) 157px;grid-template-areas:'brand brand controls' 'menu status status';height:auto;min-height:var(--topbar-h);padding-bottom:6px!important;column-gap:6px!important;row-gap:0!important}
+ .topbar .brand{grid-area:brand;flex:1 0 auto!important}
+ .topbar [data-settings-slot]{grid-area:controls;margin-left:auto}
+ .topbar .phone-menu{grid-area:menu}
+ .topbar #job-save-status{grid-area:status;margin-left:0;padding:2px 6px 2px 0;box-sizing:border-box;min-height:44px}
+}
+@media(min-width:640px){.topbar #job-save-status{max-width:calc(100% - 250px)}}

@@ -1,8 +1,8 @@
 // Production queues and HTTP fixture only. No real credentials, repositories, AI or paid calls.
-import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {pathToFileURL} from 'node:url';
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {pathToFileURL,fileURLToPath} from 'node:url';
 const harness=process.env.HARNESS_ROOT;if(!harness)throw Error('Set HARNESS_ROOT');
 const {launch}=await import(pathToFileURL(path.join(harness,'cdp.mjs'))),{testPage}=await import(pathToFileURL(path.join(harness,'page.mjs')));
-const phase=process.argv[2]||'green',root=path.resolve(process.env.APP_ROOT||new URL('../',import.meta.url).pathname),out=path.resolve(process.env.EVIDENCE_DIR||'evidence/save-status');fs.mkdirSync(out,{recursive:true});
+const phase=process.argv[2]||'green',root=path.resolve(process.env.APP_ROOT||fileURLToPath(new URL('../',import.meta.url))),out=path.resolve(process.env.EVIDENCE_DIR||'evidence/save-status');fs.mkdirSync(out,{recursive:true});
 const {measure,widths}=await import(pathToFileURL(path.join(harness,'width-sweep/measure.mjs')));
 const {policy}=await import(pathToFileURL(path.join(harness,'width-sweep/fixtures.mjs')));
 const report={phase,root,checks:[],errors:[]};
@@ -18,7 +18,7 @@ async function scenario(name,fn){let p;try{const f=fixture();p=await b.open(f.ur
 const write=(p,value='Saved value')=>p.eval(`window.__task=ghWrite('data/formatting.txt',${JSON.stringify(value)}).catch(e=>{window.__taskError=e.message});'started'`);
 const hold=p=>p.eval("__holdPath='data/formatting.txt'");
 const release=p=>p.eval("__holdPath=null;__release();'released'");
-async function expectStatus(p,expected){assert.equal(await p.eval(state),expected,'persistent header '+expected);}
+async function expectStatus(p,expected){if(phase!=='red')await p.until(state+'==='+JSON.stringify(expected));assert.equal(await p.eval(state),expected,'persistent header '+expected);}
 try{
  await scenario('saving then repository acknowledgement shows Saved HH:MM',async p=>{
   await hold(p);await write(p);await p.until('__held');await expectStatus(p,'saving');assert.match(await p.eval(text),/Saving/);
@@ -41,6 +41,11 @@ try{
   await expectStatus(p,'offline');assert.match(await p.eval(text),/Offline.*changes only in this page/);
   await p.eval("__gh.fail=(m)=>m==='PUT'?'offline':0");await write(p);await p.eval('__task');
   await p.cdp('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});await p.until('navigator.onLine===true');await expectStatus(p,'error');assert.match(await p.eval(text),/connection lost/);
+  await p.eval('__gh.fail=null');await p.click('#job-save-status button');await p.until(state+"==='saved'");
+  await p.cdp('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0});await p.until('navigator.onLine===false');
+  await p.eval("savePdfLocal('synthetic:resume','data:application/pdf;base64,JVBERi0xLjQK');__gh.fail=m=>m==='PUT'?'offline':0;ghWriteDataUrl('data/files/synthetic_resume.pdf','data:application/pdf;base64,JVBERi0xLjQK').catch(()=>{})");
+  await p.until("jobSaveStatus.snapshot().durable");assert.match(await p.eval(text),/Offline.*changes kept on this device/);
+
  });
  await scenario('edit during a save remains pending until its own repository acknowledgement',async p=>{
   await hold(p);await write(p,'First');await p.until('__held');await expectStatus(p,'saving');
@@ -57,6 +62,10 @@ try{
   await p.eval("ghWriteDataUrl('data/files/synthetic.pdf','data:application/pdf;base64,JVBERi0xLjQKJQ==')");await expectStatus(p,'saved');
   await p.eval("__gh.fail=(m)=>m==='DELETE'?500:0;ghDeleteFile('data/files/synthetic.pdf').catch(()=>{})");await p.until(state+"==='error'");await p.eval('__gh.fail=null');await p.click('#job-save-status button');await p.until("!__gh.has('data/files/synthetic.pdf')");await expectStatus(p,'saved');
   await p.eval("(async()=>{window.__package=await settingsAdapter.backup();window.__staged=await settingsAdapter.stage(__package);window.__restore=settingsAdapter.restore(__staged);return 'restoring';})()");await p.eval('__restore');await expectStatus(p,'saved');
+  await p.eval("(async()=>{window.__stale=await settingsAdapter.stage(__package);__gh.outside('data/canada_jobs.json',a=>a.push({id:'outside',role:'Retained'}));try{await settingsAdapter.restore(__stale);}catch(e){window.__restoreError=e.code;}})()");
+  assert.equal(await p.eval('__restoreError'),'conflict');await expectStatus(p,'error');assert.equal(await p.eval('settingsAdapter.canRestoreDrafts()'),true);
+  await p.eval("(async()=>{const staged=await settingsAdapter.stage(__package);await settingsAdapter.restore(staged);})()");await expectStatus(p,'saved');
+
  });
  if(phase!=='red')await scenario('all header states fit 320–2560; screenshots in English/Chinese light/dark',async p=>{
   const geometries=[];await write(p);await p.eval('__task');
@@ -68,15 +77,18 @@ try{
   }
   for(const mode of ['ready','saving','saved','error','offline','local']){
    // Fresh source status for layout only; transition scenarios above use real writes exclusively.
-   await p.eval(`jobSaveStatus.reset();jobSaveStatus.connection({online:${mode!=='offline'},connected:${mode!=='local'}});`);
+   await p.eval('jobSaveStatus.reset();jobSaveStatus.connection({online:true,connected:true});');
+   if(mode!=='ready'){await write(p,'Earlier successful save');await p.eval('__task');}
+   await p.eval(`jobSaveStatus.connection({online:${mode!=='offline'},connected:${mode!=='local'}});`);
    if(['saving','saved','error'].includes(mode)){
     await hold(p);await write(p);await p.until('__held');if(mode==='error')await p.eval("__gh.fail=()=>500");
     if(mode!=='saving'){await release(p);await p.eval('__task');}
    }
+   await expectStatus(p,mode);
    for(const language of ['en','zh']){
     if(await p.eval('lang')!==language)await p.click('#suite-language-toggle');
     for(const width of widths){await p.cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false});await p.eval('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');const result=await p.eval('('+measure.toString()+')('+JSON.stringify('#root header.topbar')+','+JSON.stringify(policy('Job-Tracker'))+')');
-     geometries.push({mode,language,width,failures:result.failures,allowances:result.allowances});
+     geometries.push({mode,language,width,failures:result.failures,allowances:result.allowances});if(['error','offline'].includes(mode)&&[320,1440].includes(width))await p.shot(path.join(out,`state-${mode}-${language}-${width}.png`));
     }
    }
    if(mode==='saving'){await release(p);await p.eval('__task');}await p.eval('__gh.fail=null');
@@ -85,5 +97,5 @@ try{
  });
 }finally{await b.close();fs.writeFileSync(path.join(out,phase+'.json'),JSON.stringify(report,null,2));}
 const failed=report.checks.filter(c=>!c.pass).length;
-if(phase==='red'){assert.equal(report.checks.length,5);assert.equal(failed,5,'all five requirements must fail on baseline');console.log('EXPECTED RED: all 5 baseline scenarios fail');}
+if(phase==='red'){assert.equal(report.checks.length,5);assert.equal(failed,5,'all five requirements must fail on baseline');assert.ok(report.checks.every(c=>c.error.includes('persistent header')),'baseline failures must be missing-status assertions, not fixture errors');console.log('EXPECTED RED: all 5 baseline scenarios fail');}
 else process.exitCode=failed?1:0;

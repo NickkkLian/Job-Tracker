@@ -3,8 +3,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-9Q4lbDxmkKa0OiSEdhM3shTqoTB8RwPSia5TbLdwrmM=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-JQJ7SKZTiIcNn92TUEQuw4gGOso//BXuNHnhwBt6NFM='">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-9Q4lbDxmkKa0OiSEdhM3shTqoTB8RwPSia5TbLdwrmM=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-vRk2ZAdTQfmlSJKYqZxhHHTIwqa8KNKIEMd1gilg72Q='">
 <script src="assets/settings-standard/core.js"></script>
+<script src="assets/settings-standard/save-status.js"></script>
 <script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem(HubSettingsContract.preferenceKey("nl-theme")),s=L.getItem(HubSettingsContract.preferenceKey("nl-scheme"));if(s===null){var o=L.getItem(HubSettingsContract.preferenceKey("theme"))||L.getItem(HubSettingsContract.preferenceKey("qm-theme"));if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="ApplyLedger: job applications, one pipeline per region, kept in a private repo you own. A tracker, a pipeline chart and an hours ledger for the Canadian Experience Class; the AI prompts run in your own Claude.ai.">
@@ -30,6 +31,8 @@
 <link rel="stylesheet" href="assets/settings-standard/entry.css">
 <link rel="stylesheet" href="assets/settings-entry.css">
 <link rel="stylesheet" href="pipeline.css">
+<link rel="stylesheet" href="assets/settings-standard/save-status.css">
+<link rel="stylesheet" href="assets/save-status-adapter.css">
 </head>
 <body>
 <!-- the page before React mounts: the band with the mark, and three skeleton lines -->
@@ -794,12 +797,54 @@ function sampleProfile() {
 }
 let jobConnection = {}, jobSourcePaused = false;
 const jobDrafts = /* @__PURE__ */ new Map(), jobFailedPaths = /* @__PURE__ */ new Set();
+const jobSaveStatus = SuiteSaveStatus.create(), jobLatestWrites = /* @__PURE__ */ new Map(), jobCachedFiles = /* @__PURE__ */ new Map(), jobBinaryValues = /* @__PURE__ */ new Map();
+function refreshJobSaveConnection() {
+  jobSaveStatus.connection({ online: navigator.onLine, connected: !DEMO && HubSettingsContract.complete(jobConnection) });
+}
+window.addEventListener("online", refreshJobSaveConnection);
+window.addEventListener("offline", refreshJobSaveConnection);
+function JobSaveStatus() {
+  const node = useRef(null);
+  useEffect(() => {
+    const view = SuiteSaveStatus.mount(node.current, jobSaveStatus, { language: () => lang });
+    _langSubs.push(view.refresh);
+    refreshJobSaveConnection();
+    return () => {
+      view.destroy();
+      _langSubs = _langSubs.filter((fn) => fn !== view.refresh);
+    };
+  }, []);
+  return /* @__PURE__ */ React.createElement("div", { id: "job-save-status", ref: node });
+}
+async function jobSaveOperation(path, retry, operation, binaryValue = null) {
+  if (binaryValue !== null) jobBinaryValues.set(path, binaryValue);
+  const revision = jobSaveStatus.pending(path, retry, { durable: binaryValue !== null && jobCachedFiles.get(path) === binaryValue }), token = jobSaveStatus.start(path, revision);
+  try {
+    const wrote = await operation();
+    jobFailedPaths.delete(path);
+    jobSaveStatus.succeed(token, wrote === false ? null : /* @__PURE__ */ new Date());
+    return wrote;
+  } catch (error) {
+    if (error.code === "reload") {
+      jobFailedPaths.delete(path);
+      jobSaveStatus.succeed(token);
+    } else {
+      jobFailedPaths.add(path);
+      jobSaveStatus.fail(token, error);
+    }
+    throw error;
+  }
+}
 let jobRegionLoading = false, jobRegionError = null;
 function useSettingsDraft(dirty) {
   const id = useRef(/* @__PURE__ */ Symbol("job-draft"));
   useEffect(() => {
     jobDrafts.set(id.current, Boolean(dirty));
-    return () => jobDrafts.delete(id.current);
+    jobSaveStatus.draft(id.current, dirty);
+    return () => {
+      jobDrafts.delete(id.current);
+      jobSaveStatus.draft(id.current, false);
+    };
   }, [dirty]);
 }
 function initializeJobConnection() {
@@ -817,6 +862,7 @@ function initializeJobConnection() {
   }
 }
 initializeJobConnection();
+refreshJobSaveConnection();
 const PATHS = {
   resumeDb: "data/resumeDb.txt",
   resumeSections: "data/resumeSections.json",
@@ -913,7 +959,10 @@ function ghPut(path, text, sha) {
   const { token, repo } = ghCfg();
   const [o, r] = repo.split("/");
   const body = { message: `jobapp: update ${path}`, content: toB64(text), ...sha ? { sha } : {} };
-  return fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { method: "PUT", headers: ghHdrs(token), body: JSON.stringify(body) });
+  return fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { method: "PUT", headers: ghHdrs(token), body: JSON.stringify(body) }).then((res) => {
+    if (!res.ok && res.status !== 409 && res.status !== 422) throw new Error("HTTP " + res.status);
+    return res;
+  });
 }
 function holdFile(key, get, set) {
   const path = keyToPath(key), h = { get, set };
@@ -934,24 +983,31 @@ function itemLabel(x) {
   return x && typeof x === "object" ? [x.company, x.role].filter(Boolean).join(" — ") || x.name || x.title || x.text || "" : "";
 }
 function ghWrite(path, value, opts = {}) {
+  jobLatestWrites.set(path, { value: SafeMerge.snapshot(value), opts });
+  const revision = jobSaveStatus.pending(path, () => {
+    const latest = jobLatestWrites.get(path);
+    return ghWrite(path, latest.value, latest.opts);
+  });
   const q = saveQueues[path] || (saveQueues[path] = { chain: Promise.resolve(), waiting: null });
   if (q.waiting) {
     q.waiting.value = value;
     q.waiting.opts = opts;
+    q.waiting.revision = revision;
     return q.waiting.done;
   }
-  const w = { value, opts };
+  const w = { value, opts, revision };
   q.waiting = w;
   w.done = q.chain.then(() => {
     if (q.waiting === w) q.waiting = null;
-    return ghWriteNow(path, w.value, w.opts, q);
+    return ghWriteNow(path, w.value, w.opts, q, w.revision);
   });
   q.chain = w.done.catch(() => {
   });
   return HubSettingsRuntime.track(() => w.done);
 }
-async function ghWriteNow(path, value, opts, q) {
+async function ghWriteNow(path, value, opts, q, revision) {
   return HubSettingsRuntime.track(async () => {
+    const attempt = jobSaveStatus.start(path, revision);
     try {
       const { token, repo } = ghCfg();
       if (!token || !repo) throw new Error("GitHub not configured");
@@ -977,7 +1033,10 @@ async function ghWriteNow(path, value, opts, q) {
       else delete shaCache[path];
       baseCache[path] = SafeMerge.snapshot(r.data);
       if (r.merged) {
-        if (q.waiting) q.waiting.value = SafeMerge.rebase(sent, r.data, q.waiting.value);
+        if (q.waiting) {
+          q.waiting.value = SafeMerge.rebase(sent, r.data, q.waiting.value);
+          jobLatestWrites.set(path, { value: SafeMerge.snapshot(q.waiting.value), opts: q.waiting.opts });
+        }
         const h = fileHolders[path];
         if (h) {
           const next = SafeMerge.rebase(sent, r.data, h.get());
@@ -985,9 +1044,11 @@ async function ghWriteNow(path, value, opts, q) {
         }
       }
       jobFailedPaths.delete(path);
+      jobSaveStatus.succeed(attempt, r.wrote ? /* @__PURE__ */ new Date() : null);
       return r;
     } catch (error) {
       jobFailedPaths.add(path);
+      jobSaveStatus.fail(attempt, error);
       throw error;
     }
   });
@@ -1008,7 +1069,7 @@ function pdfGhPath(pdfKey) {
   return `data/files/${pdfKey.replace(/:/g, "_")}.pdf`;
 }
 async function ghWriteDataUrl(path, dataUrl) {
-  return HubSettingsRuntime.track(async () => {
+  return HubSettingsRuntime.track(() => jobSaveOperation(path, () => ghWriteDataUrl(path, dataUrl), async () => {
     const base64 = (dataUrl || "").split(",")[1];
     if (!base64) throw new Error("Invalid data URL");
     const { token, repo } = ghCfg();
@@ -1043,10 +1104,10 @@ async function ghWriteDataUrl(path, dataUrl) {
     }
     const d = await res.json();
     shaCache[path] = d.content.sha;
-  });
+  }, dataUrl));
 }
 async function ghCreateDataUrl(path, dataUrl) {
-  return HubSettingsRuntime.track(async () => {
+  return HubSettingsRuntime.track(() => jobSaveOperation(path, () => ghCreateDataUrl(path, dataUrl), async () => {
     const base64 = (dataUrl || "").split(",")[1];
     if (!base64) throw new Error("Invalid data URL");
     const { token, repo } = ghCfg();
@@ -1067,7 +1128,7 @@ async function ghCreateDataUrl(path, dataUrl) {
       throw new Error(`GitHub ${res.status}: ${e.message || "error"}`);
     }
     shaCache[path] = (await res.json()).content.sha;
-  });
+  }, dataUrl));
 }
 async function ghFindDataUrl(path, mimeType) {
   return HubSettingsRuntime.track(async () => {
@@ -1099,21 +1160,23 @@ async function ghReadDataUrl(path, mimeType) {
   });
 }
 async function ghDeleteFile(path) {
-  return HubSettingsRuntime.track(async () => {
+  return HubSettingsRuntime.track(() => jobSaveOperation(path, () => ghDeleteFile(path), async () => {
     const { token, repo } = ghCfg();
-    if (!token || !repo) return;
+    if (!token || !repo) throw new Error("GitHub not configured");
     const [o, r] = repo.split("/");
     const url = `https://api.github.com/repos/${o}/${r}/contents/${path}`;
     if (!shaCache[path]) {
       const c = await fetch(url, { headers: ghHdrs(token) });
-      if (!c.ok) return;
+      if (c.status === 404) return false;
+      if (!c.ok) throw new Error("HTTP " + c.status);
       const d = await c.json();
       shaCache[path] = d.sha;
     }
     const body = { message: `jobapp: delete ${path}`, sha: shaCache[path] };
     const res = await fetch(url, { method: "DELETE", headers: ghHdrs(token), body: JSON.stringify(body) });
-    if (res.ok) delete shaCache[path];
-  });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    delete shaCache[path];
+  }));
 }
 async function loadText(key) {
   return HubSettingsRuntime.track(async () => {
@@ -1624,13 +1687,18 @@ function migratePdfCache() {
 migratePdfCache();
 function savePdfLocal(key, dataUrl) {
   if (DEMO) return true;
+  let kept = false;
   try {
     localStorage.setItem(pdfCacheKey(key), dataUrl);
-    return localStorage.getItem(pdfCacheKey(key)) === dataUrl;
+    kept = localStorage.getItem(pdfCacheKey(key)) === dataUrl;
   } catch (error) {
     console.warn("Local PDF cache unavailable");
-    return false;
   }
+  const path = pdfGhPath(key);
+  if (kept) jobCachedFiles.set(path, dataUrl);
+  else jobCachedFiles.delete(path);
+  jobSaveStatus.retained(path, kept && jobBinaryValues.get(path) === dataUrl);
+  return kept;
 }
 function loadPdfLocal(key) {
   return DEMO ? null : localStorage.getItem(pdfCacheKey(key));
@@ -1638,6 +1706,9 @@ function loadPdfLocal(key) {
 function deletePdfLocal(key) {
   if (DEMO) return;
   localStorage.removeItem(pdfCacheKey(key));
+  const path = pdfGhPath(key);
+  jobCachedFiles.delete(path);
+  jobSaveStatus.retained(path, false);
   if (localStorage.getItem("jobapp:legacy-pdf-source") === pdfScope()) localStorage.removeItem(PDF_LS_PRE + key);
 }
 function safeName(s) {
@@ -3045,6 +3116,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
   const [form, setForm] = useState({ ...job });
   const [saving, setSaving] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
+  useSettingsDraft(editing && !SafeMerge.same(form, job) || (form.notes || "") !== (job.notes || ""));
   const h1 = useRef(null);
   useEffect(() => {
     setForm({ ...job });
@@ -4049,7 +4121,7 @@ function App() {
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("a", { className: "skip", href: "#main", onClick: skip }, T("跳到内容", "Skip to content")), /* @__PURE__ */ React.createElement("header", { className: "topbar" }, /* @__PURE__ */ React.createElement("details", { className: "phone-menu", ref: phoneMenuRef }, /* @__PURE__ */ React.createElement("summary", { "aria-label": T("菜单", "Menu") }, /* @__PURE__ */ React.createElement("svg", { width: "20", height: "20", viewBox: "0 0 20 20", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M3 6h14M3 10h14M3 14h14", fill: "none", stroke: "currentColor", strokeWidth: "1.7", strokeLinecap: "round" }))), /* @__PURE__ */ React.createElement("nav", { className: "phone-menu-items", "aria-label": T("页面", "Sections") }, TABS.map(navLink), pill.warn && /* @__PURE__ */ React.createElement("p", { className: "menu-warning" }, pill.short, pill.long))), /* @__PURE__ */ React.createElement("a", { className: "brand", href: tabHref("tracker"), "aria-label": T("ApplyLedger 首页", "ApplyLedger home"), onClick: (e) => {
     e.preventDefault();
     go("tracker");
-  } }, /* @__PURE__ */ React.createElement(BrandMark, null), /* @__PURE__ */ React.createElement("b", null, "ApplyLedger")), pill.warn && /* @__PURE__ */ React.createElement("span", { className: "pill warn", title: pill.short + pill.long }, pill.short, /* @__PURE__ */ React.createElement("span", { className: "long" }, pill.long)), /* @__PURE__ */ React.createElement("span", { "data-settings-slot": "" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon suite-gear", id: "nl-settings-button", onClick: (e) => openSettings(e.currentTarget), ref: (node) => {
+  } }, /* @__PURE__ */ React.createElement(BrandMark, null), /* @__PURE__ */ React.createElement("b", null, "ApplyLedger")), pill.warn && /* @__PURE__ */ React.createElement("span", { className: "pill warn", title: pill.short + pill.long }, pill.short, /* @__PURE__ */ React.createElement("span", { className: "long" }, pill.long)), /* @__PURE__ */ React.createElement(JobSaveStatus, null), /* @__PURE__ */ React.createElement("span", { "data-settings-slot": "" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon suite-gear", id: "nl-settings-button", onClick: (e) => openSettings(e.currentTarget), ref: (node) => {
     gearRef.current = node;
     if (node) window.SuiteHeaderEntry?.mount(node);
   }, "aria-haspopup": "dialog", "aria-label": "Settings / 设置", "aria-keyshortcuts": "Meta+, Control+,", title: "Settings / 设置 (⌘,)" }, GEAR))), /* @__PURE__ */ React.createElement("div", { className: "shell" }, /* @__PURE__ */ React.createElement("nav", { className: "nav", "aria-label": T("页面", "Sections") }, /* @__PURE__ */ React.createElement("div", { className: "nav-in" }, /* @__PURE__ */ React.createElement("div", { className: "nav-region" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "region", className: "eyebrow" }, T("地区", "Region")), /* @__PURE__ */ React.createElement("select", { id: "region", value: region, onChange: (e) => setRegion(e.target.value) }, REGIONS.map((r) => /* @__PURE__ */ React.createElement("option", { key: r.id, value: r.id }, rName(r))))), /* @__PURE__ */ React.createElement("div", { className: "nav-links" }, TABS.filter((t) => t.scope === "region" && t.id !== "addjob").map(navLink), /* @__PURE__ */ React.createElement("p", { className: "group eyebrow" }, T("所有地区共用", "Shared by all regions")), TABS.filter((t) => t.scope === "shared").map(navLink)))), /* @__PURE__ */ React.createElement("main", { id: "main", className: "main" }, /* @__PURE__ */ React.createElement("div", { className: "main-in" }, /* @__PURE__ */ React.createElement("div", { className: "mobile-region" }, /* @__PURE__ */ React.createElement("label", { htmlFor: "phone-region", className: "sr-only" }, T("地区", "Region")), /* @__PURE__ */ React.createElement("select", { id: "phone-region", value: region, onChange: (e) => setRegion(e.target.value) }, REGIONS.map((r) => /* @__PURE__ */ React.createElement("option", { key: r.id, value: r.id }, rName(r))))), !ghOk && !DEMO && /* @__PURE__ */ React.createElement("section", { className: "card connect", "aria-labelledby": "connect-h" }, /* @__PURE__ */ React.createElement("h2", { id: "connect-h" }, T("连接你的私有数据仓库", "Connect your private data repo")), /* @__PURE__ */ React.createElement("p", null, T("ApplyLedger 把你的投递存在你自己的 GitHub 私有仓库里。连接之前，在这里添加的东西都不会保存。", "ApplyLedger keeps your applications in a private GitHub repo you own. Until you connect one, nothing you add here is saved.")), /* @__PURE__ */ React.createElement("div", { className: "acts" }, /* @__PURE__ */ React.createElement(Btn, { variant: "primary", onClick: (e) => openSettings(e.currentTarget, "#set-repo") }, T("连接…", "Connect…")), /* @__PURE__ */ React.createElement("a", { href: "?demo=1&tab=tracker" }, T("先看演示", "Try the demo")))), loaded && /* @__PURE__ */ React.createElement(

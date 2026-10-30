@@ -4,6 +4,7 @@
 <head>
 <meta charset="utf-8">
 <script src="assets/settings-standard/core.js"></script>
+<script src="assets/settings-standard/save-status.js"></script>
 <script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem(HubSettingsContract.preferenceKey("nl-theme")),s=L.getItem(HubSettingsContract.preferenceKey("nl-scheme"));if(s===null){var o=L.getItem(HubSettingsContract.preferenceKey("theme"))||L.getItem(HubSettingsContract.preferenceKey("qm-theme"));if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="ApplyLedger: job applications, one pipeline per region, kept in a private repo you own. A tracker, a pipeline chart and an hours ledger for the Canadian Experience Class; the AI prompts run in your own Claude.ai.">
@@ -29,6 +30,8 @@
 <link rel="stylesheet" href="assets/settings-standard/entry.css">
 <link rel="stylesheet" href="assets/settings-entry.css">
 <link rel="stylesheet" href="pipeline.css">
+<link rel="stylesheet" href="assets/settings-standard/save-status.css">
+<link rel="stylesheet" href="assets/save-status-adapter.css">
 </head>
 <body>
 <!-- the page before React mounts: the band with the mark, and three skeleton lines -->

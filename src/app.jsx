@@ -99,10 +99,26 @@ function sampleProfile() {
 // Shared connections are resolved only on the hub; original app storage remains for old pages.
 let jobConnection={},jobSourcePaused=false;
 const jobDrafts=new Map(),jobFailedPaths=new Set();
+const jobSaveStatus=SuiteSaveStatus.create(),jobLatestWrites=new Map(),jobCachedFiles=new Map(),jobBinaryValues=new Map();
+function refreshJobSaveConnection(){jobSaveStatus.connection({online:navigator.onLine,connected:!DEMO&&HubSettingsContract.complete(jobConnection)});}
+window.addEventListener('online',refreshJobSaveConnection);
+window.addEventListener('offline',refreshJobSaveConnection);
+function JobSaveStatus(){
+  const node=useRef(null);
+  useEffect(()=>{const view=SuiteSaveStatus.mount(node.current,jobSaveStatus,{language:()=>lang});_langSubs.push(view.refresh);refreshJobSaveConnection();return()=>{view.destroy();_langSubs=_langSubs.filter(fn=>fn!==view.refresh);};},[]);
+  return <div id="job-save-status" ref={node}/>;
+}
+// Attachment, deletion and restore paths keep their own write semantics and retry operations.
+async function jobSaveOperation(path,retry,operation,binaryValue=null){
+  if(binaryValue!==null)jobBinaryValues.set(path,binaryValue);
+  const revision=jobSaveStatus.pending(path,retry,{durable:binaryValue!==null&&jobCachedFiles.get(path)===binaryValue}),token=jobSaveStatus.start(path,revision);
+  try{const wrote=await operation();jobFailedPaths.delete(path);jobSaveStatus.succeed(token,wrote===false?null:new Date());return wrote;}
+  catch(error){if(error.code==='reload'){jobFailedPaths.delete(path);jobSaveStatus.succeed(token);}else{jobFailedPaths.add(path);jobSaveStatus.fail(token,error);}throw error;}
+}
 let jobRegionLoading=false,jobRegionError=null;
 function useSettingsDraft(dirty){
   const id=useRef(Symbol('job-draft'));
-  useEffect(()=>{jobDrafts.set(id.current,Boolean(dirty));return()=>jobDrafts.delete(id.current);},[dirty]);
+  useEffect(()=>{jobDrafts.set(id.current,Boolean(dirty));jobSaveStatus.draft(id.current,dirty);return()=>{jobDrafts.delete(id.current);jobSaveStatus.draft(id.current,false);};},[dirty]);
 }
 function initializeJobConnection(){
   if(DEMO)return;
@@ -117,6 +133,7 @@ function initializeJobConnection(){
   }catch{/* Invalid storage is shown in Settings without replacing it. */}
 }
 initializeJobConnection();
+refreshJobSaveConnection();
 
 const PATHS = {
   resumeDb:       'data/resumeDb.txt',
@@ -225,7 +242,7 @@ function ghPut(path, text, sha) {
   const { token, repo } = ghCfg();
   const [o, r] = repo.split('/');
   const body = { message: `jobapp: update ${path}`, content: toB64(text), ...(sha ? { sha } : {}) };
-  return fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { method:'PUT', headers: ghHdrs(token), body: JSON.stringify(body) });
+  return fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { method:'PUT', headers: ghHdrs(token), body: JSON.stringify(body) }).then(res=>{if(!res.ok&&res.status!==409&&res.status!==422)throw new Error('HTTP '+res.status);return res;});
 }
 
 // A view that holds a file's content registers here while it is mounted: get() gives its copy now, set(v) replaces it.
@@ -254,16 +271,19 @@ function itemLabel(x) { return x && typeof x === 'object' ? ([x.company, x.role]
 // rebased onto what it left in the file (that request was made before the merge reached the page).
 // opts.derived: the content is rebuilt from another file (resumeDb.txt from the sections): a conflict keeps this page's.
 function ghWrite(path, value, opts = {}) {
+  jobLatestWrites.set(path,{value:SafeMerge.snapshot(value),opts});
+  const revision=jobSaveStatus.pending(path,()=>{const latest=jobLatestWrites.get(path);return ghWrite(path,latest.value,latest.opts);});
   const q = saveQueues[path] || (saveQueues[path] = { chain: Promise.resolve(), waiting: null });
-  if (q.waiting) { q.waiting.value = value; q.waiting.opts = opts; return q.waiting.done; }
-  const w = { value, opts };
+  if (q.waiting) { q.waiting.value = value; q.waiting.opts = opts; q.waiting.revision=revision; return q.waiting.done; }
+  const w = { value, opts, revision };
   q.waiting = w;
-  w.done = q.chain.then(() => { if (q.waiting === w) q.waiting = null; return ghWriteNow(path, w.value, w.opts, q); });
+  w.done = q.chain.then(() => { if (q.waiting === w) q.waiting = null; return ghWriteNow(path, w.value, w.opts, q, w.revision); });
   q.chain = w.done.catch(() => {});
   return HubSettingsRuntime.track(()=>w.done);
 }
 
-async function ghWriteNow(path, value, opts, q) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
+async function ghWriteNow(path, value, opts, q, revision) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
+  const attempt=jobSaveStatus.start(path,revision);
   try{
   const { token, repo } = ghCfg();
   if (!token || !repo) throw new Error('GitHub not configured');
@@ -281,12 +301,12 @@ async function ghWriteNow(path, value, opts, q) {return HubSettingsRuntime.track
   if (r.sha) shaCache[path] = r.sha; else delete shaCache[path];
   baseCache[path] = SafeMerge.snapshot(r.data);
   if (r.merged) {
-    if (q.waiting) q.waiting.value = SafeMerge.rebase(sent, r.data, q.waiting.value);
+    if (q.waiting) {q.waiting.value = SafeMerge.rebase(sent, r.data, q.waiting.value);jobLatestWrites.set(path,{value:SafeMerge.snapshot(q.waiting.value),opts:q.waiting.opts});}
     const h = fileHolders[path];
     if (h) { const next = SafeMerge.rebase(sent, r.data, h.get()); ReactDOM.flushSync(() => h.set(next)); }
   }
-  jobFailedPaths.delete(path);return r;
-  }catch(error){jobFailedPaths.add(path);throw error;}
+  jobFailedPaths.delete(path);jobSaveStatus.succeed(attempt,r.wrote?new Date():null);return r;
+  }catch(error){jobFailedPaths.add(path);jobSaveStatus.fail(attempt,error);throw error;}
 });}
 
 // Tests the given token and repository (by default the saved ones) without saving anything
@@ -306,7 +326,7 @@ function pdfGhPath(pdfKey) {
 }
 
 // Write a data URL as a binary file to GitHub (raw base64, not re-encoded)
-async function ghWriteDataUrl(path, dataUrl) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
+async function ghWriteDataUrl(path, dataUrl) {return HubSettingsRuntime.track(()=>jobSaveOperation(path,()=>ghWriteDataUrl(path, dataUrl),async()=>{
   const base64 = (dataUrl||'').split(',')[1];
   if (!base64) throw new Error('Invalid data URL');
   const { token, repo } = ghCfg();
@@ -334,11 +354,10 @@ async function ghWriteDataUrl(path, dataUrl) {return HubSettingsRuntime.track(as
   if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(`GitHub ${res.status}: ${e.message||'error'}`); }
   const d = await res.json();
   shaCache[path] = d.content.sha;
-});}
-
+},dataUrl));}
 // Write a binary file only if the repo does not have it yet. No sha is sent, so GitHub refuses (422) a file that exists
 // by then, and nothing is replaced.
-async function ghCreateDataUrl(path, dataUrl) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
+async function ghCreateDataUrl(path, dataUrl) {return HubSettingsRuntime.track(()=>jobSaveOperation(path,()=>ghCreateDataUrl(path, dataUrl),async()=>{
   const base64 = (dataUrl||'').split(',')[1];
   if (!base64) throw new Error('Invalid data URL');
   const { token, repo } = ghCfg();
@@ -356,8 +375,7 @@ async function ghCreateDataUrl(path, dataUrl) {return HubSettingsRuntime.track(a
     throw new Error(`GitHub ${res.status}: ${e.message||'error'}`);
   }
   shaCache[path] = (await res.json()).content.sha;
-});}
-
+},dataUrl));}
 // Whether a binary file is in the repo: its data URL when it is ('' when it is too big for the Contents API to send its
 // content), null when GitHub answers 404. Any other answer throws: "not in the repo" is never concluded from a failed read.
 async function ghFindDataUrl(path, mimeType) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
@@ -386,22 +404,23 @@ async function ghReadDataUrl(path, mimeType) {return HubSettingsRuntime.track(as
 });}
 
 // Delete a file from GitHub (best-effort — used when deleting jobs)
-async function ghDeleteFile(path) {return HubSettingsRuntime.track(async()=>{/* settings workflow */
+async function ghDeleteFile(path) {return HubSettingsRuntime.track(()=>jobSaveOperation(path,()=>ghDeleteFile(path),async()=>{
   const { token, repo } = ghCfg();
-  if (!token || !repo) return;
+  if (!token || !repo) throw new Error('GitHub not configured');
   const [o, r] = repo.split('/');
   const url = `https://api.github.com/repos/${o}/${r}/contents/${path}`;
   if (!shaCache[path]) {
     const c = await fetch(url, { headers: ghHdrs(token) });
-    if (!c.ok) return; // file doesn't exist — nothing to delete
+    if(c.status===404)return false; // Already absent: no repository write.
+    if(!c.ok)throw new Error('HTTP '+c.status);
     const d = await c.json();
     shaCache[path] = d.sha;
   }
   const body = { message: `jobapp: delete ${path}`, sha: shaCache[path] };
   const res = await fetch(url, { method:'DELETE', headers: ghHdrs(token), body: JSON.stringify(body) });
-  if (res.ok) delete shaCache[path];
-});}
-
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  delete shaCache[path];
+}));}
 // Storage helpers
 async function loadText(key)  {return HubSettingsRuntime.track(async()=>{/* settings workflow */ try { return await ghRead(keyToPath(key)) || ''; } catch { return ''; } });}
 async function saveText(key, v, opts){return HubSettingsRuntime.track(async()=>{/* settings workflow */ if (DEMO && !ghConfigured()) return; try { return await ghWrite(keyToPath(key), v, opts); } catch(e){ console.error(e); dispatchSaveErr(e); } });}
@@ -878,13 +897,16 @@ function migratePdfCache(){
 migratePdfCache();
 function savePdfLocal(key,dataUrl){
   if(DEMO)return true;
-  try{localStorage.setItem(pdfCacheKey(key),dataUrl);return localStorage.getItem(pdfCacheKey(key))===dataUrl;}
-  catch(error){console.warn('Local PDF cache unavailable');return false;}
+  let kept=false;
+  try{localStorage.setItem(pdfCacheKey(key),dataUrl);kept=localStorage.getItem(pdfCacheKey(key))===dataUrl;}
+  catch(error){console.warn('Local PDF cache unavailable');}
+  const path=pdfGhPath(key);if(kept)jobCachedFiles.set(path,dataUrl);else jobCachedFiles.delete(path);jobSaveStatus.retained(path,kept&&jobBinaryValues.get(path)===dataUrl);return kept;
 }
 function loadPdfLocal(key){return DEMO?null:localStorage.getItem(pdfCacheKey(key));}
 function deletePdfLocal(key){
   if(DEMO)return;
   localStorage.removeItem(pdfCacheKey(key));
+  const path=pdfGhPath(key);jobCachedFiles.delete(path);jobSaveStatus.retained(path,false);
   if(localStorage.getItem('jobapp:legacy-pdf-source')===pdfScope())localStorage.removeItem(PDF_LS_PRE+key);
 }
 
@@ -2550,6 +2572,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
   const [form, setForm]       = useState({...job});
   const [saving, setSaving]   = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
+  useSettingsDraft((editing&&!SafeMerge.same(form,job))||(form.notes||'')!==(job.notes||''));
   const h1 = useRef(null);
 
   useEffect(() => { setForm({...job}); setEditing(false); }, [job.id]);
@@ -3821,6 +3844,7 @@ function App() {
           <BrandMark /><b>ApplyLedger</b>
         </a>
         {pill.warn&&<span className="pill warn" title={pill.short+pill.long}>{pill.short}<span className="long">{pill.long}</span></span>}
+        <JobSaveStatus />
         <span data-settings-slot=""><button type="button" className="btn btn-ghost btn-icon suite-gear" id="nl-settings-button" onClick={e=>openSettings(e.currentTarget)} ref={node=>{gearRef.current=node;if(node)window.SuiteHeaderEntry?.mount(node);}} aria-haspopup="dialog" aria-label="Settings / 设置" aria-keyshortcuts="Meta+, Control+," title="Settings / 设置 (⌘,)">{GEAR}</button></span>
       </header>
 

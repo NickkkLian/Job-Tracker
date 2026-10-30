@@ -34,7 +34,7 @@ try {
  await p.size(390,844);
  await p.until("document.querySelector('.pipeline-stage')?.dataset.stage==='talk'");
  check('phone in-progress order',await p.eval("[...document.querySelectorAll('.pipeline-stage')].map(e=>e.dataset.stage)"),['talk','won','sent','want','shut']);
- for(const w of [320,390]){await p.size(w,844);check('header one row '+w,await p.eval("(()=>{const es=[...document.querySelectorAll('.topbar [data-settings-slot]>button,.topbar .phone-menu>summary')];return es.length===4&&Math.max(...es.map(e=>e.getBoundingClientRect().y))-Math.min(...es.map(e=>e.getBoundingClientRect().y))<=1&&document.querySelector('.topbar').getBoundingClientRect().height<=60})()"));check('no horizontal overflow '+w,await p.eval('document.documentElement.scrollWidth<=innerWidth'));}
+ for(const w of [320,390]){await p.size(w,844);check('header preferences and name above menu/save row '+w,await p.eval("(()=>{const slot=document.querySelector('.topbar [data-settings-slot]'),menu=document.querySelector('.topbar .phone-menu'),status=document.querySelector('#job-save-status');return slot.querySelectorAll('button').length===3&&status.checkVisibility()&&slot.getBoundingClientRect().bottom<=menu.getBoundingClientRect().top+1&&Math.abs(menu.getBoundingClientRect().top-status.getBoundingClientRect().top)<=1})()"));check('no horizontal overflow '+w,await p.eval('document.documentElement.scrollWidth<=innerWidth'));}
  await p.close();
  const f2=fixture(false),p2=await b.open(f2.url+'?tab=tracker',{width:1440,height:900});await p2.until("document.querySelectorAll('.job-open').length>0",15000);
  check('real mix has only 3 columns',await p2.eval("[...document.querySelectorAll('.pipeline-stage')].map(e=>e.dataset.stage)"),['want','sent','shut']);

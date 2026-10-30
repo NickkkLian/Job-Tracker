@@ -68,3 +68,6 @@
  .pipeline-card.job:before{content:"";position:absolute;left:0;top:11px;bottom:11px;width:3px;border-radius:2px;background:var(--stage-ink)}
  .job-move{display:none}
 }
+
+/* Width QA: full card text remains readable in narrow desktop columns and phone rows. */
+.pipeline-card .role,.pipeline-card .job-sub{display:block;-webkit-line-clamp:unset;overflow:visible;overflow-wrap:anywhere;white-space:normal}

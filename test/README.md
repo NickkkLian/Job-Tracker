@@ -2,6 +2,13 @@
 
 Run the app's offline unit checks with `node --test test/*.test.mjs`.
 
+`save-status.test.mjs` exercises the production per-file queue: newer queued edits, retry payloads when the
+displayed file is older, no-write merges, restore reload errors and PDF recovery byte matching.
+`save-status.browser.mjs green` uses the shared harness with only fictional HTTP fixtures; `red` requires
+`APP_ROOT` pointing to a pre-status checkout. It checks header transitions, Retry, offline retention, writes made
+while another save is in flight, attachment/restore paths and geometry in all six states. Set `EVIDENCE_DIR` for
+JSON and header screenshots. Browser runs need an explicitly approved round and must respect the run cap.
+
 The browser extension uses the shared app-harness `cdp.mjs` and `page.mjs`. Set
 `HARNESS_ROOT` to that folder (the one holding `cdp.mjs` and `page.mjs`).
 Create a local temporary directory, then run from this checkout:

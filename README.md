@@ -203,6 +203,13 @@ API key in the same dialog.
   but not a shared deployment.
 - The JD extractor is heuristic and tuned for English postings; it fills, you check.
 
+## Header save status
+
+The header keeps save state visible across pages. “Saved HH:MM” appears after a repository write succeeds.
+Failures show a plain reason and Retry, while keeping the last successful time. Multiple files are combined so
+one saved file cannot conceal another pending or failed save. Offline text distinguishes matching PDF recovery
+bytes kept in this browser from edits held only in the current page. Form drafts still need their Save action.
+
 ## License
 
 MIT.
