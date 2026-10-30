@@ -2410,7 +2410,7 @@ function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initi
       <button type="button" className="job-open" onClick={()=>onOpen(j.id)} aria-label={T(`打开：${role}，${company}`,`Open: ${role} at ${company}`)+(ready?T('，简历就绪',', resume ready'):'')+(late?T('，已过截止',', deadline passed'):'')}>
         <span className="role">{role}</span>
       </button>
-      <div className="entry-lines"><span className="job-sub">{company}{j.location?` · ${j.location}`:''}</span><div className="entry-meta">
+      <div className="entry-lines"><span className="job-sub" title={`${company}${j.location?` · ${j.location}`:''}`}>{company}{j.location?` · ${j.location}`:''}</span><div className="entry-meta">
           {s.id!=='want'&&<span className="tier-tag">{tierKey(j)||T('未分级','Unranked')}</span>}
           {j.status==='interview_rejected'&&<span className="verdict">{T('面试后','after interview')}</span>}
           {j.status==='working'&&inCanada()&&<span className="entry-chip">{T('计 CEC 工时','CEC hours')}</span>}
