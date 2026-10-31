@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-9Q4lbDxmkKa0OiSEdhM3shTqoTB8RwPSia5TbLdwrmM=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-iNxUGhRu446ZIJgrZ/btaVKL3h64dCWqZtoorDXDF+k='">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-9Q4lbDxmkKa0OiSEdhM3shTqoTB8RwPSia5TbLdwrmM=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-EXukef5diqdrbX3fTlEFdWLEENcYhi2UhK7KZbI3wXs='">
 <script src="assets/settings-standard/core.js"></script>
 <script src="assets/settings-standard/save-status.js"></script>
 <script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem(HubSettingsContract.preferenceKey("nl-theme")),s=L.getItem(HubSettingsContract.preferenceKey("nl-scheme"));if(s===null){var o=L.getItem(HubSettingsContract.preferenceKey("theme"))||L.getItem(HubSettingsContract.preferenceKey("qm-theme"));if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
@@ -698,13 +698,14 @@ function ApplyTab({ openSettings }) {
         const r = await ghWrite(ApplyKits.progressPath, next);
         setProgress(ApplyKits.validateProgress(r.data));
       } catch (e) {
-        setSaveError(e.message);
+        console.warn(e);
+        setSaveError("failed");
       } finally {
         setBusy(false);
       }
     });
   };
-  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow: T("所有地区共用", "Shared by all regions"), title: T("去投递", "Apply"), sub: T("材料、准备和下一步，都在同一处。", "Your materials, preparation and next step, together.") }), loading ? /* @__PURE__ */ React.createElement("div", { className: "card", "aria-busy": "true" }, T("正在读取申请材料…", "Loading application kits…")) : error ? /* @__PURE__ */ React.createElement(ErrorCard, { title: T("没能读取申请材料，未保存任何更改", "Couldn’t read application kits; no changes saved"), error, onRetry: () => setAttempt((x) => x + 1), openSettings }) : !kits.length ? /* @__PURE__ */ React.createElement("section", { className: "card" }, /* @__PURE__ */ React.createElement("h2", null, T("还没有申请材料包", "No application kits yet")), /* @__PURE__ */ React.createElement("p", null, T("由资料维护者审核材料包后上传到你的私有仓库，即可在这里使用。", "Your kit maintainer can review and upload application kits to your private repository to make them available here."))) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("p", { className: "hint" }, T(`${kits.length} 份申请 · 按截止日期排序 · 投递记录保存到你的仓库`, `${kits.length} applications · nearest deadline first · progress saved to your repo`)), selected && !kits.some((k) => k.id === selected) && /* @__PURE__ */ React.createElement("p", { className: "field-err", role: "alert" }, T("这个链接没有对应的申请，请从下面选择。", "This link has no matching application. Choose one below.")), saveError && /* @__PURE__ */ React.createElement("p", { className: "field-err kit-save-error", role: "alert" }, T("保存失败；刚才的操作未记录，请重试。", "Save failed; the last action was not recorded. Please retry."), " ", saveError), /* @__PURE__ */ React.createElement("div", { className: "kit-list" }, kits.map((kit) => /* @__PURE__ */ React.createElement(ApplyKitCard, { key: kit.id, kit, record: progress.find((r) => r.id === kit.id) || { id: kit.id }, busy, update, focused: selected === kit.id })))));
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(PageHead, { eyebrow: T("所有地区共用", "Shared by all regions"), title: T("去投递", "Apply"), sub: T("材料、准备和下一步，都在同一处。", "Your materials, preparation and next step, together.") }), loading ? /* @__PURE__ */ React.createElement("div", { className: "card", "aria-busy": "true" }, T("正在读取申请材料…", "Loading application kits…")) : error ? /* @__PURE__ */ React.createElement(ErrorCard, { title: T("没能读取申请材料，未保存任何更改", "Couldn’t read application kits; no changes saved"), error, onRetry: () => setAttempt((x) => x + 1), openSettings }) : !kits.length ? /* @__PURE__ */ React.createElement("section", { className: "card" }, /* @__PURE__ */ React.createElement("h2", null, T("还没有申请材料包", "No application kits yet")), /* @__PURE__ */ React.createElement("p", null, T("由资料维护者审核材料包后上传到你的私有仓库，即可在这里使用。", "Your kit maintainer can review and upload application kits to your private repository to make them available here."))) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("p", { className: "hint" }, T(`${kits.length} 份申请 · 按截止日期排序 · 投递记录保存到你的仓库`, `${kits.length} applications · nearest deadline first · progress saved to your repo`)), selected && !kits.some((k) => k.id === selected) && /* @__PURE__ */ React.createElement("p", { className: "field-err", role: "alert" }, T("这个链接没有对应的申请，请从下面选择。", "This link has no matching application. Choose one below.")), saveError && /* @__PURE__ */ React.createElement("p", { className: "field-err kit-save-error", role: "alert" }, T("保存失败；刚才的操作未记录，请重试。", "Save failed; the last action was not recorded. Please retry.")), /* @__PURE__ */ React.createElement("div", { className: "kit-list" }, kits.map((kit) => /* @__PURE__ */ React.createElement(ApplyKitCard, { key: kit.id, kit, record: progress.find((r) => r.id === kit.id) || { id: kit.id }, busy, update, focused: selected === kit.id })))));
 }
 const { useState, useEffect, useRef, useMemo } = React;
 let lang = (() => {
@@ -960,8 +961,11 @@ function ghPut(path, text, sha) {
   const { token, repo } = ghCfg();
   const [o, r] = repo.split("/");
   const body = { message: `jobapp: update ${path}`, content: toB64(text), ...sha ? { sha } : {} };
-  return fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { method: "PUT", headers: ghHdrs(token), body: JSON.stringify(body) }).then((res) => {
-    if (!res.ok && res.status !== 409 && res.status !== 422) throw new Error("HTTP " + res.status);
+  return fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { method: "PUT", headers: ghHdrs(token), body: JSON.stringify(body) }).then(async (res) => {
+    if (!res.ok && res.status !== 409 && res.status !== 422) {
+      const detail = await res.json().catch(() => ({}));
+      throw new Error("HTTP " + res.status + ": " + (detail.message || res.statusText || "Request failed"));
+    }
     return res;
   });
 }
@@ -1048,6 +1052,7 @@ async function ghWriteNow(path, value, opts, q, revision) {
       jobSaveStatus.succeed(attempt, r.wrote ? /* @__PURE__ */ new Date() : null);
       return r;
     } catch (error) {
+      if (!(path in baseCache) && ghConfigured()) error.readFailure = true;
       jobFailedPaths.add(path);
       jobSaveStatus.fail(attempt, error);
       throw error;
@@ -2865,19 +2870,27 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
             } catch (e) {
               if (e.exists) throw e;
               savePdfLocal(pdfKey, dataUrl);
-              throw new Error(`${e.message} — ${T("这份简历留在了这个浏览器里，还没存进仓库", "the resume is kept in this browser but is not in your repo")}`);
+              console.warn(e);
+              throw Object.assign(new Error("Resume save failed"), { resumeSave: true });
             }
             savePdfLocal(pdfKey, dataUrl);
           } else {
             savePdfLocal(pdfKey, dataUrl);
-            await ghWriteDataUrl(pdfPath, dataUrl);
+            try {
+              await ghWriteDataUrl(pdfPath, dataUrl);
+            } catch (e) {
+              console.warn(e);
+              e.resumeSave = true;
+              throw e;
+            }
           }
           setProgress((p) => ({ ...p, [job.id]: "done" }));
           addLog(T("  已保存", "  Saved"));
           if (i < toProcess.length - 1) await new Promise((r) => setTimeout(r, 2e3));
         } catch (e) {
           setProgress((p) => ({ ...p, [job.id]: "error" }));
-          addLog(T(`  失败：${e.message}`, `  Failed: ${e.message}`));
+          console.warn(e);
+          addLog(e.resumeSave ? T("  简历保存失败，仍保存在这个浏览器里。请检查连接后重试。", "  Failed to save the resume to the repository. It is kept in this browser. Check the connection, then retry.") : T("  简历未能完成，请检查网络和设置后重试。", "  Failed to complete the resume. Check your connection and Settings, then retry."));
           if (e.message.includes("429")) {
             addLog(T("  触发限流——等 30 秒…", "  Rate limited — waiting 30 s…"));
             await new Promise((r) => setTimeout(r, 3e4));
@@ -3082,8 +3095,9 @@ function PdfUploadField({ label, pdfKey }) {
         setGhSaving(true);
         await ghWriteDataUrl(pdfGhPath(pdfKey), url);
       } catch (e2) {
+        console.warn(e2);
         const msg = e2.message || T("上传失败", "Upload failed");
-        setErr(msg.includes("GitHub") || msg.includes("configured") ? { kind: "warn", msg: T(`已保存在这个浏览器里，但未保存到 GitHub：${msg}`, `Saved in this browser, but not saved to GitHub: ${msg}`) } : { kind: "error", msg });
+        setErr(msg.includes("GitHub") || msg.includes("configured") ? { kind: "warn", msg: T("已保存在这个浏览器里，但未保存到 GitHub。请重新选择文件再试一次。", "Saved in this browser, but not saved to GitHub. Choose the file again to retry.") } : { kind: "error", msg: T("文件未能保存。请重新选择文件再试一次。", "The file could not be saved. Choose the file again to retry.") });
       } finally {
         setBusy(false);
         setGhSaving(false);
@@ -4027,7 +4041,10 @@ function App() {
     })();
   }, [sharedTry]);
   useEffect(() => {
-    const h = (e) => setSaveErr(String(e.detail?.message || "Save to GitHub failed").replace(/[.。]\s*$/, ""));
+    const h = (e) => {
+      console.warn(e.detail);
+      setSaveErr(e.detail?.readFailure ? "unread" : "failed");
+    };
     window.addEventListener("jobapp:saveerror", h);
     return () => window.removeEventListener("jobapp:saveerror", h);
   }, []);
@@ -4171,7 +4188,7 @@ function App() {
   )))), /* @__PURE__ */ React.createElement("footer", { className: "honest" }, /* @__PURE__ */ React.createElement("div", { className: "honest-in" }, /* @__PURE__ */ React.createElement("dl", null, /* @__PURE__ */ React.createElement("dt", null, !ghOk && DEMO ? T("关于这个演示", "About this demo") : T("关于这个页面", "About this page")), /* @__PURE__ */ React.createElement("dd", null, ghOk ? T(`你的投递，从 ${repo} 读取、写回 ${repo}。`, `Your applications, read from and written to ${repo}.`) : DEMO ? /* @__PURE__ */ React.createElement(React.Fragment, null, T("演示用的示例投递，公司全是虚构的；在这里改的东西都不会保存。", "Sample applications made up for this demo — every company is fictional, and nothing you change here is saved."), " ", /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-link", onClick: (e) => openSettings(e.currentTarget, "#set-repo") }, T("连接仓库…", "Connect a repo…"))) : T("连接私有仓库之前，什么都不会保存。", "Nothing is saved until you connect a private repo."))), /* @__PURE__ */ React.createElement("dl", null, /* @__PURE__ */ React.createElement("dt", null, T("这里没有验证的", "Not verified here")), /* @__PURE__ */ React.createElement("dd", null, T(
     "职位描述读取器是为英文招聘启事调的启发式规则：它帮你填字段，由你来核对。加拿大的工时账按加拿大「数据」页上写的规则计算，不是 IRCC 的计算。",
     "The job-description reader is a heuristic tuned for English postings: it fills fields in, you check them. Canada’s hours ledger follows the rules written on its Insights page; it is not an IRCC calculation."
-  ))), /* @__PURE__ */ React.createElement("dl", null, /* @__PURE__ */ React.createElement("dt", null, T("源码", "Source")), /* @__PURE__ */ React.createElement("dd", null, /* @__PURE__ */ React.createElement("a", { href: "https://github.com/NickkkLian/Job-Tracker", rel: "noopener" }, "github.com/NickkkLian/Job-Tracker"), " · MIT · ", T("Nick Lian 制作", "built by Nick Lian")), /* @__PURE__ */ React.createElement("dd", null, T("GitHub 令牌和可选的 Anthropic 密钥只存在这个浏览器里，只发给各自的 API。", "The GitHub token and the optional Anthropic key stay in this browser and go only to their own APIs."))))), info && !saveErr && /* @__PURE__ */ React.createElement("div", { className: "toasts" }, /* @__PURE__ */ React.createElement("div", { className: "toast", role: "status" }, /* @__PURE__ */ React.createElement("p", null, info))), saveErr && /* @__PURE__ */ React.createElement("div", { className: "toasts" }, /* @__PURE__ */ React.createElement("div", { className: "toast", role: "alert" }, /* @__PURE__ */ React.createElement("p", null, T("没能保存到 GitHub", "Couldn’t save to GitHub"), " — ", saveErr, ". ", T("这次改动只在这个页面上，刷新就没了。", "Your change is on this page only and is lost on reload.")), /* @__PURE__ */ React.createElement(Btn, { className: "btn-sm", onClick: (e) => openSettings(e.currentTarget) }, T("打开设置", "Open settings")), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon btn-sm", "aria-label": T("关闭", "Dismiss"), "data-tip": T("关闭", "Dismiss"), onClick: () => setSaveErr("") }, /* @__PURE__ */ React.createElement(Icon, { name: "x" })))));
+  ))), /* @__PURE__ */ React.createElement("dl", null, /* @__PURE__ */ React.createElement("dt", null, T("源码", "Source")), /* @__PURE__ */ React.createElement("dd", null, /* @__PURE__ */ React.createElement("a", { href: "https://github.com/NickkkLian/Job-Tracker", rel: "noopener" }, "github.com/NickkkLian/Job-Tracker"), " · MIT · ", T("Nick Lian 制作", "built by Nick Lian")), /* @__PURE__ */ React.createElement("dd", null, T("GitHub 令牌和可选的 Anthropic 密钥只存在这个浏览器里，只发给各自的 API。", "The GitHub token and the optional Anthropic key stay in this browser and go only to their own APIs."))))), info && !saveErr && /* @__PURE__ */ React.createElement("div", { className: "toasts" }, /* @__PURE__ */ React.createElement("div", { className: "toast", role: "status" }, /* @__PURE__ */ React.createElement("p", null, info))), saveErr && /* @__PURE__ */ React.createElement("div", { className: "toasts" }, /* @__PURE__ */ React.createElement("div", { className: "toast", role: "alert" }, /* @__PURE__ */ React.createElement("p", null, saveErr === "unread" ? T("这个页面没能读到已保存的内容，这次没有保存。请在加载失败提示里点「重试」，读取完成后再保存。", "This page never read your saved work, so nothing was saved. Use Retry in the load-failure message, then save after loading.") : T("没能保存到 GitHub。更改仍在此页，请在页首点重试。", "Couldn’t save to GitHub. Your changes are still in this page. Use Retry in the header.")), /* @__PURE__ */ React.createElement(Btn, { className: "btn-sm", onClick: (e) => openSettings(e.currentTarget) }, T("打开设置", "Open settings")), /* @__PURE__ */ React.createElement("button", { type: "button", className: "btn btn-ghost btn-icon btn-sm", "aria-label": T("关闭", "Dismiss"), "data-tip": T("关闭", "Dismiss"), onClick: () => setSaveErr("") }, /* @__PURE__ */ React.createElement(Icon, { name: "x" })))));
 }
 initTips();
 ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));

@@ -140,7 +140,7 @@ function ApplyTab({ openSettings }) {
     const rows=now.current, record=rows.find(r => r.id === id) || {id};
     const changed=transform(record), next=rows.some(r => r.id === id) ? rows.map(r => r.id === id ? changed : r) : [...rows, changed];
     try {const r=await ghWrite(ApplyKits.progressPath, next); setProgress(ApplyKits.validateProgress(r.data));}
-    catch(e){setSaveError(e.message);}
+    catch(e){console.warn(e);setSaveError('failed');}
     finally {setBusy(false);}
   });};
   return <>
@@ -148,7 +148,7 @@ function ApplyTab({ openSettings }) {
     {loading ? <div className="card" aria-busy="true">{T('正在读取申请材料…','Loading application kits…')}</div> : error ? <ErrorCard title={T('没能读取申请材料，未保存任何更改','Couldn’t read application kits; no changes saved')} error={error} onRetry={() => setAttempt(x => x+1)} openSettings={openSettings}/> : !kits.length ? <section className="card"><h2>{T('还没有申请材料包','No application kits yet')}</h2><p>{T('由资料维护者审核材料包后上传到你的私有仓库，即可在这里使用。','Your kit maintainer can review and upload application kits to your private repository to make them available here.')}</p></section> : <>
       <p className="hint">{T(`${kits.length} 份申请 · 按截止日期排序 · 投递记录保存到你的仓库`,`${kits.length} applications · nearest deadline first · progress saved to your repo`)}</p>
       {selected && !kits.some(k => k.id === selected) && <p className="field-err" role="alert">{T('这个链接没有对应的申请，请从下面选择。','This link has no matching application. Choose one below.')}</p>}
-      {saveError && <p className="field-err kit-save-error" role="alert">{T('保存失败；刚才的操作未记录，请重试。','Save failed; the last action was not recorded. Please retry.')} {saveError}</p>}
+      {saveError && <p className="field-err kit-save-error" role="alert">{T('保存失败；刚才的操作未记录，请重试。','Save failed; the last action was not recorded. Please retry.')}</p>}
       <div className="kit-list">{kits.map(kit => <ApplyKitCard key={kit.id} kit={kit} record={progress.find(r => r.id === kit.id) || {id:kit.id}} busy={busy} update={update} focused={selected === kit.id}/>)}</div>
     </>}
   </>;

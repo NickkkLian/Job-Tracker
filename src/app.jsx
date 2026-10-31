@@ -242,7 +242,7 @@ function ghPut(path, text, sha) {
   const { token, repo } = ghCfg();
   const [o, r] = repo.split('/');
   const body = { message: `jobapp: update ${path}`, content: toB64(text), ...(sha ? { sha } : {}) };
-  return fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { method:'PUT', headers: ghHdrs(token), body: JSON.stringify(body) }).then(res=>{if(!res.ok&&res.status!==409&&res.status!==422)throw new Error('HTTP '+res.status);return res;});
+  return fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, { method:'PUT', headers: ghHdrs(token), body: JSON.stringify(body) }).then(async res=>{if(!res.ok&&res.status!==409&&res.status!==422){const detail=await res.json().catch(()=>({}));throw new Error('HTTP '+res.status+': '+(detail.message||res.statusText||'Request failed'));}return res;});
 }
 
 // A view that holds a file's content registers here while it is mounted: get() gives its copy now, set(v) replaces it.
@@ -306,7 +306,7 @@ async function ghWriteNow(path, value, opts, q, revision) {return HubSettingsRun
     if (h) { const next = SafeMerge.rebase(sent, r.data, h.get()); ReactDOM.flushSync(() => h.set(next)); }
   }
   jobFailedPaths.delete(path);jobSaveStatus.succeed(attempt,r.wrote?new Date():null);return r;
-  }catch(error){jobFailedPaths.add(path);jobSaveStatus.fail(attempt,error);throw error;}
+  }catch(error){if(!(path in baseCache)&&ghConfigured())error.readFailure=true;jobFailedPaths.add(path);jobSaveStatus.fail(attempt,error);throw error;}
 });}
 
 // Tests the given token and repository (by default the saved ones) without saving anything
@@ -2278,12 +2278,13 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
           catch (e) {
             if (e.exists) throw e;
             savePdfLocal(pdfKey, dataUrl);
-            throw new Error(`${e.message} — ${T('这份简历留在了这个浏览器里，还没存进仓库','the resume is kept in this browser but is not in your repo')}`);
+            console.warn(e);
+            throw Object.assign(new Error('Resume save failed'), {resumeSave:true});
           }
           savePdfLocal(pdfKey, dataUrl);
         } else {
           savePdfLocal(pdfKey, dataUrl);
-          await ghWriteDataUrl(pdfPath, dataUrl);   // not connected: fails with "GitHub not configured", as before
+          try { await ghWriteDataUrl(pdfPath, dataUrl); } catch(e) { console.warn(e); e.resumeSave=true; throw e; }   // not connected: fails with "GitHub not configured", as before
         }
 
         setProgress(p=>({...p,[job.id]:'done'}));
@@ -2294,7 +2295,8 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
 
       } catch(e) {
         setProgress(p=>({...p,[job.id]:'error'}));
-        addLog(T(`  失败：${e.message}`, `  Failed: ${e.message}`));
+        console.warn(e);
+        addLog(e.resumeSave ? T('  简历保存失败，仍保存在这个浏览器里。请检查连接后重试。','  Failed to save the resume to the repository. It is kept in this browser. Check the connection, then retry.') : T('  简历未能完成，请检查网络和设置后重试。','  Failed to complete the resume. Check your connection and Settings, then retry.'));
         if (e.message.includes('429')) {
           addLog(T('  触发限流——等 30 秒…','  Rate limited — waiting 30 s…'));
           await new Promise(r=>setTimeout(r,30000));
@@ -2519,10 +2521,11 @@ function PdfUploadField({ label, pdfKey }) {
       setGhSaving(true);
       await ghWriteDataUrl(pdfGhPath(pdfKey), url);
     } catch(e2) {
+      console.warn(e2);
       const msg = e2.message || T('上传失败','Upload failed');
       setErr(msg.includes('GitHub') || msg.includes('configured')
-        ? { kind:'warn', msg: T(`已保存在这个浏览器里，但未保存到 GitHub：${msg}`, `Saved in this browser, but not saved to GitHub: ${msg}`) }
-        : { kind:'error', msg });
+        ? { kind:'warn', msg: T('已保存在这个浏览器里，但未保存到 GitHub。请重新选择文件再试一次。','Saved in this browser, but not saved to GitHub. Choose the file again to retry.') }
+        : { kind:'error', msg: T('文件未能保存。请重新选择文件再试一次。','The file could not be saved. Choose the file again to retry.') });
     }
     finally { setBusy(false); setGhSaving(false); }
   });};
@@ -3747,10 +3750,9 @@ function App() {
     });})();
   }, [sharedTry]);
 
-  // a failed save stays on screen until dismissed: the change is on this page only and is lost on reload
-  // (the message's own full stop is dropped: the toast adds one)
+  // Keep a plain, translated save failure visible until dismissed; diagnostics stay in the console.
   useEffect(() => {
-    const h = e => setSaveErr(String(e.detail?.message || 'Save to GitHub failed').replace(/[.。]\s*$/, ''));
+    const h = e => { console.warn(e.detail); setSaveErr(e.detail?.readFailure?'unread':'failed'); };
     window.addEventListener('jobapp:saveerror', h);
     return () => window.removeEventListener('jobapp:saveerror', h);
   }, []);
@@ -3938,7 +3940,7 @@ function App() {
       {saveErr && (
         <div className="toasts">
           <div className="toast" role="alert">
-            <p>{T('没能保存到 GitHub','Couldn’t save to GitHub')} — {saveErr}. {T('这次改动只在这个页面上，刷新就没了。','Your change is on this page only and is lost on reload.')}</p>
+            <p>{saveErr === 'unread' ? T('这个页面没能读到已保存的内容，这次没有保存。请在加载失败提示里点「重试」，读取完成后再保存。','This page never read your saved work, so nothing was saved. Use Retry in the load-failure message, then save after loading.') : T('没能保存到 GitHub。更改仍在此页，请在页首点重试。','Couldn’t save to GitHub. Your changes are still in this page. Use Retry in the header.')}</p>
             <Btn className="btn-sm" onClick={e => openSettings(e.currentTarget)}>{T('打开设置','Open settings')}</Btn>
             <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={T('关闭','Dismiss')} data-tip={T('关闭','Dismiss')} onClick={() => setSaveErr('')}><Icon name="x" /></button>
           </div>
