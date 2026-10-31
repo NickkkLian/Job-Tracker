@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-9Q4lbDxmkKa0OiSEdhM3shTqoTB8RwPSia5TbLdwrmM=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-GyzVLsj9HTRiWD1w1jaD/l44n81nkahSSUqF5LgO150='">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-9Q4lbDxmkKa0OiSEdhM3shTqoTB8RwPSia5TbLdwrmM=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-iNxUGhRu446ZIJgrZ/btaVKL3h64dCWqZtoorDXDF+k='">
 <script src="assets/settings-standard/core.js"></script>
 <script src="assets/settings-standard/save-status.js"></script>
 <script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem(HubSettingsContract.preferenceKey("nl-theme")),s=L.getItem(HubSettingsContract.preferenceKey("nl-scheme"));if(s===null){var o=L.getItem(HubSettingsContract.preferenceKey("theme"))||L.getItem(HubSettingsContract.preferenceKey("qm-theme"));if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
@@ -33,6 +33,7 @@
 <link rel="stylesheet" href="pipeline.css">
 <link rel="stylesheet" href="assets/settings-standard/save-status.css">
 <link rel="stylesheet" href="assets/save-status-adapter.css">
+<script src="assets/first-read.js?v=f4be09df1a2d"></script>
 </head>
 <body>
 <!-- the page before React mounts: the band with the mark, and three skeleton lines -->
@@ -3777,6 +3778,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
   const [focusJob, setFocusJob] = useState(null);
   const [loadErr, setLoadErr] = useState(null);
   const [attempt, setAttempt] = useState(0);
+  const retryReadDone = useRef(null);
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -3790,15 +3792,22 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
           if (!cancelled) {
             setJobs(Array.isArray(j) ? j : []);
             setLoading(false);
+            FirstRead.ready(region);
           }
         } catch (e) {
           if (!cancelled) {
             setLoadErr(e);
             setLoading(false);
             jobRegionError = e;
+            FirstRead.fail(() => new Promise((resolve) => {
+              retryReadDone.current = resolve;
+              setAttempt((a) => a + 1);
+            }), T, true, region);
           }
         } finally {
           jobRegionLoading = false;
+          retryReadDone.current?.();
+          retryReadDone.current = null;
         }
       });
     })();
@@ -3959,6 +3968,7 @@ function App() {
   const [sharedTry, setSharedTry] = useState(0);
   const [connGen, setConnGen] = useState(0);
   const [sharedLoading, setSharedLoading] = useState(false);
+  const sharedRetryDone = useRef(null);
   useEffect(() => {
     const ok = ghConfigured();
     setGhOk(ok);
@@ -3989,9 +3999,16 @@ function App() {
           setSharedErr(e);
           setSharedLoading(false);
           setLoaded(true);
+          FirstRead.fail(() => new Promise((resolve) => {
+            sharedRetryDone.current = resolve;
+            setSharedTry((n) => n + 1);
+          }), T, true, "shared");
+          sharedRetryDone.current?.();
+          sharedRetryDone.current = null;
           return;
         }
         setSharedErr(null);
+        FirstRead.ready("shared");
         setDiagnosis(diag && !Array.isArray(diag) ? diag : null);
         let secs = rawSecs;
         if ((!secs || secs.length === 0) && oldDb.trim()) {
@@ -4004,6 +4021,8 @@ function App() {
         setLibrary(lib);
         setSharedLoading(false);
         setLoaded(true);
+        sharedRetryDone.current?.();
+        sharedRetryDone.current = null;
       });
     })();
   }, [sharedTry]);

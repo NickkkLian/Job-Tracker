@@ -3491,6 +3491,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
   const [focusJob, setFocusJob] = useState(null);   // back from a job: its row takes focus again
   const [loadErr, setLoadErr] = useState(null);
   const [attempt, setAttempt] = useState(0);
+  const retryReadDone = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -3498,8 +3499,8 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
     (async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
       try {
         const j = (DEMO && !ghConfigured()) ? sampleJobs(region) : await loadJsonStrict(`${region}:jobs`);
-        if (!cancelled) { setJobs(Array.isArray(j) ? j : []); setLoading(false); }
-      } catch (e) { if (!cancelled) { setLoadErr(e); setLoading(false);jobRegionError=e; } }finally{jobRegionLoading=false;}
+        if (!cancelled) { setJobs(Array.isArray(j) ? j : []); setLoading(false); FirstRead.ready(region); }
+      } catch (e) { if (!cancelled) { setLoadErr(e); setLoading(false);jobRegionError=e; FirstRead.fail(()=>new Promise(resolve=>{retryReadDone.current=resolve;setAttempt(a=>a+1);}),T,true,region); } }finally{jobRegionLoading=false;retryReadDone.current?.();retryReadDone.current=null;}
     });})();
     return () => { cancelled=true; };
   }, [region, attempt]);
@@ -3709,6 +3710,7 @@ function App() {
   // not what is still in memory — empty after a failed read, the other repository's after switching — which a save in
   // that window used to write back (fixed 2026-09-23). The error stays until a new read has worked.
   const [sharedLoading, setSharedLoading] = useState(false);
+  const sharedRetryDone = useRef(null);
   useEffect(() => {
     const ok = ghConfigured(); setGhOk(ok);
     if (!ok) {   // no dialog on arrival: the connect card on every view opens Settings
@@ -3727,8 +3729,8 @@ function App() {
           loadJsonStrict('library'),
           loadJsonStrict('diagnosis'),
         ]);
-      } catch (e) { setSharedErr(e); setSharedLoading(false); setLoaded(true); return; }
-      setSharedErr(null);
+      } catch (e) { setSharedErr(e); setSharedLoading(false); setLoaded(true); FirstRead.fail(()=>new Promise(resolve=>{sharedRetryDone.current=resolve;setSharedTry(n=>n+1);}),T,true,'shared'); sharedRetryDone.current?.();sharedRetryDone.current=null;return; }
+      setSharedErr(null); FirstRead.ready('shared');
       setDiagnosis(diag && !Array.isArray(diag) ? diag : null);
       let secs = rawSecs;
       if ((!secs || secs.length === 0) && oldDb.trim()) {
@@ -3741,6 +3743,7 @@ function App() {
       setLibrary(lib);
       setSharedLoading(false);
       setLoaded(true);
+      sharedRetryDone.current?.();sharedRetryDone.current=null;
     });})();
   }, [sharedTry]);
 
