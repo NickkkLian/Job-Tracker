@@ -2279,7 +2279,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
             if (e.exists) throw e;
             savePdfLocal(pdfKey, dataUrl);
             console.warn(e);
-            throw Object.assign(new Error('Resume save failed'), {resumeSave:true});
+            e.resumeSave=true; throw e;
           }
           savePdfLocal(pdfKey, dataUrl);
         } else {

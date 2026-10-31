@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-9Q4lbDxmkKa0OiSEdhM3shTqoTB8RwPSia5TbLdwrmM=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-EXukef5diqdrbX3fTlEFdWLEENcYhi2UhK7KZbI3wXs='">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-9Q4lbDxmkKa0OiSEdhM3shTqoTB8RwPSia5TbLdwrmM=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-n7l5/w/Nmkrm78KQUvziTGQ28ombNeBt2Y2i7LFP+M0='">
 <script src="assets/settings-standard/core.js"></script>
 <script src="assets/settings-standard/save-status.js"></script>
 <script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem(HubSettingsContract.preferenceKey("nl-theme")),s=L.getItem(HubSettingsContract.preferenceKey("nl-scheme"));if(s===null){var o=L.getItem(HubSettingsContract.preferenceKey("theme"))||L.getItem(HubSettingsContract.preferenceKey("qm-theme"));if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
@@ -2871,7 +2871,8 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
               if (e.exists) throw e;
               savePdfLocal(pdfKey, dataUrl);
               console.warn(e);
-              throw Object.assign(new Error("Resume save failed"), { resumeSave: true });
+              e.resumeSave = true;
+              throw e;
             }
             savePdfLocal(pdfKey, dataUrl);
           } else {
