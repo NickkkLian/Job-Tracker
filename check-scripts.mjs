@@ -59,6 +59,10 @@ function attrs(s) {
 // A value a browser would load from this repository: a plain path once the spaces around it are dropped (PLAIN has no
 // '&', so a character reference never passes)
 const plainValue = (v) => PLAIN.test(v.trim());
+// A <script src> may end in a cache tag ?v=<hex> (src/index.template.html loads assets/first-read.js?v=… since dd0bf22).
+// The tag is dropped before the checks, so the rest must still be a plain path to a file in this repository; any other query is still a finding.
+const VERSION_TAG = /\?v=[0-9a-f]+$/i;
+const withoutVersionTag = (v) => v.trim().replace(VERSION_TAG, '');
 
 // The string literal (quote, apostrophe or backtick) that starts at s[i] after spaces: its text up to the closing quote,
 // or up to the first ${ of a template (cut: true). null when the code there is not a string literal.
@@ -130,8 +134,9 @@ function scanText(s, local) {
   };
   for (const m of s.matchAll(TAG('script'))) {
     const a = attrs(m[1]);
-    for (const [k, v] of a) {
+    for (const [k, raw] of a) {
       if (k !== 'src' && k !== 'href' && k !== 'xlink:href') continue;
+      const v = withoutVersionTag(raw);
       if (!plainValue(v)) add(m.index, `<script> ${k} that is not a plain path in this repository`);
       else loadsLocal(m.index, `<script> ${k}`, v);
     }
@@ -257,6 +262,9 @@ export const SAMPLES = [
   ['a local script that is not in the repository', 'head', '<script src="missing-file.js"></script>'],
   // the file outside is there, and harmless: caught for leaving the repository, not for being missing
   ['a local path that leaves the repository', 'head', '<script src="../other/lib.js"></script>', { '../other/lib.js': '/* outside */\n' }],
+  ['tag: an address with a ?v= cache tag', 'head', '<script src="https://cdn.example.com/lib.js?v=abc"></script>'],
+  ['tag: a missing local file with a ?v= cache tag', 'head', '<script src="missing-file.js?v=abc"></script>'],
+  ['tag: a local file with a query that is not a ?v=<hex> cache tag', 'head', '<script src="appearance.js?x=1"></script>'],
   ["code: setAttribute('SRC') in upper case", 'code', "s.setAttribute('SRC', 'https://cdn.example.com/lib');"],
   ['code: Object.assign(el, { src })', 'code', "Object.assign(el, { async: true, src: 'https://cdn.example.com/lib' });"],
   ["code: Reflect.set(el, 'src', …)", 'code', "Reflect.set(el, 'src', u);"],
@@ -281,6 +289,7 @@ export const ALLOWED = [
   ['tag: a vendor/ file', 'head', '<script src="vendor/react-18.3.1.production.min.js"></script>'],
   ['tag: this repository\'s own file', 'head', '<script src="appearance.js"></script>'],
   ['tag: this repository\'s own file, no quotes', 'head', '<script src=appearance.js></script>'],
+  ['tag: this repository\'s own file with a ?v= cache tag', 'head', '<script src="appearance.js?v=abc"></script>'],
   ['code: pdf.js from vendor/', 'code', 's.src = `vendor/pdf-${V}.min.js`; window.pdfjsLib.GlobalWorkerOptions.workerSrc = `vendor/pdf.worker-${V}.min.js`;'],
   ['a stylesheet from another host', 'head', '<link rel="stylesheet" href="https://fonts.example.com/css2?family=Inter">'],
   ['preconnect', 'head', '<link rel="preconnect" href="https://fonts.example.com">'],
