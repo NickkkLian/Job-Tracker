@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- Built by build.mjs from src/index.template.html and src/app.jsx. Edit those two, then run: node build.mjs -->
-<html lang="en">
+<html lang="en" data-suite-scale="fluid">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-9Q4lbDxmkKa0OiSEdhM3shTqoTB8RwPSia5TbLdwrmM=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-n7l5/w/Nmkrm78KQUvziTGQ28ombNeBt2Y2i7LFP+M0='">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-9Q4lbDxmkKa0OiSEdhM3shTqoTB8RwPSia5TbLdwrmM=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-KcjJbebxyrzsdzwLyS3e8MQpazJu121n3URBS9UVW0I='">
 <script src="assets/settings-standard/core.js"></script>
 <script src="assets/settings-standard/save-status.js"></script>
 <script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem(HubSettingsContract.preferenceKey("nl-theme")),s=L.getItem(HubSettingsContract.preferenceKey("nl-scheme"));if(s===null){var o=L.getItem(HubSettingsContract.preferenceKey("theme"))||L.getItem(HubSettingsContract.preferenceKey("qm-theme"));if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
@@ -33,6 +33,7 @@
 <link rel="stylesheet" href="pipeline.css">
 <link rel="stylesheet" href="assets/settings-standard/save-status.css">
 <link rel="stylesheet" href="assets/save-status-adapter.css">
+<link rel="stylesheet" href="assets/settings-standard/scale.css?v=1.0.0">
 <script src="assets/first-read.js?v=f4be09df1a2d"></script>
 </head>
 <body>
@@ -1825,6 +1826,7 @@ function Icon({ name, size = 18, className }) {
       viewBox: "0 0 24 24",
       width: size,
       height: size,
+      style: { width: `calc(${size} * var(--suite-px, 1px))`, height: `calc(${size} * var(--suite-px, 1px))` },
       fill: "none",
       stroke: "currentColor",
       strokeWidth: "2",
@@ -2926,7 +2928,7 @@ const ledgerDate = (value) => {
   return !value ? "" : isNaN(d) ? String(value) : d.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-GB", { month: "short", day: "numeric", timeZone: "UTC" });
 };
 function StageStamp({ stage, size = 28 }) {
-  return /* @__PURE__ */ React.createElement("svg", { className: "stage-stamp", width: size, height: size, viewBox: "0 0 28 28", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("circle", { className: "ring", cx: "14", cy: "14", r: "12.2" }), /* @__PURE__ */ React.createElement("circle", { className: "ring2", cx: "14", cy: "14", r: "10" }), /* @__PURE__ */ React.createElement("g", { className: "glyph" }, stage.glyph));
+  return /* @__PURE__ */ React.createElement("svg", { className: "stage-stamp", width: size, height: size, style: { width: `calc(${size} * var(--suite-px, 1px))`, height: `calc(${size} * var(--suite-px, 1px))` }, viewBox: "0 0 28 28", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("circle", { className: "ring", cx: "14", cy: "14", r: "12.2" }), /* @__PURE__ */ React.createElement("circle", { className: "ring2", cx: "14", cy: "14", r: "10" }), /* @__PURE__ */ React.createElement("g", { className: "glyph" }, stage.glyph));
 }
 function tierFolds(region) {
   try {

@@ -1036,7 +1036,7 @@ const ICON_PATHS = {
 };
 function Icon({ name, size=18, className }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2"
+    <svg className={className} viewBox="0 0 24 24" width={size} height={size} style={{width:`calc(${size} * var(--suite-px, 1px))`,height:`calc(${size} * var(--suite-px, 1px))`}} fill="none" stroke="currentColor" strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">{ICON_PATHS[name]}</svg>
   );
 }
@@ -2369,7 +2369,7 @@ const PIPELINE_STAGES = [
 const pipelineStage = status => PIPELINE_STAGES.find(s=>s.statuses.includes(status)) || PIPELINE_STAGES[4];
 const ledgerDate = value => {const d=new Date(value);return !value?'':isNaN(d)?String(value):d.toLocaleDateString(lang==='zh'?'zh-CN':'en-GB',{month:'short',day:'numeric',timeZone:'UTC'});};
 function StageStamp({stage,size=28}) {
-  return <svg className="stage-stamp" width={size} height={size} viewBox="0 0 28 28" aria-hidden="true"><circle className="ring" cx="14" cy="14" r="12.2"/><circle className="ring2" cx="14" cy="14" r="10"/><g className="glyph">{stage.glyph}</g></svg>;
+  return <svg className="stage-stamp" width={size} height={size} style={{width:`calc(${size} * var(--suite-px, 1px))`,height:`calc(${size} * var(--suite-px, 1px))`}} viewBox="0 0 28 28" aria-hidden="true"><circle className="ring" cx="14" cy="14" r="12.2"/><circle className="ring2" cx="14" cy="14" r="10"/><g className="glyph">{stage.glyph}</g></svg>;
 }
 function tierFolds(region) {
   try { const saved=JSON.parse(localStorage.getItem(`jobapp:tier-folds:${region}`)||'{}');return saved&&typeof saved==='object'?saved:{}; } catch { return {}; }
