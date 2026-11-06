@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <script src="assets/settings-standard/core.js"></script>
 <script src="assets/settings-standard/save-status.js"></script>
-<script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem(HubSettingsContract.preferenceKey("nl-theme")),s=L.getItem(HubSettingsContract.preferenceKey("nl-scheme"));if(s===null){var o=L.getItem(HubSettingsContract.preferenceKey("theme"))||L.getItem(HubSettingsContract.preferenceKey("qm-theme"));if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);if(s==='dark'||s==='light')d.setAttribute('data-scheme',s);}catch(e){}})();</script>
+<script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem(HubSettingsContract.preferenceKey("nl-theme")),s=L.getItem(HubSettingsContract.preferenceKey("nl-scheme"));if(s===null){var o=L.getItem(HubSettingsContract.preferenceKey("theme"))||L.getItem(HubSettingsContract.preferenceKey("qm-theme"));if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);d.setAttribute('data-scheme',s==='dark'?'dark':'light');}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="ApplyLedger: job applications, one pipeline per region, kept in a private repo you own. A tracker, a pipeline chart and an hours ledger for the Canadian Experience Class; the AI prompts run in your own Claude.ai.">
 <meta name="theme-color" content="#f7e9e8" media="(prefers-color-scheme: light)">
@@ -15,9 +15,6 @@
 <link rel="icon" href="assets/app-logo/32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="assets/app-logo/128.png" sizes="128x128">
 <link rel="manifest" href="app.webmanifest">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500..600;1,9..144,400&family=Inter:wght@400..600&family=Space+Mono:wght@400;700&display=swap">
 <link rel="stylesheet" href="design-tokens.css">
 <link rel="stylesheet" href="app.css">
 <link rel="stylesheet" href="assets/settings-standard/panel.css">
@@ -29,10 +26,12 @@
 <script src="appearance.js"></script>
 <link rel="stylesheet" href="assets/settings-standard/entry.css">
 <link rel="stylesheet" href="assets/settings-entry.css">
-<link rel="stylesheet" href="pipeline.css">
 <link rel="stylesheet" href="assets/settings-standard/save-status.css">
 <link rel="stylesheet" href="assets/save-status-adapter.css">
 <link rel="stylesheet" href="assets/settings-standard/scale.css?v=1.0.0">
+<link rel="preload" href="assets/fonts/hanken-grotesk-latin-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/source-serif-4-latin-variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="ledger.css">
 <script src="assets/first-read.js?v=f4be09df1a2d"></script>
 </head>
 <body>

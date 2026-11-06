@@ -68,7 +68,7 @@ function sampleJobs(region = 'canada') {
     { id:'demo-uk4', dateAdded:ago(33), status:'interview_rejected', priority:'T2', company:'Tallowby Fintech',   role:'Product Analyst',    location:'Manchester',  salaryRange:'£45k',        applicationDeadline:'', noc:'', empType:'', applyMethod:'Lever', weeklyHours:'', startDate:'', endDate:'', notes:'Final round; they hired internally.', jdText:'Funnel analysis and experiment design for a payments app.' },
   ];
   if (region !== 'canada') return [];
-  return [
+  const core = [
     { id:'demo1', dateAdded:ago(2),  status:'interested',         priority:'T1', company:'Northwind Analytics', role:'Data Analyst',                 location:'Vancouver, BC',          salaryRange:'$65k – $75k', applicationDeadline:day(9), noc:'21223', empType:'', applyMethod:'Greenhouse', weeklyHours:'', startDate:'', endDate:'', notes:'Referred by a former classmate.', jdText:'Own reporting for the growth team: SQL, Python (pandas), Looker dashboards and experiment read-outs. To apply, tell us about one analysis that changed a decision.' },
     { id:'demo2', dateAdded:ago(6),  status:'applied',            priority:'T2', company:'Fathom Robotics',     role:'Junior Software Engineer',     location:'Toronto, ON (hybrid)',   salaryRange:'$80k – $95k', applicationDeadline:'',     noc:'21232', empType:'', applyMethod:'Workday',    weeklyHours:'', startDate:'', endDate:'', notes:'', jdText:'Build internal tooling in TypeScript and Python for a fleet-operations team. Tests, code review, on-call rotation after six months.' },
     { id:'demo3', dateAdded:ago(14), status:'interviewing',       priority:'T1', company:'Cascade Health',      role:'Business Intelligence Analyst', location:'Burnaby, BC',           salaryRange:'$70k – $82k', applicationDeadline:'',     noc:'21223', empType:'', applyMethod:'Direct',     weeklyHours:'', startDate:'', endDate:'', notes:'Second round on Thursday — case study on readmission rates.', jdText:'Maintain the clinical operations data mart (dbt, BigQuery) and ship weekly KPI packs to regional directors.' },
@@ -79,6 +79,10 @@ function sampleJobs(region = 'canada') {
     { id:'demo8', dateAdded:ago(40), status:'offered',            priority:'T2', company:'Kittiwake Freight',    role:'Data Engineer',                 location:'Delta, BC',     salaryRange:'$84k',  applicationDeadline:'', noc:'21223', empType:'', applyMethod:'Referral', weeklyHours:'', startDate:'', endDate:'', notes:'Offer in hand — answer due next Friday.', jdText:'Airflow pipelines for container tracking; Python, SQL, a little Terraform.' },
     { id:'demo9', dateAdded:ago(12), status:'interested',         priority:'T3', company:'Tidewrack Energy Co-op', role:'Analytics Intern',            location:'Victoria, BC',  salaryRange:'$24/h', applicationDeadline:day(-3), noc:'', empType:'', applyMethod:'Direct', weeklyHours:'', startDate:'', endDate:'', notes:'', jdText:'Summer internship: metering data, Python notebooks, one presentation to the board.' },
   ];
+  const saved=Array.from({length:38},(_,i)=>({id:`demo-saved-${i}`,company:['Cedar Street Foods','North Bay Transit','Seabrook Housing','Oakfield Systems','Stillwater Research','Fieldstone Energy'][i%6],role:['Reporting Analyst','Data Analyst','Operations Analyst','Research Analyst'][i%4],status:'interested',priority:`T${i%4+1}`,dateAdded:ago(i<8?35+i*4:2+i%25),location:'Vancouver, BC',salaryRange:'$65k – $80k',applicationDeadline:i===0?day(6):'',postingUrl:i<3?`https://www.linkedin.com/jobs/view/900000000${i}`:`https://example.com/jobs/saved-${i}`,jdText:'SQL reporting and clear operational analysis.'}));
+  const sent=Array.from({length:11},(_,i)=>({id:`demo-waiting-${i}`,company:['Maple Coast Bank','Clearwater Supply','Westport Research','Bayside Housing'][i%4],role:['Data Analyst','Product Analyst','Reporting Analyst'][i%3],status:'applied',priority:'T2',dateAdded:ago(3+i*3),appliedAt:ago(2+i*3+(i===10?8:0)),location:'Canada',salaryRange:'$70k – $85k',applicationDeadline:''}));
+  return [...core.map(j=>j.id==='demo7'?{...j,status:'rejected'}:j),...saved,...sent,{id:'demo-talking',company:'Pine Bay Transit',role:'Operations Analyst',status:'interviewing',priority:'T1',dateAdded:ago(12),location:'Vancouver, BC',notes:'First conversation on Friday.'}];
+
 }
 
 // Demo profile: a made-up person (every name, address and number here is invented), so the demo's prompt buttons have
@@ -103,10 +107,24 @@ const jobSaveStatus=SuiteSaveStatus.create(),jobLatestWrites=new Map(),jobCached
 function refreshJobSaveConnection(){jobSaveStatus.connection({online:navigator.onLine,connected:!DEMO&&HubSettingsContract.complete(jobConnection)});}
 window.addEventListener('online',refreshJobSaveConnection);
 window.addEventListener('offline',refreshJobSaveConnection);
-function JobSaveStatus(){
-  const node=useRef(null);
-  useEffect(()=>{const view=SuiteSaveStatus.mount(node.current,jobSaveStatus,{language:()=>lang});_langSubs.push(view.refresh);refreshJobSaveConnection();return()=>{view.destroy();_langSubs=_langSubs.filter(fn=>fn!==view.refresh);};},[]);
-  return <div id="job-save-status" ref={node}/>;
+function JobSaveStatus({id='job-save-status',loading=false}){
+  const node=useRef(null),loadingNow=useRef(loading),refreshView=useRef(null);loadingNow.current=loading;
+  useEffect(()=>{
+    const view=SuiteSaveStatus.mount(node.current,jobSaveStatus,{language:()=>lang});
+    const connect=document.createElement('button');connect.type='button';connect.onclick=()=>window.SuiteSettings?.open('connection');node.current.append(connect);
+    const refresh=()=>{
+      view.refresh();const state=jobSaveStatus.snapshot(),status=node.current.querySelector('[role=status]');
+      connect.textContent=T('连接','Connect');connect.hidden=state.state!=='local'||ghConfigured();
+      if(!connect.hidden)status.textContent=T('未保存：尚未连接仓库','Not saved: no repository connected');
+      else if(loadingNow.current&&state.state==='ready')status.textContent=T('正在读取…','Loading…');
+      else if(innerWidth<900&&state.state==='ready')status.textContent=T('暂无更改','No changes');
+      else if(innerWidth<900&&state.state==='saving')status.textContent=T('正在保存…','Saving…');
+    };
+    refreshView.current=refresh;const unsubscribe=jobSaveStatus.subscribe(refresh);_langSubs.push(refresh);window.addEventListener('resize',refresh);refreshJobSaveConnection();refresh();
+    return()=>{unsubscribe();view.destroy();window.removeEventListener('resize',refresh);_langSubs=_langSubs.filter(fn=>fn!==refresh);};
+  },[]);
+  useEffect(()=>refreshView.current?.(),[loading]);
+  return <div id={id} ref={node}/>;
 }
 // Attachment, deletion and restore paths keep their own write semantics and retry operations.
 async function jobSaveOperation(path,retry,operation,binaryValue=null){
@@ -474,13 +492,13 @@ const rName = r => r ? T(r.zh || r.name, r.name) : '';
 function regionContact(region){ const r = REGION_BY[region]; return (r && r.contactNote) || 'include all phone numbers, email, and location.'; }
 
 const STATUSES = [
-  { id:'interested',       label:'Interested',          zh:'感兴趣',       cls:'bg-purple-100 text-purple-800 border-purple-200' },
-  { id:'applied',          label:'Applied',             zh:'已投递',       cls:'bg-blue-100 text-blue-800 border-blue-200'   },
-  { id:'interviewing',     label:'Interviewing',        zh:'面试中',       cls:'bg-yellow-100 text-yellow-800 border-yellow-200' },
-  { id:'offered',          label:'Offered',             zh:'已获 Offer',   cls:'bg-green-100 text-green-800 border-green-200'  },
+  { id:'interested',       label:'Saved',          zh:'已收藏',       cls:'bg-purple-100 text-purple-800 border-purple-200' },
+  { id:'applied',          label:'Sent',             zh:'已投递',       cls:'bg-blue-100 text-blue-800 border-blue-200'   },
+  { id:'interviewing',     label:'Talking',        zh:'沟通中',       cls:'bg-yellow-100 text-yellow-800 border-yellow-200' },
+  { id:'offered',          label:'Offer',             zh:'已获 Offer',   cls:'bg-green-100 text-green-800 border-green-200'  },
   { id:'working',          label:'Working (CEC hours)', zh:'在职·计工时',  cls:'bg-teal-100 text-teal-800 border-teal-200'    },
-  { id:'rejected',         label:'Rejected',            zh:'已被拒',       cls:'bg-red-100 text-red-800 border-red-200'      },
-  { id:'interview_rejected', label:'Interviewed, Rejected', zh:'面试后被拒', cls:'bg-orange-100 text-orange-800 border-orange-200' },
+  { id:'rejected',         label:'Closed',            zh:'已结束',       cls:'bg-red-100 text-red-800 border-red-200'      },
+  { id:'interview_rejected', label:'Closed after interview', zh:'面试后结束', cls:'bg-orange-100 text-orange-800 border-orange-200' },
 ];
 // Display only: the stored value is the id (interested/applied…); label/zh are presentation
 // ── CEC hours ledger: hours above 30/week don't count; only status='working' jobs with a start date and weekly hours are counted
@@ -537,9 +555,11 @@ const statusLabel = id => stName(STATUSES.find(x => x.id === id) || STATUSES[0])
 // resumes, data/<region>_jobs.json). Shared views include Apply, profile, library and diagnosis.
 // Ids are the ?tab= values and never change.
 const TABS = [
-  { id:'apply',    label:'Apply',      zh:'去投递',     icon:'file',    scope:'shared' },
+  { id:'now', label:'Now', zh:'现在', icon:'check', scope:'shared' },
+  { id:'about', label:'How it works', zh:'了解原理', icon:'flow', scope:'shared' },
+  { id:'apply',    label:'Apply kits',      zh:'投递材料包',     icon:'file',    scope:'shared' },
   { id:'addjob',   label:'Add job',    zh:'添加职位',   icon:'plus',    scope:'region' },
-  { id:'tracker',  label:'Tracker',    zh:'追踪',       icon:'list',    scope:'region' },
+  { id:'tracker',  label:'Applications',    zh:'申请清单',       icon:'list',    scope:'region' },
   { id:'insights', label:'Insights',   zh:'数据',       icon:'flow',    scope:'region' },
   { id:'watchdog', label:'Alerts',     zh:'提醒',       icon:'mail',    scope:'region' },
   { id:'profile',  label:'My profile', zh:'我的资料',   icon:'person',  scope:'shared' },
@@ -547,7 +567,7 @@ const TABS = [
   { id:'library',  label:'Resumes',    zh:'简历库',     icon:'file',    scope:'shared' },
   { id:'ghost',    label:'Ghost check',zh:'幽灵岗检查', icon:'ghost',   scope:'shared' },
 ];
-const tabFromUrl = () => { if (/^#apply\//.test(location.hash)) return 'apply'; const t = new URLSearchParams(location.search).get('tab') || ''; return TABS.some(x => x.id === t) ? t : 'addjob'; };
+const tabFromUrl = () => { if (/^#apply\//.test(location.hash)) return 'apply'; const t = new URLSearchParams(location.search).get('tab') || ''; return TABS.some(x => x.id === t) ? t : 'now'; };
 // A link can open a region: ?region=usa (any id in REGIONS). Read once when the page opens; the region picker still
 // changes it and does not write it back, so a link keeps meaning the same thing.
 const regionFromUrl = () => { const r = new URLSearchParams(location.search).get('region') || ''; return REGION_BY[r] ? r : 'canada'; };
@@ -1017,6 +1037,9 @@ function parseJdFields(text) {
 
 // Line icons: 24-unit box, 2px round strokes in currentColor (drawn like the family's gear)
 const ICON_PATHS = {
+  dots:    <path d="M5 12h.01M12 12h.01M19 12h.01"/>,
+  info:    <><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></>,
+  check:   <path d="m5 12 4 4L19 6"/>,
   plus:    <path d="M12 5v14M5 12h14"/>,
   list:    <path d="M9.5 6.5h10M9.5 12h10M9.5 17.5h10M5 6.5h.01M5 12h.01M5 17.5h.01"/>,
   flow:    <path d="M3 12h5c3.5 0 4.5-6.5 8-6.5h5M8 12h13M8 12c3.5 0 4.5 6.5 8 6.5h5"/>,
@@ -1103,9 +1126,9 @@ function PageHead({ eyebrow, title, sub, action }) {
   return (
     <div className="page-head">
       <div className="titles">
-        {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+
         <h1 tabIndex={-1}>{title}</h1>
-        {sub && <p className="sub">{sub}</p>}
+        {sub && <details className="page-help"><summary aria-label={T('页面说明','About this page')}><Icon name="info"/></summary><p className="sub">{sub}</p></details>}
       </div>
       {action && <div className="acts">{action}</div>}
     </div>
@@ -1927,7 +1950,7 @@ function JobFields({ form, set, idPrefix, error, onTyped }) {
         <legend>{T('给 CEC 工时账用','For the CEC hours ledger')}</legend>
         <p className="hint">{T('在这份工作上班之后再填：状态是「在职·计工时」时工时账才会算它。','Only needed once you work in this job: the ledger counts it when the status is Working.')}</p>
         <div className="form-grid">
-          <Fld id={id('noc')} label={T('NOC 编码','NOC code')} hint={T('5 位数字，第二位是 TEER','5 digits; the second digit is the TEER')}>
+          <Fld id={id('noc')} label={T('NOC 编码（加拿大职业分类）','NOC code (Canada’s job classification)')} hint={T('5 位数字，第二位是 TEER','5 digits; the second digit is the TEER')}>
             {text('noc', { inputMode:'numeric', placeholder:'21223', 'aria-describedby': `${id('noc')}-hint` })}
           </Fld>
           <Fld id={id('empType')} label={T('雇佣类型','Employment type')}>
@@ -1984,7 +2007,7 @@ function AddJobTab({ resumeDb, formatting, glossary, library, jobs, setJobs, reg
           <textarea id="add-jd" className="jd-box" aria-labelledby="jd-h" rows={10} value={form.jdText} onChange={e => set('jdText', e.target.value)}
             placeholder={T('把完整的职位描述贴在这里，或者上传一个文件。','Paste the full job description here, or upload a file.')} />
           <div className="jd-acts">
-            <FileUploadButton onFile={handleJdUpload} label={T('上传职位描述文件…','Upload JD file…')} accept=".txt,.md,.markdown,.docx,.pdf" />
+            <FileUploadButton onFile={handleJdUpload} label={T('上传职位描述文件…','Upload job description…')} accept=".txt,.md,.markdown,.docx,.pdf" />
             <Btn onClick={() => fillFrom(form.jdText)} disabled={!form.jdText.trim()}>{T('从描述里填字段','Fill fields from the description')}</Btn>
             <span className="count num">{fmtNum(form.jdText.length)} {T('字符','chars')}</span>
           </div>
@@ -2316,7 +2339,7 @@ function BatchTailorModal({ region, jobs, setJobs, resumeDb, formatting, onClose
   // while a run is going the dialog cannot be closed (Esc and the backdrop do nothing, Cancel is disabled), as before
   return (
     <Dialog labelId="bt-h" onClose={running ? () => {} : onClose} wide>
-      <h2 id="bt-h">{T('批量定制简历','Batch tailor resumes')}</h2>
+      <h2 id="bt-h">{T('为多个职位定制简历','Tailor résumés for several jobs')}</h2>
       <p className="hint">{T('每个职位调用一次 API，每份约 $0.02–0.04；结果是一页 PDF，存到这个职位下。','One API call per job, about $0.02–0.04 each; each result is a one-page PDF saved to the job.')}</p>
       <div className="bt-head">
         <p className="bt-count">{T(`${eligible.length} 个「感兴趣」的职位可以定制`, `${eligible.length} Interested ${plural(eligible.length, 'job', 'jobs')} to tailor`)}</p>
@@ -2374,89 +2397,51 @@ function StageStamp({stage,size=28}) {
 function tierFolds(region) {
   try { const saved=JSON.parse(localStorage.getItem(`jobapp:tier-folds:${region}`)||'{}');return saved&&typeof saved==='object'?saved:{}; } catch { return {}; }
 }
-function TrackerTab({ region, jobs, setJobs, onOpen, resumeDb, formatting, initialStatus, onAdd, focusJobId, onFocused }) {
-  const [filter,setFilter]=useState(initialStatus || 'all');
-  const [tierFilter,setTierFilter]=useState('all');
-  const [search,setSearch]=useState('');
-  const [showBatch,setShowBatch]=useState(false);
-  const [folds,setFolds]=useState(()=>tierFolds(region));
-  const [phone,setPhone]=useState(()=>matchMedia('(max-width:899px)').matches);
-  const [focusId,setFocusId]=useState(focusJobId||null);
-  const [announcement,setAnnouncement]=useState('');
-  useEffect(()=>{const mq=matchMedia('(max-width:899px)');const change=()=>setPhone(mq.matches);mq.addEventListener('change',change);return()=>mq.removeEventListener('change',change);},[]);
-  useEffect(()=>{if(!focusId)return;const b=document.querySelector(`[data-job="${CSS.escape(focusId)}"] .job-open`);if(b){b.focus();setFocusId(null);onFocused?.();}},[focusId,jobs,folds,filter,phone]);
+function TrackerTab({region,jobs,setJobs,onOpen,resumeDb,formatting,initialStatus,onAdd,focusJobId,onFocused,desk,go}) {
+  const [filter,setFilter]=useState(initialStatus||'all'),[tierFilter,setTierFilter]=useState('all'),[search,setSearch]=useState(''),[showBatch,setShowBatch]=useState(false),[folds,setFolds]=useState(()=>tierFolds(region)),[groups,setGroups]=useState(()=>{try{return JSON.parse(localStorage.getItem(`jobapp:groups:${region}`)||'{}');}catch{return {};}}),[focusId,setFocusId]=useState(focusJobId||null),[announcement,setAnnouncement]=useState('');
+  useEffect(()=>{if(!focusJobId)return;const job=jobs.find(j=>j.id===focusJobId);if(!job)return;setFilter('all');if(job.status==='interested')foldTier(tierKey(job),true);foldGroup(groupFor(display(job)),true);setFocusId(focusJobId);},[focusJobId,jobs]);
+  useEffect(()=>{if(!focusId)return;const b=document.querySelector(`[data-job="${CSS.escape(String(focusId))}"] .job-open`);if(b?.checkVisibility()){b.focus();setFocusId(null);onFocused?.();}},[focusId,jobs,folds,groups,filter]);
   const foldTier=(tier,open)=>setFolds(old=>{const next={...old,[tier]:open};try{localStorage.setItem(`jobapp:tier-folds:${region}`,JSON.stringify(next));}catch{}return next;});
-  const filtered=useMemo(()=>jobs.filter(j=>{
-    if(tierFilter!=='all'&&tierKey(j)!==tierFilter)return false;
-    return !search||`${j.company} ${j.role} ${j.location}`.toLowerCase().includes(search.toLowerCase());
-  }).sort((a,b)=>String(a.company||'').localeCompare(String(b.company||''))),[jobs,tierFilter,search]);
-  const counts=Object.fromEntries(PIPELINE_STAGES.map(s=>[s.id,filtered.filter(j=>pipelineStage(j.status).id===s.id).length]));
-  const live=PIPELINE_STAGES.filter(s=>counts[s.id]&&(filter==='all'||filter===s.id||s.statuses.includes(filter)));
-  const ordered=phone?['talk','won','sent','want','shut'].map(id=>live.find(s=>s.id===id)).filter(Boolean):live;
-  const visible=filtered.filter(j=>filter==='all'||j.status===filter||pipelineStage(j.status).id===filter);
+  const foldGroup=(id,open)=>setGroups(old=>{const next={...old,[id]:open};try{localStorage.setItem(`jobapp:groups:${region}`,JSON.stringify(next));}catch{}return next;});
+  const linked=job=>desk.kits.find(k=>k.jobRef?.region===region&&String(k.jobRef.id)===String(job.id));
+  const record=kit=>desk.progress.find(r=>r.id===kit?.id)||{};
+  const display=job=>{const kit=linked(job);return Ledger.state(kit,record(kit),job);};
+  useListMovement('[data-job]',jobs.map(j=>`${j.id}:${j.status}`).join(','));
+  const groupFor=state=>({talking:'talk',offer:'talk',yours:'ready',ready:'ready',sent:'sent',saved:'want',working:'working',quiet:'quiet',closed:'shut'})[state]||'shut';
+  const groupNames={talk:T('沟通中','Talking'),ready:T('待发送','Ready to send'),sent:T('已投递','Sent'),want:T('已收藏','Saved'),working:T(inCanada()?'在职·计工时':'在职',inCanada()?'Working (CEC hours)':'Working'),quiet:T('未回复','No reply'),shut:T('已结束','Closed')};
+  const filtered=jobs.filter(j=>(tierFilter==='all'||tierKey(j)===tierFilter)&&(!search||`${j.company} ${j.role} ${j.location}`.toLowerCase().includes(search.toLowerCase()))).sort((a,b)=>String(a.company||'').localeCompare(String(b.company||'')));
+  const visible=filtered.filter(j=>filter==='all'||j.status===filter||groupFor(display(j))===filter);
   const updateStatus=async(id,status)=>HubSettingsRuntime.track(async()=>{
-    const j=jobs.find(j=>j.id===id);if(!j)return;
-    const updated=jobs.map(j=>j.id===id?{...j,status}:j);
-    // Moving may create a column or put a card in a folded tier. Reveal it before returning focus.
-    setFilter('all');if(status==='interested')foldTier(tierKey(j),true);
-    setJobs(updated);setFocusId(id);
-    setAnnouncement(T(`${j.role}：${statusLabel(status)}`,`${j.role}: ${statusLabel(status)}`));
-    await saveJson(`${region}:jobs`,updated);
+    const job=jobs.find(j=>j.id===id);if(!job)return;
+    const updated=jobs.map(j=>j.id===id?{...j,...Ledger.jobStatusPatch(j,status)}:j);
+    setFilter('all');if(status==='interested')foldTier(tierKey(job),true);
+    foldGroup(groupFor(Ledger.state(null,{},updated.find(j=>j.id===id))),true);
+    const kit=linked(job);
+    if(kit){const ok=await desk.update(kit.id,r=>Ledger.progressForStatus(r,status),{jobStatus:status});if(!ok)return;}
+    else{setJobs(updated);await saveJson(`${region}:jobs`,updated);}
+    setFocusId(id);setAnnouncement(T(`${job.role}：${statusLabel(status)}`,`${job.role}: ${statusLabel(status)}`));
   });
-  const clearFilters=()=>{setFilter('all');setTierFilter('all');setSearch('');};
-  const card=(j,s)=>{
-    const role=j.role||T('（无职位名）','(no title)'),company=j.company||T('（无公司）','(no company)');
-    const ready=!!loadPdfLocal(`${region}:${j.id}:resume`);
-    const late=j.status==='interested'&&j.applicationDeadline&&new Date(j.applicationDeadline)<new Date();
-    return <li key={j.id} className="job pipeline-card" data-status={j.status} data-job={j.id} data-entry="card" onClick={e=>{if(!e.target.closest('button,summary,.job-move'))onOpen(j.id);}}>
-      <button type="button" className="job-open" onClick={()=>onOpen(j.id)} aria-label={T(`打开：${role}，${company}`,`Open: ${role} at ${company}`)+(ready?T('，简历就绪',', resume ready'):'')+(late?T('，已过截止',', deadline passed'):'')}>
-        <span className="role">{role}</span>
-      </button>
-      <div className="entry-lines"><span className="job-sub" title={`${company}${j.location?` · ${j.location}`:''}`}>{company}{j.location?` · ${j.location}`:''}</span><div className="entry-meta">
-          {s.id!=='want'&&<span className="tier-tag">{tierKey(j)||T('未分级','Unranked')}</span>}
-          {j.status==='interview_rejected'&&<span className="verdict">{T('面试后','after interview')}</span>}
-          {j.status==='working'&&inCanada()&&<span className="entry-chip">{T('计 CEC 工时','CEC hours')}</span>}
-          {j.status==='offered'&&<span className="entry-chip">Offer</span>}
-          {!STATUSES.some(s=>s.id===j.status)&&<span className="verdict">{String(j.status||'—')}</span>}
-          <span className="entry-date">{T('添加 ','added ')}{ledgerDate(j.dateAdded)}</span>
-          {j.applicationDeadline&&<span className={`entry-date${late?' late':''}`}>{T('截止 ','due ')}{ledgerDate(j.applicationDeadline)}</span>}
-          {ready&&<span className="entry-chip">{T('简历就绪','resume ready')}</span>}
+  const clear=()=>{setFilter('all');setTierFilter('all');setSearch('');};
+  const card=job=>{
+    const role=job.role||T('（无职位名）','(no title)'),company=job.company||T('（无公司）','(no company)');
+    return <li key={job.id} className="job application-row" data-status={job.status} data-job={job.id} data-entry="row">
+      <button className="job-open" title={`${role} · ${company}`} onClick={()=>onOpen(job.id)}><b className="role">{role}</b><span className="job-sub">{company}</span></button>
       <details className="job-move" onKeyDown={e=>{
         const d=e.currentTarget,items=[...d.querySelectorAll('[data-move-status]')];
         if(e.key==='Escape'){e.preventDefault();e.stopPropagation();d.open=false;d.querySelector('summary').focus();}
         if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();d.open=true;const i=items.indexOf(document.activeElement);items[e.key==='Home'?0:e.key==='End'?items.length-1:(i+(e.key==='ArrowDown'?1:-1)+items.length)%items.length]?.focus();}
-      }} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))e.currentTarget.open=false;}}>
-        <summary aria-label={T(`移动「${role}」到…`,`Move ${role} to…`)}>{T('移至…','Move to…')}</summary>
-        <div className="move-options" role="group" aria-label={T('移至状态','Move to status')}>
-          {STATUSES.filter(st=>st.id!==j.status).map(st=><button type="button" key={st.id} data-move-status={st.id} onClick={e=>{e.currentTarget.closest('details').open=false;updateStatus(j.id,st.id);}}>{stName(st)}</button>)}
-        </div>
-      </details>
-      </div></div>
+      }} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))e.currentTarget.open=false;}}><summary aria-label={T(`移动「${role}」到…`,`Move ${role} to…`)}><Icon name="dots"/></summary><div className="move-options" role="group" aria-label={T('移至状态','Move to status')}>{STATUSES.filter(st=>st.id!==job.status).map(st=><button type="button" key={st.id} data-move-status={st.id} onClick={e=>{e.currentTarget.closest('details').open=false;updateStatus(job.id,st.id);}}>{stName(st)}</button>)}</div></details>
     </li>;
   };
-  return <div className="tracker-view">
-    {showBatch&&<BatchTailorModal region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} formatting={formatting} onClose={()=>setShowBatch(false)}/>}
-    <PageHead eyebrow={rName(REGION_BY[region])} title={T('追踪','Tracker')} action={<Btn variant="primary" onClick={onAdd}>{T('添加职位','Add job')}</Btn>}/>
-    <ol className="stage-rail" aria-label={T('各阶段的投递','Where every application stands')}>
-      {PIPELINE_STAGES.map(s=><li key={s.id}><button type="button" className={`stage s-${s.id}`} data-zero={!counts[s.id]?'':undefined} aria-pressed={filter===s.id} aria-label={`${T(s.zh,s.en)}: ${counts[s.id]}`} onClick={()=>setFilter(filter===s.id?'all':s.id)}><StageStamp stage={s}/><span className="stage-label">{T(s.zh,s.en)}</span><span className="stage-n">{counts[s.id]}</span></button></li>)}
-    </ol>
-    <div className="toolbar">
-      <label htmlFor="trk-search" className="sr-only">{T('搜索投递','Search applications')}</label>
-      <input id="trk-search" type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder={T('搜索公司、职位或地点','Search company, role or location')}/>
-      <label htmlFor="trk-tier" className="sr-only">{T('按梯队筛选','Filter by tier')}</label>
-      <select id="trk-tier" value={tierFilter} onChange={e=>setTierFilter(e.target.value)}><option value="all">{T('全部梯队','All tiers')}</option>{TIERS.map(t=><option key={t.id} value={t.id}>{T(t.zh,t.en)} ({jobs.filter(j=>tierKey(j)===t.id).length})</option>)}<option value="">{T('未分级','Unranked')} ({jobs.filter(j=>!tierKey(j)).length})</option></select>
-      {lsGet('anthropicKey')&&<Btn onClick={()=>setShowBatch(true)}>{T('批量定制…','Batch tailor…')}</Btn>}
-      <span className="showing" role="status">{T(`共 ${visible.length} / ${jobs.length} 条`,`${visible.length} of ${jobs.length}`)}</span>
-      {(filter!=='all'||tierFilter!=='all'||search)&&<button type="button" className="btn-link" onClick={clearFilters}>{T('清除筛选','Clear filters')}</button>}
-    </div>
-    <p id="pipeline-announcement" className="sr-only" role="status" aria-live="polite">{announcement}</p>
-    <div className="pipeline" data-region={region} style={{gridTemplateColumns:live.map(s=>s.id==='want'&&live.length<=3?'minmax(0,2fr)':'minmax(0,1fr)').join(' ')}}>
-      {ordered.map(s=>{const items=visible.filter(j=>pipelineStage(j.status).id===s.id);return <section key={s.id} className={`pipeline-stage s-${s.id}${s.id==='want'&&live.length<=3?' wide':''}`} data-stage={s.id} aria-labelledby={`stage-${s.id}`}>
-        <div className="stage-heading"><StageStamp stage={s} size={24}/><h2 id={`stage-${s.id}`}>{T(s.zh,s.en)}</h2><span className="stage-n">{items.length}</span></div>
-        {s.id==='want'?[...TIERS.map(t=>t.id),''].map(id=>{const its=items.filter(j=>tierKey(j)===id);if(!its.length)return null;const t=tierMeta(id);return <details key={id} className="pipeline-tier" data-tier={id||'none'} open={folds[id]??(id==='T1'||id==='')}><summary onClick={e=>{e.preventDefault();foldTier(id,!(folds[id]??(id==='T1'||id==='')));}}><Icon name="chevron" size={10}/><span>{t?T(t.zh,t.en):T('未分级','Unranked')}</span><span className="stage-n">{its.length}</span></summary><ul className="pipeline-cards">{its.map(j=>card(j,s))}</ul></details>;}):<ul className="pipeline-cards">{items.map(j=>card(j,s))}</ul>}
-      </section>;})}
-    </div>
-    {!visible.length&&<div className="empty"><h2>{jobs.length?T('没有符合这些筛选条件的投递。','No applications match these filters.'):T(`${rName(REGION_BY[region])}还没有投递`,`No applications in ${rName(REGION_BY[region])} yet`)}</h2>{jobs.length?<Btn onClick={clearFilters}>{T('清除筛选','Clear filters')}</Btn>:<p>{T('从「添加职位」贴一段职位描述开始。','Start from a job description in Add job.')}</p>}</div>}
+  return <div className="tracker-view">{showBatch&&<BatchTailorModal region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} formatting={formatting} onClose={()=>setShowBatch(false)}/>}
+    <div className="list-header"><PageHead title={T('申请清单','Applications')}/><Btn variant="primary" onClick={onAdd}>{T('添加职位','Add job')}</Btn><label className="sr-only" htmlFor="trk-search">{T('搜索申请','Search applications')}</label><input id="trk-search" type="search" placeholder={T('搜索申请','Search applications')} value={search} onChange={e=>setSearch(e.target.value)}/><details className="filter-tools"><summary>{T('筛选与工具','Filters & tools')}<Icon name="down" size={14}/></summary><div><label htmlFor="trk-tier">{T('梯队','Tier')}</label><select id="trk-tier" value={tierFilter} onChange={e=>setTierFilter(e.target.value)}><option value="all">{T('全部梯队','All tiers')}</option>{TIERS.map(t=><option key={t.id} value={t.id}>{T(t.zh,t.en)}</option>)}<option value="">{T('未分级','Unranked')}</option></select>{lsGet('anthropicKey')&&<Btn onClick={()=>setShowBatch(true)}>{T('为多个职位定制简历','Tailor résumés for several jobs')}</Btn>}<button className="btn" onClick={()=>{prefillGhost(jobs.filter(j=>j.status==='interested'));go('ghost');}}>{T('检查收藏','Check saved rows')}</button></div></details>{(filter!=='all'||tierFilter!=='all'||search)&&<Btn onClick={clear}>{T('清除筛选','Clear filters')}</Btn>}</div>
+    <DeskError desk={desk}/>{(search||tierFilter!=='all'||filter!=='all')&&<p className="applications-meta" role="status">{T(`找到 ${visible.length} 条`,`${visible.length} matches`)}</p>}<p id="pipeline-announcement" className="sr-only" role="status" aria-live="polite">{announcement}</p>
+    <div className="pipeline application-list" data-region={region}>{Object.keys(groupNames).map(group=>{
+      const items=visible.filter(j=>groupFor(display(j))===group);if(!items.length)return null;
+      return <section className={`pipeline-stage s-${group}`} data-stage={group} key={group}><details className="application-group" open={groups[group]??!['quiet','shut'].includes(group)}><summary onClick={e=>{e.preventDefault();foldGroup(group,!(groups[group]??!['quiet','shut'].includes(group)));}}><Icon name="chevron" size={14}/><h2>{groupNames[group]}</h2><span className="stage-n">{items.length}</span></summary>
+        {group==='want'?[...TIERS.map(t=>t.id),''].map(id=>{const tierJobs=items.filter(j=>tierKey(j)===id);if(!tierJobs.length)return null;return <details className="pipeline-tier" key={id} data-tier={id||'none'} open={folds[id]??(id==='T1'||id==='')}><summary onClick={e=>{e.preventDefault();foldTier(id,!(folds[id]??(id==='T1'||id==='')));}}><Icon name="chevron" size={12}/><span>{id?T(`第 ${id.slice(1)} 梯队`,`Tier ${id.slice(1)}`):T('未分级','Unranked')}</span><span className="stage-n">{tierJobs.length}</span></summary><ul className="pipeline-cards">{tierJobs.map(card)}</ul></details>;}):<ul className="pipeline-cards">{items.map(card)}</ul>}
+      </details></section>;
+    })}</div>{!visible.length&&<div className="empty"><h2>{jobs.length?T('没有符合这些筛选条件的申请','No applications match these filters'):T(`${rName(REGION_BY[region])}还没有申请`,`No applications in ${rName(REGION_BY[region])} yet`)}</h2><Btn onClick={jobs.length?clear:onAdd}>{jobs.length?T('清除筛选','Clear filters'):T('添加职位','Add job')}</Btn></div>}
   </div>;
 }
 
@@ -2570,11 +2555,12 @@ function PdfUploadField({ label, pdfKey }) {
 // JOB DETAIL
 // ════════════════════════════════════════════════════════════════
 
-function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs, setJobs, onBack, onOpenProfile }) {
+function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs, setJobs, onBack, onOpenProfile, desk }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm]       = useState({...job});
   const [saving, setSaving]   = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
+  const openedWith=useRef(SafeMerge.snapshot(job)),latestForm=useRef(form);latestForm.current=form;
   useSettingsDraft((editing&&!SafeMerge.same(form,job))||(form.notes||'')!==(job.notes||''));
   const h1 = useRef(null);
 
@@ -2583,13 +2569,20 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
 
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   const updateJob = async patch => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
-    const updated = jobs.map(j=>j.id===job.id?{...j,...patch}:j); setJobs(updated); await saveJson(`${region}:jobs`, updated);
+    const kit=desk?.kits.find(k=>k.jobRef?.region===region&&String(k.jobRef.id)===String(job.id));
+    if(kit&&patch.status&&patch.status!==job.status)return desk.update(kit.id,r=>Ledger.progressForStatus(r,patch.status),{jobStatus:patch.status,jobPatch:patch});
+    const change=patch.status&&patch.status!==job.status?{...patch,...Ledger.jobStatusPatch(job,patch.status)}:patch;
+    const updated = jobs.map(j=>j.id===job.id?{...j,...change}:j); setJobs(updated);const saved=await saveJson(`${region}:jobs`, updated);return DEMO||!!saved;
   });};
-  const handleSaveAll = async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */ setSaving(true); await updateJob(form); setSaving(false); setEditing(false); });};
+  const handleSaveAll = async () => HubSettingsRuntime.track(async()=>{
+    const sent=SafeMerge.snapshot(form),patch=SafeMerge.formChanges(openedWith.current,sent);
+    setSaving(true);const ok=await updateJob(patch);setSaving(false);
+    if(ok){openedWith.current={...openedWith.current,...patch};setEditing(!SafeMerge.same(sent,latestForm.current));}
+  });
   const cancelEdit = () => { setForm(f => ({ ...job, notes: f.notes })); setEditing(false); };
   const handleSaveNotes = async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
-    await updateJob({ notes: form.notes });
-    setNotesSaved(true); setTimeout(()=>setNotesSaved(false),1500);
+    const ok=await updateJob({ notes: form.notes });
+    if(ok){setNotesSaved(true); setTimeout(()=>setNotesSaved(false),1500);}
   });};
   const deleteJob = async () => HubSettingsRuntime.track(async()=>{
     if (!window.confirm(T('删除这条投递？它的定制简历和求职信 PDF 也会一起删除。','Delete this application? Its tailored resume and cover-letter PDFs are deleted too.'))) return;
@@ -2617,16 +2610,17 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
 
   return (
     <>
-      <button type="button" className="back-link" onClick={onBack}>← {T('追踪','Tracker')}</button>
+      <button type="button" className="back-link" onClick={onBack}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>{T('返回申请清单','Back to Applications')}</button>
+      {desk&&<DeskError desk={desk}/>}
       <div className="page-head">
         <div className="titles">
           <p className="eyebrow">{rName(REGION_BY[region])}{t ? ` · ${T(t.zh, t.en)}` : ''}</p>
-          <h1 ref={h1} tabIndex={-1}>{form.role || T('（无职位名）','(no title)')}</h1>
+          <h1 id="job-sheet-title" ref={h1} tabIndex={-1}>{form.role || T('（无职位名）','(no title)')}</h1>
           <p className="sub">{form.company || T('（无公司）','(no company)')}{form.location ? ` · ${form.location}` : ''}</p>
         </div>
         <div className="acts">
           <StatusField value={form.status} onChange={val => { set('status', val); updateJob({ status: val }); }} name={T('状态','Status')} />
-          {!editing && <Btn onClick={() => setEditing(true)}>{T('编辑详情','Edit details')}</Btn>}
+          {!editing && <Btn onClick={() => {openedWith.current=SafeMerge.snapshot(job);setEditing(true);}}>{T('编辑详情','Edit details')}</Btn>}
           <Btn className="btn-quiet" onClick={deleteJob}>{T('删除这条投递','Delete application')}</Btn>
         </div>
       </div>
@@ -2661,7 +2655,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
         <section className="card" aria-labelledby="notes-h">
           <div className="card-head"><h2 id="notes-h">{T('我的备注','My notes')}</h2></div>
           <textarea id="det-notes" aria-labelledby="notes-h" rows={5} value={form.notes||''} onChange={e=>set('notes',e.target.value)}
-            placeholder={T('招聘者名字、问了什么、跟进、被拒原因、整体感受…','Recruiter names, what they asked, follow-ups, why rejected, general vibes…')} />
+            placeholder={T('招聘者姓名、沟通内容、未录用原因、面试感受…','Recruiter names, conversation notes, reasons for a decision, interview impressions…')} />
           <div className="form-acts"><Btn onClick={handleSaveNotes}>{notesSaved ? T('已保存','Saved') : T('保存备注','Save notes')}</Btn></div>
         </section>
         {form.jdText && (
@@ -2920,7 +2914,7 @@ For each job return: company, role (the exact title on the career page), locatio
       <div className="stack">
         {!hasKey && (
           <div className="status-bar warn al-key" id="al-need">
-            <p>{T('「提醒」要用 Anthropic API 密钥（每次扫描约 $0.01–0.05），密钥只存在这个浏览器里。','Alerts need an Anthropic API key (about $0.01–0.05 per scan). It stays in this browser.')}</p>
+            <p>{T('添加 API 密钥后可扫描邮件','Add an API key to scan emails')}</p><details><summary>{T('费用与密钥','Cost and key storage')}</summary><p>{T('每次约 $0.01–0.05，密钥只存在这个浏览器。','About $0.01–0.05 per scan. The key stays in this browser.')}</p></details>
             {onOpenKey && <Btn className="btn-sm" onClick={e => onOpenKey(e.currentTarget)}>{T('去「设置」里添加','Add a key in Settings')}</Btn>}
           </div>
         )}
@@ -2972,7 +2966,7 @@ For each job return: company, role (the exact title on the career page), locatio
                   <span className="btn-row">
                     <button type="button" className="btn-link" onClick={()=>setSelected(new Set(found.map(j=>j._id)))}>{T('全选','Select all')}</button>
                     <button type="button" className="btn-link" onClick={()=>setSelected(new Set())}>{T('取消全选','Deselect all')}</button>
-                    <button type="button" className="btn-link" onClick={()=>setStep('setup')}>{T('← 返回','← Back')}</button>
+                    <button type="button" className="btn-link" onClick={()=>setStep('setup')}><svg className="back-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>{T('返回','Back')}</button>
                   </span>
                 </div>
                 <ul className="al-list">
@@ -3024,7 +3018,7 @@ For each job return: company, role (the exact title on the career page), locatio
                   </Btn>
                 </div>
               </>
-            ) : <div className="btn-row"><Btn onClick={()=>setStep('setup')}>{T('← 返回','← Back')}</Btn></div>}
+            ) : <div className="btn-row"><Btn onClick={()=>setStep('setup')}><svg className="back-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>{T('返回','Back')}</Btn></div>}
           </section>
         )}
 
@@ -3171,8 +3165,12 @@ function PipelineChart({ p, titleId, eqId }) {
   );
 }
 
-function InsightsTab({ jobs, regionName, onWorking, onAdd }) {
+function InsightsTab({ jobs, regionName, onWorking, onAdd, desk }) {
   const [view, setView] = useState('chart');
+  const monthRows=Ledger.entries(jobs,desk.kits,desk.progress,regionNow);
+  const monthSent=monthRows.filter(r=>Ledger.inPeriod(r.sentAt,'month')).length;
+  const monthReplies=monthRows.filter(r=>Ledger.isReply(r)&&Ledger.inPeriod(r.record?.outcomeDate||r.job?.outcomeDate||r.job?.statusChangedAt,'month')).length;
+  const monthPrepared=desk.kits.filter(k=>{return Ledger.inPeriod(k.preparedAt||k.handoff?.updatedAt,'month');}).length;
   const stats = useMemo(() => {
     const total  = jobs.length;
     const applied = jobs.filter(j => j.status !== 'interested').length;
@@ -3220,26 +3218,26 @@ function InsightsTab({ jobs, regionName, onWorking, onAdd }) {
 
   return (
     <div className="insights-view">
-      {!inCanada() ? <PageHead eyebrow={regionName} title={T('数据','Insights')} /> : <>
+      <PageHead title={T('数据','Insights')}/><section className="month-line"><h2>{T('本月','This month')}</h2><p>{T(`已投 ${monthSent} 份 · 备好 ${monthPrepared} 份材料 · ${monthReplies} 份有回复`,`${monthSent} sent · ${monthPrepared} kits prepared · ${monthReplies} ${monthReplies===1?'reply':'replies'}`)}</p></section>{inCanada() && !workingJobs.length&&<p className="cec-empty">{T('CEC 工时：尚无在职记录','CEC hours: no working jobs recorded yet')} · <a href="#hours-how">{T('工时如何计算','How hours are counted')}</a><span id="hours-how">{T('每周所有工作合计最多计 30 小时。','At most 30 hours count per week across all jobs.')}</span></p>}{inCanada()&&!!workingJobs.length&&<>
       <section className="plate" aria-labelledby="ins-h">
-        <svg className="ledger-mark" width="64" height="64" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12.2" fill="none" stroke="currentColor" strokeWidth="1.2"/><circle cx="14" cy="14" r="10" fill="none" stroke="currentColor" strokeWidth=".6"/><path d="M14 7.5v6.5l4 2.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg><div className="plate-in">
-          <div className="plate-head">
+        <svg className="ledger-mark" hidden width="64" height="64" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12.2" fill="none" stroke="currentColor" strokeWidth="1.2"/><circle cx="14" cy="14" r="10" fill="none" stroke="currentColor" strokeWidth=".6"/><path d="M14 7.5v6.5l4 2.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg><div className="plate-in">
+          <div>
+            <h2 id="ins-h" className="display" tabIndex={-1}>{T(`CEC 工时 ${fmtNum(c.total)} / ${fmtNum(CEC_TARGET)}`, `${fmtNum(c.total)} of ${fmtNum(CEC_TARGET)} CEC hours`)}</h2>
+            <p className="cec-eta">{c.eta?T(`预计 ${fmtDate(c.eta)} 数满`,`Target reached ${fmtDate(c.eta)}`):T('填写入职日期和工时后开始计数','Add dates and weekly hours to count')}</p>
+            <div className="rule" aria-hidden="true"></div>
+          </div>
+              <div className="sum-bar" aria-hidden="true">
+                {segs.map((x, i) => <span key={x.id} style={{ width: Math.min(100, x.hours / CEC_TARGET * 100) + '%', background: segColours[i] }}></span>)}
+              </div>
+<details className="cec-details"><summary>{T('查看详情','Details')}</summary>          <div className="plate-head">
             <p className="eyebrow">{T('数据','Insights')} · {regionName}</p>
             <button type="button" className="btn" onClick={onWorking}>
               {workingJobs.length ? T(`在职岗位（${workingJobs.length}）`, `Working jobs (${workingJobs.length})`) : T('把一个岗位标为在职','Mark a job as Working')}
             </button>
           </div>
-          <div>
-            <h1 id="ins-h" className="display" tabIndex={-1}>{T(`CEC 工时 ${fmtNum(c.total)} / ${fmtNum(CEC_TARGET)}`, `${fmtNum(c.total)} of ${fmtNum(CEC_TARGET)} CEC hours`)}</h1>
-            <p className="lede">{lede}</p>
-            <div className="rule" aria-hidden="true"></div>
-          </div>
           {segs.length > 0 && (
             <>
-              <div className="sum-bar" aria-hidden="true">
-                {segs.map((x, i) => <span key={x.id} style={{ width: Math.min(100, x.hours / CEC_TARGET * 100) + '%', background: segColours[i] }}></span>)}
-              </div>
-              <ul className="sum-legend">
+              <details className="hours-breakdown"><summary>{T('各岗位工时','Hours by job')}</summary><ul className="sum-legend">
                 {segs.map((x, i) => <li key={x.id}><i style={{ background: segColours[i] }}></i><span>{x.label}</span> <b>{fmtNum(x.hours)} h</b></li>)}
                 <li><i className="track"></i><span>{T('还差','still to count')}</span> <b>{fmtNum(c.remain)} h</b></li>
               </ul>
@@ -3247,7 +3245,7 @@ function InsightsTab({ jobs, regionName, onWorking, onAdd }) {
                 {segs.map(x => `${x.company || x.label} ${fmtNum(x.hours)} h`).join(' + ')} = {fmtNum(counted)} h {T('已计入','counted')}{' '}
                 {Math.abs(off) <= 1 ? <span className="ok">✓</span> : <span className="bad">{T(`✗ 差 ${Math.abs(off)} h`, `✗ off by ${Math.abs(off)} h`)}</span>}
                 {' · '}{fmtNum(c.capped)} h {T('超出每周上限、不计入','above the weekly cap not counted')}
-              </p>
+              </p></details>
             </>
           )}
           {(bad.length > 0 || noType.length > 0) && (
@@ -3256,8 +3254,8 @@ function InsightsTab({ jobs, regionName, onWorking, onAdd }) {
               {noType.length > 0 && <li>{T(`${noType.length} 个在职岗位没填雇佣类型——承包人的工时不计入`, `${noType.length} working ${plural(noType.length,'job has','jobs have')} no employment type — contractor hours don’t count`)}</li>}
             </ul>
           )}
-      <details className="hours-help"><summary>{T('怎么算','How hours are counted')}</summary><p>{T('计入的是状态为「在职·计工时」、填了入职日期和每周工时的岗位，从入职日算到离职日（没有离职日就算到今天）；NOC 不在 TEER 1–3 的岗位不计入。',
-        'Counts jobs marked Working that have a start date and weekly hours, from the start date to the end date (or today); a job whose NOC is outside TEER 1–3 is left out.')}</p></details>
+      <details className="hours-help"><summary>{T('怎么算','How hours are counted')}</summary><p>{lede}</p><p>{T('计入的是状态为「在职·计工时」、填了入职日期和每周工时的岗位，从入职日算到离职日（没有离职日就算到今天）；NOC 不在 TEER 1–3 的岗位不计入。',
+        'Counts jobs marked Working that have a start date and weekly hours, from the start date to the end date (or today); a job whose NOC is outside TEER 1–3 is left out.')}</p></details></details>
         </div>
       </section>
 
@@ -3271,16 +3269,16 @@ function InsightsTab({ jobs, regionName, onWorking, onAdd }) {
         </div>
       ) : (
         <>
-          <div className="stats">
+<details className="insights-extra"><summary>{T('申请统计','Application statistics')}</summary><div className="stats">
             <div className="stat" data-entry="tile"><span className="big">{stats.total}</span><span className="lbl">{T('追踪中','tracked')}</span><small className="amt">{T(`${p.interested} 条待投`, `${p.interested} to apply`)}</small></div>
             <div className="stat" data-entry="tile"><span className="big">{stats.last7}</span><span className="lbl">{T('本周新增','added this week')}</span><small className="amt">{T(`30 天内 ${stats.last30}`, `${stats.last30} in 30 days`)}</small></div>
             <div className="stat" data-entry="tile"><span className="big">{stats.responseRate}%</span><span className="lbl">{T('回应率','response rate')}</span><small className="amt">{T(`基于 ${stats.applied} 条已投`, `of ${stats.applied} applied`)}</small></div>
-            <div className="stat" data-entry="tile"><span className="big">{stats.offerRate}%</span><span className="lbl">{T('Offer 率','offer rate')}</span></div>
+            <div className="stat" data-entry="tile"><span className="big">{stats.offerRate}%</span><span className="lbl">{T('Offer 率','offer rate')}</span><small>{T(`基于 ${stats.applied} 条已投`,`of ${stats.applied} sent`)}</small></div>
           </div>
           <div className="insights-grid">
           <section className="chart" aria-labelledby="pipe-h">
             <div className="ch-head">
-              <h2 id="pipe-h">{T('流程','Pipeline')}</h2>
+              <h2 id="pipe-h">{T('申请进展','Applications')}</h2>
               <div className="seg" role="group" aria-label={T('显示方式','Show as')}>
                 <button type="button" aria-pressed={view === 'chart'} onClick={() => setView('chart')}>{T('图','Chart')}</button>
                 <button type="button" aria-pressed={view === 'table'} onClick={() => setView('table')}>{T('表','Table')}</button>
@@ -3335,7 +3333,7 @@ function InsightsTab({ jobs, regionName, onWorking, onAdd }) {
               </section>
             )}
           </div>
-          </div>
+          </div></details>
         </>
       )}
     </div>
@@ -3459,8 +3457,8 @@ function DiagnosisTab({ diagnosis, setDiagnosis }) {
           </div>
         </DiagSection>
         <DiagSection num={4} title={T('岗位对齐','Reality check')}
-          hint={T('拿 3–5 个真实 JD 对照第 3 步：他们反复要求、而我没证据的能力，逐条记在这里补。','Check 3–5 real JDs against step 3. What they repeatedly ask for and you cannot yet evidence — list here to fix.')}>
-          <DiagList items={d.alignment} {...listOps('alignment', true)} checkable label={T('新的一条差距','A new gap')} placeholder={T('例：JD 都要 SQL，我只有课程练习 → 做一个真数据集项目','e.g. JDs want SQL; I only have coursework → build one real-data project')} />
+          hint={T('拿 3–5 个真实职位描述对照第 3 步：他们反复要求、而我没证据的能力，逐条记在这里补。','Check 3–5 real job descriptions against step 3. What they repeatedly ask for and you cannot yet evidence — list here to fix.')}>
+          <DiagList items={d.alignment} {...listOps('alignment', true)} checkable label={T('新的一条差距','A new gap')} placeholder={T('例：职位描述都要 SQL，我只有课程练习 → 做一个真数据集项目','e.g. job descriptions ask for SQL; I only have coursework → build one real-data project')} />
         </DiagSection>
         <DiagSection num={5} title={T('简历叙事自查','Resume story check')}
           hint={T('多数 AI 简历工具只是往 CV 里塞关键词；这五条检查的是叙事。改完简历回来逐条勾。','Most AI resume tools stuff keywords. These five check the narrative. Re-check after each resume revision.')}>
@@ -3486,7 +3484,7 @@ function DiagnosisTab({ diagnosis, setDiagnosis }) {
 // REGION APP
 // ════════════════════════════════════════════════════════════════
 
-function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, onCount, openSettings, sharedErr, sharedLoading, onRetryShared, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary, diagnosis, setDiagnosis }) {
+function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, onCount, openSettings, sharedErr, sharedLoading, onRetryShared, desk, resumeDb, sections, updateSections, formatting, setFormatting, glossary, setGlossary, library, setLibrary, diagnosis, setDiagnosis }) {
   const regionMeta = REGIONS.find(r=>r.id===region);
   const regionLabel = rName(regionMeta);
   const [jobs, setJobs] = useState([]);
@@ -3517,7 +3515,9 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
   const eyebrow = tabMeta.scope === 'region' ? regionLabel : shared;
   // The Ghost check reads nothing from the repo, so it works before (and without) any GitHub setup
   if (tab === 'ghost') return <GhostTab eyebrow={eyebrow} />;
-  if (tab === 'apply') return <ApplyTab openSettings={openSettings} />;
+  if (tab === 'apply') return <ApplyTab openSettings={openSettings} desk={desk} go={go}/>;
+  if (tab === 'about') return <AboutTab go={go} openSettings={openSettings}/>;
+  if (tab === 'now') return <>{loadErr&&<ErrorCard title={T('没能读取地区申请','Couldn’t read regional applications')} error={loadErr} onRetry={()=>setAttempt(a=>a+1)} openSettings={openSettings}/>}<NowTab region={region} jobs={jobs} desk={desk} go={go} openSettings={openSettings}/></>;
   if (loading) return (
     <>
       <PageHead eyebrow={eyebrow} title={T(tabMeta.zh, tabMeta.label)} />
@@ -3554,13 +3554,13 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
 
   return (
     <>
-      {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>go('tracker', { openJobId:id })} onOpenProfile={()=>go('profile')} />}
-      {tab==='tracker' && !openJob && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} formatting={formatting} initialStatus={trackerStatus} onAdd={()=>go('addjob')} onOpen={id=>setOpenJobId(id)} focusJobId={focusJob} onFocused={()=>setFocusJob(null)} />}
-      {tab==='tracker' && openJob  && <JobDetail region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>{ setFocusJob(openJob.id); setOpenJobId(null); }} onOpenProfile={()=>go('profile')} />}
+      {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>{setFocusJob(id);go('tracker');window.dispatchEvent(new CustomEvent('jobapp:toast',{detail:T('已加入收藏','Added to Saved')}));}} onOpenProfile={()=>go('profile')} />}
+      {tab==='tracker' && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} formatting={formatting} initialStatus={trackerStatus} onAdd={()=>go('addjob')} onOpen={id=>setOpenJobId(id)} focusJobId={focusJob} onFocused={()=>setFocusJob(null)} desk={desk} go={go}/>}
+      {tab==='tracker' && openJob && <div className="job-detail-sheet"><Dialog labelId="job-sheet-title" wide onClose={()=>{setFocusJob(openJob.id);setOpenJobId(null);}}>{!DEMO&&<div className="sheet-save"><JobSaveStatus id="job-sheet-save-status"/></div>}{desk.kits.find(k=>k.jobRef?.region===region&&String(k.jobRef.id)===String(openJob.id))&&<a className="btn" href={kitHref(desk.kits.find(k=>k.jobRef?.region===region&&String(k.jobRef.id)===String(openJob.id)))}>{T('打开投递材料包','Open the Apply kit')}</a>}<JobDetail desk={desk} region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>{ setFocusJob(openJob.id); setOpenJobId(null); }} onOpenProfile={()=>go('profile')} /></Dialog></div>}
       {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} glossary={glossary} setGlossary={setGlossary} region={region} resumeDb={resumeDb} />}
       {tab==='diagnosis' && <DiagnosisTab diagnosis={diagnosis} setDiagnosis={setDiagnosis} />}
       {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}
-      {tab==='insights'&& <InsightsTab jobs={jobs} regionName={regionLabel} onWorking={()=>go('tracker', { status: jobs.some(j => j.status === 'working') ? 'working' : null })} onAdd={()=>go('addjob')} />}
+      {tab==='insights'&& <InsightsTab desk={desk} jobs={jobs} regionName={regionLabel} onWorking={()=>go('tracker', { status: jobs.some(j => j.status === 'working') ? 'working' : null })} onAdd={()=>go('addjob')} />}
       {tab==='watchdog'&& <WatchdogTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} onOpenKey={opener => openSettings(opener, '#set-key')} openSettings={openSettings} />}
     </>
   );
@@ -3597,6 +3597,7 @@ function GhostTab({ eyebrow }) {
         sub={T('一行一个职位：先放链接，再写上职位页面上的信息（公司、职位、发布日期）。每条都给出结论和理由——没有打分，也不用 AI。本页不会打开链接，只贴链接只会得到「信息不够判断」。',
                'One line per posting: the link, then what the posting says (company, title, posted date). Each line gets a flag and the reasons behind it — no score, no AI. This page never opens a link, so a link on its own comes back “not enough to tell”.')} />
       <div className="stack">
+        {ghostAddedDates&&<p className="note">{T('用的是收藏日期，不是发布日期。','Added date used in place of the posting date.')} {!!ghostMissingLinks&&T(` ${ghostMissingLinks} 条没有职位链接，未参加检查。`,` ${ghostMissingLinks} rows had no posting link and were left out.`)}</p>}
         <div className="card">
           <label htmlFor="ghost-in" className="card-head"><h2>{T('职位链接和页面信息','Postings: link, then what it says')}</h2></label>
           <textarea id="ghost-in" className="mono lined ghost-in" rows={8} value={text} spellCheck={false}
@@ -3665,9 +3666,23 @@ const GEAR = <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke=
 
 function App() {
   useLangToggle();
+  useEffect(()=>{
+    const replaceLanguageIcon=()=>{
+      const button=document.getElementById('suite-language-toggle');
+      if(!button||button.querySelector('svg'))return;
+      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'),path=document.createElementNS('http://www.w3.org/2000/svg','path');
+      svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');
+      path.setAttribute('d','M3 5h12M9 3v2M5 7c1 5 5 8 9 10M13 7c-1 5-5 8-9 10m10 3 4-10 4 10m-7-3h6');svg.append(path);button.replaceChildren(svg);
+    };
+    const observer=new MutationObserver(replaceLanguageIcon);observer.observe(document.querySelector('#root header.topbar'),{childList:true,subtree:true});replaceLanguageIcon();return()=>observer.disconnect();
+  },[]);
+  useEffect(()=>{requestAnimationFrame(()=>document.fonts.load('15px \"Source Serif 4\"').catch(()=>{}));},[]);
+  useEffect(()=>{const header=document.querySelector('#root header.topbar');const observer=new ResizeObserver(()=>document.documentElement.style.setProperty('--header-height',`${header.getBoundingClientRect().height}px`));observer.observe(header);return()=>observer.disconnect();},[]);
   const [region, setRegionState] = useState(regionFromUrl);
   regionNow = region;
-  const [tab, setTab]               = useState(tabFromUrl);
+  const [route,setRoute]=useState(()=>({tab:tabFromUrl(),hash:location.hash}));
+  const tab=route.hash.startsWith('#apply/')?'apply':route.tab;
+  const setTab=value=>setRoute({tab:value,hash:location.hash});
   // Reveal the active phone tab without moving a deep-linked card vertically.
   useEffect(() => {
     const reveal = () => {
@@ -3713,6 +3728,17 @@ function App() {
   // not what is still in memory — empty after a failed read, the other repository's after switching — which a save in
   // that window used to write back (fixed 2026-09-23). The error stays until a new read has worked.
   const [sharedLoading, setSharedLoading] = useState(false);
+  const desk=useApplyDesk(connGen+sharedTry);
+  const [regionCounts,setRegionCounts]=useState(()=>DEMO?Object.fromEntries(REGIONS.map(r=>[r.id,sampleJobs(r.id).length])):{});
+  const [demoNotice,setDemoNotice]=useState(()=>{try{return !localStorage.getItem('jobapp:demo-notice-dismissed');}catch{return true;}});
+  useEffect(()=>{if(jobCount!=null)setRegionCounts(old=>({...old,[region]:jobCount}));},[region,jobCount]);
+  useEffect(()=>{const open=e=>{setRegionState(e.detail.region);go('tracker',{openJobId:e.detail.id});};window.addEventListener('jobapp:openlinked',open);return()=>window.removeEventListener('jobapp:openlinked',open);},[tab]);
+  const readRegionCounts=async()=>{
+    if(DEMO||!ghConfigured())return;
+    const counts=await Promise.all(REGIONS.map(async r=>{if(r.id===region)return [r.id,jobCount];try{const file=await ghFetchFile(keyToPath(`${r.id}:jobs`));const rows=file?JSON.parse(file.text):[];return [r.id,Array.isArray(rows)?rows.length:null];}catch{return [r.id,null];}}));
+    setRegionCounts(Object.fromEntries(counts));
+  };
+
   const sharedRetryDone = useRef(null);
   useEffect(() => {
     const ok = ghConfigured(); setGhOk(ok);
@@ -3825,6 +3851,10 @@ function App() {
   // changing region keeps the view you are on (it used to jump back to Add job)
   const setRegion = r => { setRegionState(r); setOpenJobId(null); setJobCount(null); };
 
+  useEffect(()=>{
+    if(new URLSearchParams(location.search).get('connect')!=='1')return;
+    let frame;const show=()=>{if(window.SuiteSettings)openSettings(null,'#set-repo');else frame=requestAnimationFrame(show);};show();return()=>cancelAnimationFrame(frame);
+  },[]);
   const repo = ghCfg().repo;
   const pill = ghOk ? { short: T('你的仓库','Your repo'), long: ` · ${repo}`, warn: false }
     : DEMO ? { short: T('演示','Demo'), long: T(' · 示例数据，不会保存',' · sample data, nothing is saved'), warn: true }
@@ -3841,53 +3871,37 @@ function App() {
     <>
       <a className="skip" href="#main" onClick={skip}>{T('跳到内容','Skip to content')}</a>
       <header className="topbar">
-        <details className="phone-menu" ref={phoneMenuRef}>
-          <summary aria-label={T('菜单','Menu')}><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg></summary>
-          <nav className="phone-menu-items" aria-label={T('页面','Sections')}>{TABS.map(navLink)}{pill.warn&&<p className="menu-warning">{pill.short}{pill.long}</p>}</nav>
-        </details>
-        <a className="brand" href={tabHref('tracker')} aria-label={T('ApplyLedger 首页','ApplyLedger home')} onClick={e => { e.preventDefault(); go('tracker'); }}>
-          <BrandMark /><b>ApplyLedger</b>
-        </a>
-        {pill.warn&&<span className="pill warn" title={pill.short+pill.long}>{pill.short}<span className="long">{pill.long}</span></span>}
-        <JobSaveStatus />
+        <a className="brand" href={tabHref('now')} aria-label={T('ApplyLedger 首页','ApplyLedger home')} onClick={e=>{e.preventDefault();go('now');}}><BrandMark/><b>ApplyLedger</b></a>
+        <HeaderMenu className="region-menu" onOpen={readRegionCounts} label={rName(REGION_BY[region])}>
+          {REGIONS.filter(r=>regionCounts[r.id]!==0).map(r=><button role="menuitem" key={r.id} onClick={()=>setRegion(r.id)}>{rName(r)}<span>{regionCounts[r.id]??'…'}</span></button>)}
+          {REGIONS.some(r=>regionCounts[r.id]===0)&&<p>{T('还没有申请','No applications yet')}</p>}{REGIONS.filter(r=>regionCounts[r.id]===0).map(r=><button role="menuitem" key={r.id} onClick={()=>setRegion(r.id)}>{rName(r)}<span>0</span></button>)}
+        </HeaderMenu>
+        <nav className="desktop-nav" aria-label={T('页面','Sections')}>{['now','tracker','apply','insights','watchdog'].map(id=>navLink(TABS.find(t=>t.id===id)))}<HeaderMenu label={T('更多','More')}>{['profile','library','diagnosis','ghost'].map(id=><button key={id} role="menuitem" onClick={()=>go(id)}>{T(TABS.find(t=>t.id===id).zh,TABS.find(t=>t.id===id).label)}</button>)}</HeaderMenu></nav>
+        {DEMO?<div id="job-save-status" className="demo-save">{T('示例','Demo')}</div>:<JobSaveStatus loading={!loaded||sharedLoading||desk.loading}/>}
         <span data-settings-slot=""><button type="button" className="btn btn-ghost btn-icon suite-gear" id="nl-settings-button" onClick={e=>openSettings(e.currentTarget)} ref={node=>{gearRef.current=node;if(node)window.SuiteHeaderEntry?.mount(node);}} aria-haspopup="dialog" aria-label="Settings / 设置" aria-keyshortcuts="Meta+, Control+," title="Settings / 设置 (⌘,)">{GEAR}</button></span>
       </header>
-
+      {DEMO&&demoNotice&&<div className="demo-notice"><span>{T('虚构示例，不会保存','Fictional sample · not saved')}</span><button onClick={()=>go('about')}>{T('了解原理','How it works')}</button><button className="dismiss-demo" aria-label={T('关闭示例说明','Dismiss sample notice')} onClick={()=>{setDemoNotice(false);try{localStorage.setItem('jobapp:demo-notice-dismissed','1');}catch{}}}><Icon name="x" size={14}/></button></div>}
+      <span className="font-probe" aria-hidden="true">.</span><nav className="bottom-nav" aria-label={T('页面','Sections')}>{['now','tracker','apply'].map(id=>navLink(TABS.find(t=>t.id===id)))}<HeaderMenu className="bottom-more" label={T('更多','More')}>{['insights','watchdog','profile','library','diagnosis','ghost'].map(id=><button key={id} role="menuitem" onClick={()=>go(id)}>{T(TABS.find(t=>t.id===id).zh,TABS.find(t=>t.id===id).label)}</button>)}</HeaderMenu></nav>
       <div className="shell">
-        <nav className="nav" aria-label={T('页面','Sections')}>
-          <div className="nav-in">
-          <div className="nav-region">
-            <label htmlFor="region" className="eyebrow">{T('地区','Region')}</label>
-            <select id="region" value={region} onChange={e => setRegion(e.target.value)}>
-              {REGIONS.map(r => <option key={r.id} value={r.id}>{rName(r)}</option>)}
-            </select>
-          </div>
-          <div className="nav-links">
-            {TABS.filter(t => t.scope === 'region'&&t.id!=='addjob').map(navLink)}
-            <p className="group eyebrow">{T('所有地区共用','Shared by all regions')}</p>
-            {TABS.filter(t => t.scope === 'shared').map(navLink)}
-          </div>
-          </div>
-        </nav>
-
         <main id="main" className="main">
           <div className="main-in">
-            <div className="mobile-region"><label htmlFor="phone-region" className="sr-only">{T('地区','Region')}</label><select id="phone-region" value={region} onChange={e=>setRegion(e.target.value)}>{REGIONS.map(r=><option key={r.id} value={r.id}>{rName(r)}</option>)}</select></div>
+            <div className="mobile-region" hidden><label htmlFor="phone-region" className="sr-only">{T('地区','Region')}</label><select id="phone-region" value={region} onChange={e=>setRegion(e.target.value)}>{REGIONS.map(r=><option key={r.id} value={r.id}>{rName(r)}</option>)}</select></div>
             {!ghOk && !DEMO && (
               <section className="card connect" aria-labelledby="connect-h">
-                <h2 id="connect-h">{T('连接你的私有数据仓库','Connect your private data repo')}</h2>
+                <h1 id="connect-h" tabIndex={-1}>{T('连接你的私有数据仓库','Connect your private data repo')}</h1>
                 <p>{T('ApplyLedger 把你的投递存在你自己的 GitHub 私有仓库里。连接之前，在这里添加的东西都不会保存。','ApplyLedger keeps your applications in a private GitHub repo you own. Until you connect one, nothing you add here is saved.')}</p>
                 <div className="acts">
                   <Btn variant="primary" onClick={e => openSettings(e.currentTarget, '#set-repo')}>{T('连接…','Connect…')}</Btn>
-                  <a href="?demo=1&tab=tracker">{T('先看演示','Try the demo')}</a>
+                  <a href="?demo=1">{T('先看演示','Try the demo')}</a>
                 </div>
               </section>
             )}
-            {loaded && (
+            {loaded && (ghOk||DEMO||tab!=='now') && (
               <RegionApp
                 key={`${region}:${connGen}`}
                 region={region}
                 tab={tab}
+                desk={desk}
                 go={go}
                 openJobId={openJobId}
                 setOpenJobId={setOpenJobId}
@@ -3914,27 +3928,7 @@ function App() {
         </main>
       </div>
 
-      <footer className="honest">
-        <div className="honest-in">
-          <dl>
-            <dt>{!ghOk && DEMO ? T('关于这个演示','About this demo') : T('关于这个页面','About this page')}</dt>
-            <dd>{ghOk ? T(`你的投递，从 ${repo} 读取、写回 ${repo}。`, `Your applications, read from and written to ${repo}.`)
-              : DEMO ? <>{T('演示用的示例投递，公司全是虚构的；在这里改的东西都不会保存。','Sample applications made up for this demo — every company is fictional, and nothing you change here is saved.')}{' '}
-                  <button type="button" className="btn btn-link" onClick={e => openSettings(e.currentTarget, '#set-repo')}>{T('连接仓库…','Connect a repo…')}</button></>
-              : T('连接私有仓库之前，什么都不会保存。','Nothing is saved until you connect a private repo.')}</dd>
-          </dl>
-          <dl>
-            <dt>{T('这里没有验证的','Not verified here')}</dt>
-            <dd>{T('职位描述读取器是为英文招聘启事调的启发式规则：它帮你填字段，由你来核对。加拿大的工时账按加拿大「数据」页上写的规则计算，不是 IRCC 的计算。',
-              'The job-description reader is a heuristic tuned for English postings: it fills fields in, you check them. Canada’s hours ledger follows the rules written on its Insights page; it is not an IRCC calculation.')}</dd>
-          </dl>
-          <dl>
-            <dt>{T('源码','Source')}</dt>
-            <dd><a href="https://github.com/NickkkLian/Job-Tracker" rel="noopener">github.com/NickkkLian/Job-Tracker</a> · MIT · {T('Nick Lian 制作','built by Nick Lian')}</dd>
-            <dd>{T('GitHub 令牌和可选的 Anthropic 密钥只存在这个浏览器里，只发给各自的 API。','The GitHub token and the optional Anthropic key stay in this browser and go only to their own APIs.')}</dd>
-          </dl>
-        </div>
-      </footer>
+      <footer className="honest"><span>ApplyLedger</span><a href="https://github.com/NickkkLian/Job-Tracker" rel="noopener">{T('源码','Source')}</a><button onClick={()=>go('about')}>{T('了解原理','How it works')}</button><span>{T('职位描述的提取结果请自行核对。','Check fields extracted from job descriptions.')}</span></footer>
 
       {info && !saveErr && <div className="toasts"><div className="toast" role="status"><p>{info}</p></div></div>}
       {saveErr && (

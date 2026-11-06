@@ -28,6 +28,9 @@ if (esbuild.version !== ESBUILD_VERSION) {
 // front of the app, so GhostFlags is defined before app.jsx uses it
 const source = readFileSync(new URL('./src/ghost-flags.js', import.meta.url), 'utf8') + '\n'
   + readFileSync(new URL('./src/apply-kits.js', import.meta.url), 'utf8') + '\n'
+  + readFileSync(new URL('./src/ledger.js', import.meta.url), 'utf8') + '\n'
+  + readFileSync(new URL('./src/ledger-demo.js', import.meta.url), 'utf8') + '\n'
+  + readFileSync(new URL('./src/ledger.jsx', import.meta.url), 'utf8') + '\n'
   + readFileSync(new URL('./src/apply-tab.jsx', import.meta.url), 'utf8') + '\n'
   + readFileSync(new URL('./src/app.jsx', import.meta.url), 'utf8');
 const template = readFileSync(new URL('./src/index.template.html', import.meta.url), 'utf8');

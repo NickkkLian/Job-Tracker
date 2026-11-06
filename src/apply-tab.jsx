@@ -2,33 +2,35 @@
 // three-way conflicts and mounted-file replacement as the rest of ApplyLedger.
 function kitLabel(value) { if (typeof value === 'string') return value; const preferred=value?.[lang], fallback=value?.[lang === 'zh' ? 'en' : 'zh']; return typeof preferred === 'string' ? preferred : typeof fallback === 'string' ? fallback : ''; }
 
-function KitCopy({ id, label, value }) {
-  const [state, setState] = useState('');
-  const copy = async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
-    try { await navigator.clipboard.writeText(value); setState('copied'); }
-    catch { setState('failed'); }
-  });};
-  return <div className="kit-copy">
-    <div className="kit-copy-head"><label htmlFor={id}>{label}</label><button type="button" className="btn" data-copy={id} disabled={!value} onClick={copy}>{state === 'copied' ? T('已复制','Copied') : T('复制','Copy')}</button></div>
-    <textarea id={id} value={value || ''} readOnly rows={value?.length > 450 ? 9 : 2} onFocus={e => e.target.select()} />
-    <span className={state === 'failed' ? 'field-err' : 'hint'} role="status">{state === 'failed' ? T('复制失败，请选中文字手动复制。','Copy failed. Select the text and copy it manually.') : state === 'copied' ? T('已原样复制。','Copied exactly.') : ''}</span>
+const kitCopySessions=new Map();
+function kitAnswerText(answer,record) {return typeof record.answers?.[answer.id]==='string'?record.answers[answer.id]:answer.text||'';}
+function KitCopy({id,label,value,onCopied,paper=false,initialCopied=false}) {
+  const [state,setState]=useState(''),[ever,setEver]=useState(initialCopied),[expanded,setExpanded]=useState(false);
+  const timer=useRef(null);
+  useEffect(()=>()=>clearTimeout(timer.current),[]);
+  useEffect(()=>{setEver(initialCopied);if(!initialCopied){setState('');clearTimeout(timer.current);}},[initialCopied]);
+  const copy=async()=>HubSettingsRuntime.track(async()=>{
+    try{await navigator.clipboard.writeText(value);setState('copied');setEver(true);onCopied?.(id,value);clearTimeout(timer.current);timer.current=setTimeout(()=>setState(''),1600);}
+    catch{setState('failed');setExpanded(true);}
+  });
+  return <div className={`kit-copy${paper?' send-paper':''}`}>
+    <div className="kit-copy-head"><label htmlFor={id}>{label}</label><button type="button" className="btn" data-copy={id} disabled={!value} onClick={copy}>{ever&&<Icon name="check" size={14} className="copy-tick"/>} {state==='copied'?T('已复制','Copied'):T('复制','Copy')}</button></div>
+    {paper?<details className="cover-preview" open={state==='failed'||undefined}><summary>{T('预览全文','Preview text')}</summary><div id={id} className="send-text expanded" tabIndex={0}>{value}</div></details>:<div id={id} className={`send-text${expanded?' expanded':''}`} tabIndex={0}>{value||T('需要你填写','Your answer needed')}</div>}
+    {(!paper&&(value?.length>64||value?.includes('\n')))&&<button className="show-all" onClick={()=>setExpanded(v=>!v)}>{expanded?T('收起','Show less'):T('查看全部','Show all')}</button>}
+    {state==='failed'&&<p className="field-err" role="alert">{T('复制失败，请选中文字手动复制。','Copy failed. Select the text and copy it manually.')}</p>}
   </div>;
 }
 
-function KitAnswer({ kit, answer, record, busy, update }) {
-  const saved = typeof record.answers?.[answer.id] === 'string' ? record.answers[answer.id] : answer.text || '';
-  const [draft, setDraft] = useState(saved);
+function KitAnswer({kit,answer,record,busy,update,onCopied,copied}) {
+  const saved=kitAnswerText(answer,record);
+  const [draft,setDraft]=useState(saved);
   useSettingsDraft(draft!==saved);
-  useEffect(() => setDraft(saved), [saved]);
-  const id = `answer-${kit.id}-${answer.id}`;
-  return <div className="kit-answer">
-    {answer.editable && <div className="kit-personal">
-      <label htmlFor={`${id}-edit`}>{kitLabel(answer.label)} · {T('填写真实信息后保存','Enter your actual answer, then save')}</label>
-      <input id={`${id}-edit`} value={draft} placeholder={kitLabel(answer.prompt)} onChange={e => setDraft(e.target.value)} disabled={busy} />
-      <button className="btn" type="button" disabled={busy || !draft.trim() || draft === saved} onClick={() => update(kit.id, r => ({...r, answers:{...r.answers, [answer.id]:draft}}))}>{T('保存答案','Save answer')}</button>
-    </div>}
-    <KitCopy id={id} label={kitLabel(answer.label)} value={saved} />
-    {answer.note && <p className="hint">{kitLabel(answer.note)}</p>}
+  useEffect(()=>setDraft(saved),[saved]);
+  const id=`answer-${kit.id}-${answer.id}`;
+  return <div className={`kit-answer ${saved.length<=64&&!saved.includes('\n')?'short-answer':'long-answer'}${copied?' is-copied':''}`} id={`row-${id}`} tabIndex={-1} data-answer={answer.id} data-copied={copied?'true':undefined}>
+    <KitCopy id={id} label={kitLabel(answer.label)} value={saved} onCopied={onCopied} initialCopied={copied}/>
+    {answer.editable&&<div className="kit-personal"><label className="sr-only" htmlFor={`${id}-edit`}>{kitLabel(answer.label)}</label><input id={`${id}-edit`} value={draft} placeholder={kitLabel(answer.prompt)} onChange={e=>setDraft(e.target.value)} disabled={busy}/><button className="btn" disabled={busy||!draft.trim()||draft===saved} onClick={()=>update(kit.id,r=>({...r,answers:{...r.answers,[answer.id]:draft}}))}>{T('保存答案','Save answer')}</button></div>}
+    {answer.note&&<p className="hint">{kitLabel(answer.note)}</p>}
   </div>;
 }
 
@@ -56,100 +58,110 @@ function KitOutcome({ kit, record, busy, update }) {
   </div>;
 }
 
-function ApplyKitCard({ kit, record, busy, update, focused }) {
-  const ref = useRef(null);
-  const [salary, setSalary] = useState(false);
-  const [downloadError, setDownloadError] = useState('');
-  const [downloading, setDownloading] = useState(false);
-  useEffect(() => {
-    if (focused && ref.current) { ref.current.open = true; ref.current.scrollIntoView({block:'start'}); ref.current.querySelector('summary')?.focus(); }
-  }, [focused]);
-  const count = ApplyKits.days(kit.deadline, localISO(new Date()));
-  const countdown = count == null ? T('未注明截止日期','No published deadline') : count < 0 ? T(`已过 ${-count} 天`, `${-count} days past`) : count === 0 ? T('今天到期','Due today') : T(`还有 ${count} 天`, `${count} days left`);
-  const download = async () => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
-    setDownloading(true); setDownloadError('');
+function KitPage({kit,record,desk,go}) {
+  const [salary,setSalary]=useState(false),[downloadError,setDownloadError]=useState(''),[downloading,setDownloading]=useState(false),[copied,setCopied]=useState(()=>new Map(kitCopySessions.get(kit.id)||[])),[manual,setManual]=useState(''),[undo,setUndo]=useState(null);
+  const markCopied=(id,value)=>setCopied(old=>{const next=new Map(old);next.set(id,value);kitCopySessions.set(kit.id,[...next]);return next;});
+  const answerWasCopied=answer=>copied.get(`answer-${kit.id}-${answer.id}`)===kitAnswerText(answer,record);
+  const page=useRef(null),gn=useRef(false);
+  const [barActive,setBarActive]=useState(false),[barLeft,setBarLeft]=useState(0);
+  useEffect(()=>{
+    const panel=page.current.querySelector('.your-part');
+    const measure=()=>setBarLeft(page.current.getBoundingClientRect().left);
+    const observer=new IntersectionObserver(entries=>{setBarActive(!entries[0].isIntersecting&&entries[0].boundingClientRect.top<0);measure();},{rootMargin:`-${document.querySelector('#root header.topbar').getBoundingClientRect().height}px 0px 0px 0px`});
+    observer.observe(panel);window.addEventListener('resize',measure);measure();return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
+  },[]);
+  const requested=new URLSearchParams(location.hash.split('?')[1]||'').get('step');
+  const steps=Ledger.steps(kit,record),open=Ledger.openSteps(kit,record),requestedStep=steps.find(s=>s.id===requested)||(requested==null?null:steps[Number(requested)]),current=requestedStep&&!record.handoffDone?.[requestedStep.id]?requestedStep:open[0];
+  const state=Ledger.state(kit,record);
+  const copiedCount=kit.answers.filter(answerWasCopied).length;
+  const answerGroups=[];
+  kit.answers.forEach((answer,index)=>{
+    const key=kitLabel(answer.group)||String(Math.floor(index/8));
+    let group=answerGroups.at(-1);
+    if(!group||group.key!==key){group={key,label:kitLabel(answer.group)||(index+1===kit.answers.length?T(`第 ${index+1} 项`,`Answer ${index+1}`):T(`第 ${index+1}–${Math.min(kit.answers.length,index+8)} 项`,`Answers ${index+1}–${Math.min(kit.answers.length,index+8)}`)),answers:[]};answerGroups.push(group);}
+    group.answers.push(answer);
+  });
+
+  useEffect(()=>{const node=requested?page.current?.querySelector(`[data-step="${CSS.escape(current?.id||'')}"] input`):page.current?.querySelector('h1');node?.focus({preventScroll:true});},[kit.id,requested,current?.id]);
+  useEffect(()=>{if(!undo)return;const t=setTimeout(()=>setUndo(null),6000);return()=>clearTimeout(t);},[undo]);
+  const update=(id,transform)=>desk.update(id,transform);
+  const tick=async(step,checked=true)=>{
+    const ok=await update(kit.id,r=>({...r,handoffDone:{...r.handoffDone,[step.id]:checked?new Date().toISOString():null}}));
+    if(ok&&checked)setUndo({kind:'step',step:step.id});
+  };
+  const mark=async()=>{const ok=await update(kit.id,r=>ApplyKits.applied(r));if(ok)setUndo({kind:'sent'});};
+  const download=async()=>HubSettingsRuntime.track(async()=>{
+    setDownloading(true);setDownloadError('');
     try {
-      const data = await ghFindDataUrl(kit.resume.path, 'application/pdf');
-      if (!data) throw new Error(T('简历文件不存在，请联系资料维护者。','The resume file is missing. Ask the kit maintainer to upload it.'));
-      const bin = atob(data.split(',')[1] || '');
-      if (!bin.startsWith('%PDF-')) throw new Error(T('下载内容不是 PDF。','The downloaded file is not a PDF.'));
-      const blob = new Blob([Uint8Array.from(bin, c => c.charCodeAt(0))], {type:'application/pdf'});
-      const url = URL.createObjectURL(blob), a = document.createElement('a');
-      a.href = url; a.download = kit.resume.path.split('/').pop(); a.click(); setTimeout(() => URL.revokeObjectURL(url), 30000);
-    } catch (e) { setDownloadError(e.message); }
-    finally { setDownloading(false); }
-  });};
-  return <details className={`card apply-kit${focused ? ' kit-focused' : ''}`} ref={ref} data-kit={kit.id}>
-    <summary>
-      <span className="kit-summary"><span className="eyebrow">{kit.company}{kit.optional ? ` · ${T('可选','Optional')}` : ''}</span><h2>{kit.role}</h2><span className="kit-status"><span className={`tag ${record.outcome === 'offer' ? 'tag-success' : record.outcome === 'interview' ? 'tag-warning' : record.outcome ? 'tag-neutral' : record.appliedAt ? 'tag-info' : 'tag-neutral'}`}>{kitOutcomeLabel(record.outcome) || (record.appliedAt ? T('已投递','Applied') : T('待投递','To apply'))}</span>{record.outcome && record.outcomeDate && <span className="kit-date">{record.outcomeDate}</span>}</span>{record.outcome && record.outcomeNote && <span className="kit-result-note">{record.outcomeNote}</span>}<span className="kit-date">{kit.deadline || '—'} · {countdown} · {kitLabel(kit.deadlineKind)}</span></span>
-    </summary>
-    <div className="kit-body">
-      <div className="kit-record">
-        <button type="button" className="btn btn-primary" data-applied={kit.id} disabled={busy || !!record.appliedAt || ['declined','withdrawn'].includes(record.outcome)} onClick={() => update(kit.id, r => ApplyKits.applied(r))}>{busy ? T('保存中…','Saving…') : record.appliedAt ? T('已记录投递','Application recorded') : T('标记已投递','Mark applied')}</button>
-        <p>{record.appliedAt ? <>{T('投递日期：','Applied: ')}{record.appliedDate || record.appliedAt.slice(0,10)}{ApplyKits.followUp(record) && <> · {T('跟进日期：','Follow up: ')}{ApplyKits.followUp(record)}</>}</> : !['declined','withdrawn'].includes(record.outcome) && T('实际发送后点击。将记录当天日期，并在一周后跟进。','Click after sending. Records the date and a follow-up date one week later.')}</p>
-        <KitOutcome kit={kit} record={record} busy={busy} update={update}/>
-      </div>
-      <div className="acts"><a className="btn" href={kit.postingUrl} target="_blank" rel="noreferrer">{T('打开职位','Open posting')} <Icon name="open" size={14}/></a><a href={`#apply/${encodeURIComponent(kit.id)}`}>{T('此申请的链接','Link to this application')}</a></div>
-      <p className="kit-notice">{kitLabel(kit.reviewNote)}</p>
-      <h3>{T('是否合适','Fit and gaps')}</h3><p>{kitLabel(kit.fit)}</p>
-      <p className="hint">{T('联系入口：','Way in: ')}{kitLabel(kit.sideDoor)}</p>
-      <section aria-label={T('投递前','Before you apply')}>
-        <h3>{T('投递前','Before you apply')}</h3>
-        <p className="hint">{T('这些日期已经写进你的日历。只有实际完成后才勾选。','These dates are on your calendar. Check an action only after completing it.')}</p>
-        {kit.actions.length ? <ul className="kit-actions">{kit.actions.map(a => <li key={a.id}>
-          <label><input type="checkbox" data-action={a.id} checked={!!record.completed?.[a.id]} disabled={busy} onChange={e => {const checked=e.target.checked; update(kit.id, r => ({...r, completed:{...r.completed, [a.id]:checked ? new Date().toISOString() : null}}));}}/><span><b>{a.date} · {a.minutes} {T('分钟','min')}</b><br/>{kitLabel(a.title)}</span></label><p>{kitLabel(a.outcome)}</p>
-        </li>)}</ul> : <p>{T('没有已确认、可在截止前补上的技能缺口。','No confirmed skill gap that can be closed before the deadline.')}</p>}
-        <p><b>{T('计划投递：','Planned application: ')}</b>{kit.applyDate || '—'} · {T('完成准备后，再按下方步骤投递。','Complete preparation, then follow the steps below.')}</p>
-      </section>
-      <section aria-label={T('发送材料','Send')}>
-        <h3>{T('发送材料','Send')}</h3>
-        <button type="button" className="btn btn-primary" data-download={kit.id} disabled={downloading} onClick={download}>{downloading ? T('下载中…','Downloading…') : T('下载所选简历','Download selected resume')}</button>
-        <p className="hint">{kit.resume.path.split('/').pop()} · {kitLabel(kit.resume.reason)}</p>
-        {downloadError && <p className="field-err" role="alert">{downloadError}</p>}
-        <KitCopy id={`cover-${kit.id}`} label={T('求职信 / 邮件正文（英文）','Cover letter / email body (English)')} value={kit.coverLetter || ''}/>
-        <h3>{T('表格答案','Form answers')}</h3>
-        <p className="hint">{kitLabel(kit.formNote)}</p>
-        {kit.answers.map(a => <KitAnswer key={a.id} kit={kit} answer={a} record={record} busy={busy} update={update}/>)}
-        {kit.salary && <div className="kit-salary"><label><input type="checkbox" checked={salary} onChange={e => setSalary(e.target.checked)}/>{T('表格确实要求期望薪资','The form asks for expected salary')}</label>{salary && <><KitCopy id={`salary-${kit.id}`} label={T('薪资（仅被问到时）','Salary (only if asked)')} value={kit.salary.text || ''}/><p className="hint">{kitLabel(kit.salary.note)} {ApplyKits.url(kit.salary.source) && <a href={kit.salary.source} target="_blank" rel="noreferrer">{T('薪资来源','Salary source')}</a>}</p></>}</div>}
-      </section>
-      <section><h3>{T('按顺序操作','Steps in order')}</h3><ol className="how">{kit.steps.map((s,i) => <li key={i}>{kitLabel(s)}</li>)}</ol></section>
-      <details className="kit-sources"><summary>{T('材料依据','Sources for this kit')}</summary><ul>{(kit.sources || []).map((s,i) => <li key={i}>{kitLabel(s.label)}{ApplyKits.url(s.url) && <> · <a href={s.url} target="_blank" rel="noreferrer">{T('来源','Source')}</a></>}</li>)}</ul></details>
+      let blob;
+      if(DEMO)blob=sampleTailoredResume(kit).output('blob');
+      else {
+        const data=await ghFindDataUrl(kit.resume.path,'application/pdf');
+        if(!data)throw new Error(T('简历文件不存在，请补上这份 PDF。','The resume file is missing. Upload this PDF to the kit.'));
+        const bin=atob(data.split(',')[1]||'');if(!bin.startsWith('%PDF-'))throw new Error(T('下载内容不是 PDF。','The downloaded file is not a PDF.'));
+        blob=new Blob([Uint8Array.from(bin,c=>c.charCodeAt(0))],{type:'application/pdf'});
+      }
+      const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=kit.resume.path.split('/').pop();a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+    }catch(e){setDownloadError(e.message);}finally{setDownloading(false);}
+  });
+  const resume=<div className="resume-row" data-entry="row"><Icon name="file"/><span><b>{kit.resume.path.split('/').pop()}</b><details className="resume-reason"><summary aria-label={T('选择原因','Why this file')}><Icon name="info" size={16}/></summary><p>{kitLabel(kit.resume.reason)}</p></details></span><button className="btn" data-download={kit.id} disabled={downloading} onClick={download}>{downloading?T('下载中…','Downloading…'):T('下载','Download')}</button></div>;
+  const action=(step,compact=false)=>{
+    if(step?.kind==='upload')return compact?<button className="btn btn-primary" disabled={downloading} onClick={download}>{T('下载简历','Download resume')}</button>:resume;
+    return <a className="btn btn-primary" href={ApplyKits.url(step?.url)||(step?.kind==='code'?`https://mail.google.com/mail/u/0/#search/${encodeURIComponent(kit.company)}`:kit.postingUrl)} target="_blank" rel="noreferrer">{step?.kind==='code'?T('打开邮箱查找验证码','Find the code in email'):T('打开申请表单','Open the form')}<Icon name="open" size={14}/></a>;
+  };
+  const stepRow=step=><li key={step.id} data-step={step.id} className={current?.id===step.id?'current-step':''}><label><input type="checkbox" checked={!!record.handoffDone?.[step.id]} disabled={desk.busy} onChange={e=>tick(step,e.target.checked)}/><span><b>{kitLabel(step.text)}</b></span></label>{current?.id===step.id&&!record.handoffDone?.[step.id]&&<div className="step-material">{action(step)}</div>}</li>;
+  const shortcuts=e=>{
+    if(!Appearance.shortcutsOn()||e.target.closest('input,textarea,select,[contenteditable="true"]'))return;
+    if(e.key==='n'&&gn.current){e.preventDefault();gn.current=false;go('now');return;}
+    gn.current=e.key==='g';
+    const answers=[...page.current.querySelectorAll('.kit-answer')],index=answers.indexOf(document.activeElement.closest('.kit-answer'));
+    if(['j','k'].includes(e.key)){e.preventDefault();answers[(index+(e.key==='j'?1:-1)+answers.length)%answers.length]?.focus();}
+    if(e.key==='c'&&index>=0){e.preventDefault();answers[index].querySelector('[data-copy]')?.click();}
+    if(e.key==='?'){e.preventDefault();const d=page.current.querySelector('.keyboard-help');d.open=!d.open;}
+  };
+  return <article className="kit-page" data-kit={kit.id} ref={page} onKeyDown={shortcuts}>
+    <header className="kit-header"><button className="back-button" onClick={()=>go('apply')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>{T('投递材料包','Apply kits')}</button><div className="kit-title-line"><h1 tabIndex={-1}>{kit.role}</h1><details className="kit-overflow"><summary aria-label={T('申请选项','Application options')}><Icon name="dots"/></summary><div><details className="manual-step"><summary>{T('添加步骤','Add step')}</summary><form onSubmit={e=>{e.preventDefault();if(manual.trim())update(kit.id,r=>({...r,manualSteps:[...(r.manualSteps||[]),{id:newId(),text:manual.trim()}]})).then(ok=>{if(ok)setManual('');});}}><label htmlFor="manual-step-text">{T('下一步','Next step')}</label><input id="manual-step-text" value={manual} onChange={e=>setManual(e.target.value)}/><button className="btn" disabled={desk.busy||!manual.trim()}>{T('添加步骤','Add step')}</button></form></details><a className="btn" href={kit.postingUrl} target="_blank" rel="noreferrer">{T('打开职位','Open posting')}<Icon name="open" size={14}/></a><button className="btn" onClick={()=>navigator.clipboard.writeText(location.href).catch(()=>setDownloadError(T('复制失败，请手动复制地址。','Copy failed. Copy the address manually.')))}>{T('复制链接','Copy link')}</button>{kit.jobRef&&<button className="btn" onClick={()=>{window.dispatchEvent(new CustomEvent('jobapp:openlinked',{detail:kit.jobRef}));}}>{T('职位详情和 AI 提示词','Job details and AI prompts')}</button>}</div></details></div><p className="kit-byline">{kit.company}{kit.location&&` · ${kit.location}`}{kit.optional&&` · ${T('可选','Optional')}`}<span>{kit.deadline?T(`${ledgerDate(kit.deadline)} 截止`,`Closes ${ledgerDate(kit.deadline)}`):T('截止日未注明','Deadline not listed')}</span></p></header>
+    <section className="your-part" aria-labelledby="your-part-title"><h2 id="your-part-title">{T('你要做的','Your part')}</h2>
+      {record.appliedAt?<p className="sent-line">{T(`${ledgerDate(record.appliedDate||record.appliedAt)} 已投递 · ${Ledger.age(record.appliedAt)} 天`, `Sent ${ledgerDate(record.appliedDate||record.appliedAt)} · ${Ledger.age(record.appliedAt)} days`)}{!record.outcome&&T('，暂无回复',', no reply yet')} {record.outcome&&(state==='working'?stateName(state):kitOutcomeLabel(record.outcome))}</p>:state==='closed'?<p>{T('这份申请已结束','This application is closed')}</p>:<>
+      <ol className="your-steps">{current&&stepRow(current)}</ol>{steps.length>1&&<details className="other-handoff"><summary>{T('其他步骤','Other steps')}</summary><ol className="your-steps">{steps.filter(step=>step.id!==current?.id).map(stepRow)}</ol></details>}
+      {!open.length&&<div className="mark-sent"><button className="btn btn-primary" data-applied={kit.id} disabled={desk.busy} onClick={mark}>{T('标记已投递','Mark sent')}</button><span>{T('记录今天的日期','Records today’s date')}</span></div>}
+
+      </>}
+      <DeskError desk={desk}/>
+    </section>
+    <div className={`kit-working-bar${barActive?' is-active':''}`} style={{left:barLeft}}><div><span className="working-bar-label">{T('你要做的','Your part')}</span><b>{record.appliedAt?stateName(state):current?kitLabel(current.text):T('材料已备好，可以投递','Ready to send')}</b></div>
+      {!record.appliedAt&&state!=='closed'&&(current?<>{action(current,true)}<button className="btn" disabled={desk.busy} onClick={()=>tick(current)}>{T('完成这一步','Done')}</button></>:<button className="btn btn-primary" disabled={desk.busy} onClick={mark}>{T('标记已投递','Mark sent')}</button>)}
+      <span className="working-copy-count" role="status">{T(`已复制 ${kit.answers.length} 项中的 ${copiedCount} 项`,`${copiedCount} of ${kit.answers.length} copied`)}</span>
     </div>
-  </details>;
+    <details className="phone-steps"><summary>{T('按顺序操作','Steps in order')}</summary><ol>{kit.steps.map((step,i)=><li key={i}>{kitLabel(step)}</li>)}</ol></details>
+    <div className="kit-columns"><section className="materials-list"><div className="section-line"><h2>{T('材料','Materials')}</h2><span role="status">{T(`已复制 ${kit.answers.length} 项中的 ${copiedCount} 项`,`${copiedCount} of ${kit.answers.length} copied`)}</span></div>
+      {resume}{downloadError&&<p className="field-err" role="alert">{downloadError}</p>}
+      <KitCopy id={`cover-${kit.id}`} label={T('求职信（英文）','Cover letter (English)')} value={kit.coverLetter||''} paper onCopied={markCopied}/>
+      <div className="answer-heading"><h3>{T('表格答案','Form answers')}</h3>{kit.formNote&&<details className="form-note"><summary>{T('填写说明','Form notes')}</summary><p>{kitLabel(kit.formNote)}</p></details>}</div>
+      <div className="answers-list">{answerGroups.map((group,index)=><section className="answer-group" key={group.key} aria-labelledby={`answer-group-${index}`}><h4 id={`answer-group-${index}`}>{group.label}</h4>{group.answers.map(answer=><KitAnswer key={answer.id} kit={kit} answer={answer} record={record} busy={desk.busy} update={update} copied={answerWasCopied(answer)} onCopied={markCopied}/>)}</section>)}</div>
+      {kit.salary&&<div className="kit-salary"><label><input type="checkbox" checked={salary} onChange={e=>setSalary(e.target.checked)}/>{T('表格确实要求期望薪资','The form asks for expected salary')}</label>{salary&&<><KitCopy id={`salary-${kit.id}`} label={T('期望薪资','Expected salary')} value={kit.salary.text}/><p className="hint">{kitLabel(kit.salary.note)} <a href={kit.salary.source} target="_blank" rel="noreferrer">{T('薪资来源','Salary source')}</a></p></>}</div>}
+    </section><aside className="steps-aside"><nav className="answer-jumps" aria-label={T('跳到表格答案','Jump to form answers')}><h2>{T('表格答案','Form answers')}</h2>{answerGroups.map(group=><button className="answer-jump" key={group.key} onClick={()=>{const node=document.getElementById(`row-answer-${kit.id}-${group.answers[0].id}`);node?.scrollIntoView({block:'start'});node?.focus({preventScroll:true});}}>{group.label}{group.answers.filter(answerWasCopied).length>0&&<span>{T(`已复制 ${group.answers.filter(answerWasCopied).length} 项`,`${group.answers.filter(answerWasCopied).length} copied`)}</span>}</button>)}</nav>
+
+      {!record.appliedAt&&<details className="kit-preparation"><summary>{T('投递前准备','Preparation')}</summary>{kit.actions.map(a=><label key={a.id} className="preparation-action"><input type="checkbox" data-action={a.id} checked={!!record.completed?.[a.id]} disabled={desk.busy} onChange={e=>{const checked=e.target.checked;update(kit.id,r=>({...r,completed:{...r.completed,[a.id]:checked?new Date().toISOString():null}}));}}/><span><small>{a.date} · {a.minutes} {T('分钟','min')}</small><b>{kitLabel(a.title)}</b><span>{kitLabel(a.outcome)}</span></span></label>)}<p className="hint">{T('计划投递 ','Planned send date ')}{kit.applyDate||'—'}</p></details>}
+      <details className="steps-in-order"><summary>{T('按顺序操作','Steps in order')}</summary><ol>{kit.steps.map((s,i)=><li key={i}>{kitLabel(s)}</li>)}</ol></details>
+      {[['fit',T('为什么适合','Why this role')],['reviewNote',T('核对过什么','What was checked')],['sideDoor',T('投递入口','Way in')]].map(([key,label])=><details key={key}><summary>{label}</summary><p>{kitLabel(kit[key])}</p></details>)}
+      <details><summary>{T('材料依据','Sources')}</summary><ul>{(kit.sources||[]).map((s,i)=><li key={i}>{kitLabel(s.label)}{ApplyKits.url(s.url)&&<a href={s.url} target="_blank" rel="noreferrer"> {T('查看来源','View source')}</a>}</li>)}</ul></details>
+      <KitOutcome kit={kit} record={record} busy={desk.busy} update={update}/>
+    </aside></div><ShortcutsHelp kind="kit"/>
+    {!record.appliedAt&&state!=='closed'&&<div className="kit-bottom-action">{open.length?<button className="btn btn-primary" disabled={desk.busy} onClick={()=>tick(open[0])}>{T(`完成第 ${steps.findIndex(s=>s.id===open[0].id)+1} 步`,`Done: step ${steps.findIndex(s=>s.id===open[0].id)+1}`)}</button>:<button className="btn btn-primary" disabled={desk.busy} onClick={mark}>{T('标记已投递','Mark sent')}</button>}</div>}
+    {undo&&<div className="desk-undo" role="status">{undo.kind==='sent'?T('已记录投递','Application recorded'):T('步骤已完成','Step finished')}<button className="btn" onClick={()=>{update(kit.id,r=>{if(undo.kind==='step')return {...r,handoffDone:{...r.handoffDone,[undo.step]:null}};const next={...r};delete next.appliedAt;delete next.appliedDate;return next;});setUndo(null);}}>{T('撤销','Undo')}</button></div>}
+  </article>;
 }
 
-function ApplyTab({ openSettings }) {
-  const [kits, setKits] = useState([]), [progress, setProgress] = useState([]);
-  const [loading, setLoading] = useState(true), [error, setError] = useState(null), [saveError, setSaveError] = useState('');
-  const [attempt, setAttempt] = useState(0), [busy, setBusy] = useState(false), [selected, setSelected] = useState(() => ApplyKits.hashId(location.hash));
-  const now = useRef(progress); now.current = progress;
-  useEffect(() => holdFile('applyProgress', () => now.current, setProgress), []);
-  useEffect(() => {const h=() => setSelected(ApplyKits.hashId(location.hash)); window.addEventListener('hashchange',h); window.addEventListener('popstate',h); return () => {window.removeEventListener('hashchange',h); window.removeEventListener('popstate',h);};}, []);
-  useEffect(() => {
-    let cancelled=false; setLoading(true); setError(null);
-    if (!ghConfigured()) {setKits([]); setProgress([]); setLoading(false); return;}
-    Promise.all([ghRead(ApplyKits.path), loadJsonStrict('applyProgress')]).then(([text, records]) => {
-      const data=ApplyKits.validate(text ? JSON.parse(text) : []); ApplyKits.validateProgress(records);
-      if (!cancelled) {setKits(ApplyKits.sort(data)); setProgress(records); setLoading(false);}
-    }).catch(e => {if(!cancelled){setError(e); setLoading(false);}});
-    return () => {cancelled=true;};
-  }, [attempt]);
-  const update = async (id, transform) => {return HubSettingsRuntime.track(async()=>{/* settings workflow */
-    if (busy || error || loading || !ghConfigured()) return;
-    setBusy(true); setSaveError('');
-    const rows=now.current, record=rows.find(r => r.id === id) || {id};
-    const changed=transform(record), next=rows.some(r => r.id === id) ? rows.map(r => r.id === id ? changed : r) : [...rows, changed];
-    try {const r=await ghWrite(ApplyKits.progressPath, next); setProgress(ApplyKits.validateProgress(r.data));}
-    catch(e){console.warn(e);setSaveError('failed');}
-    finally {setBusy(false);}
-  });};
-  return <>
-    <PageHead eyebrow={T('所有地区共用','Shared by all regions')} title={T('去投递','Apply')} sub={T('材料、准备和下一步，都在同一处。','Your materials, preparation and next step, together.')} />
-    {loading ? <div className="card" aria-busy="true">{T('正在读取申请材料…','Loading application kits…')}</div> : error ? <ErrorCard title={T('没能读取申请材料，未保存任何更改','Couldn’t read application kits; no changes saved')} error={error} onRetry={() => setAttempt(x => x+1)} openSettings={openSettings}/> : !kits.length ? <section className="card"><h2>{T('还没有申请材料包','No application kits yet')}</h2><p>{T('由资料维护者审核材料包后上传到你的私有仓库，即可在这里使用。','Your kit maintainer can review and upload application kits to your private repository to make them available here.')}</p></section> : <>
-      <p className="hint">{T(`${kits.length} 份申请 · 按截止日期排序 · 投递记录保存到你的仓库`,`${kits.length} applications · nearest deadline first · progress saved to your repo`)}</p>
-      {selected && !kits.some(k => k.id === selected) && <p className="field-err" role="alert">{T('这个链接没有对应的申请，请从下面选择。','This link has no matching application. Choose one below.')}</p>}
-      {saveError && <p className="field-err kit-save-error" role="alert">{T('保存失败；刚才的操作未记录，请重试。','Save failed; the last action was not recorded. Please retry.')}</p>}
-      <div className="kit-list">{kits.map(kit => <ApplyKitCard key={kit.id} kit={kit} record={progress.find(r => r.id === kit.id) || {id:kit.id}} busy={busy} update={update} focused={selected === kit.id}/>)}</div>
-    </>}
-  </>;
+function ApplyTab({openSettings,desk,go}) {
+  const selected=ApplyKits.hashId(location.hash),kit=desk.kits.find(k=>k.id===selected);
+  if(desk.loading)return <DeskSkeleton/>;
+  if(kit)return <KitPage key={kit.id} kit={kit} record={desk.progress.find(r=>r.id===kit.id)||{id:kit.id}} desk={desk} go={go}/>;
+  const groups=['yours','ready','saved','sent','talking','offer','quiet','working','closed'];
+  const records=new Map(desk.progress.map(r=>[r.id,r]));
+  return <div className="apply-list-view"><PageHead title={T('投递材料包','Apply kits')} /><DeskError desk={desk} openSettings={openSettings}/>
+    {selected&&!kit&&<p className="field-err" role="alert">{T('这个链接没有对应的申请。','This link has no matching application.')}</p>}
+    {!desk.kits.length&&!desk.error&&<section className="card"><h2>{T('还没有申请材料包','No application kits yet')}</h2><p>{T('审核后的材料包上传到你的私有仓库后，就能在这里使用。','Upload reviewed kits to your private repository to use them here.')}</p></section>}
+    {groups.map(state=>{const kits=desk.kits.filter(k=>Ledger.state(k,records.get(k.id))===state);return !!kits.length&&<section className="kit-group" key={state} data-kit-group={state}><div className="section-line"><h2>{stateName(state)}</h2><span>{kits.length}</span></div><ul>{kits.map(k=>{const record=records.get(k.id)||{},copies=new Map(kitCopySessions.get(k.id)||[]),copiedCount=k.answers.filter(a=>copies.get(`answer-${k.id}-${a.id}`)===kitAnswerText(a,record)).length;return <li className="kit-list-row" key={k.id} data-entry="row"><a href={kitHref(k)}><b>{k.role}</b><span>{k.company}{record.outcome?` · ${kitOutcomeLabel(record.outcome)} ${record.outcomeDate||''}`:k.deadline?` · ${ledgerDate(k.deadline)}`:''}{copiedCount>0&&` · ${T(`已复制 ${copiedCount} 项`,`${copiedCount} copied`)}`}</span></a></li>;})}</ul></section>;})}
+  </div>;
 }

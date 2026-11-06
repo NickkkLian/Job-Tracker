@@ -22,9 +22,9 @@ test('unsafe links, paths, duplicates and invalid schedules are rejected',()=>{
  assert.throws(()=>k.validate([{...kit(),deadline:'2026-02-31'}]));
  assert.throws(()=>k.validate([{...kit(),fit:{en:{bad:'object'}}}]));
 });
-test('applied is idempotent, retains fields, follows local calendar seven days later',()=>{
+test('applied is idempotent, retains fields, records the local calendar date',()=>{
  const r=k.applied({id:'a',unknown:'retain',answers:{start:'actual'}},new Date(2026,9,31,18));
- assert.equal(r.appliedDate,'2026-10-31');assert.equal(r.followUpDate,'2026-11-07');assert.equal(r.unknown,'retain');
+ assert.equal(r.appliedDate,'2026-10-31');assert.equal(r.followUpDate,undefined);assert.equal(r.unknown,'retain');
  assert.equal(r.answers.start,'actual');assert.equal(k.applied(r,new Date(2026,10,5)),r);
 });
 test('progress rejects malformed records and retains unrelated content',()=>{

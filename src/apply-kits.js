@@ -18,6 +18,17 @@ const ApplyKits = (() => {
           || !url(k.postingUrl) || !file(k.resume?.path) || (k.deadline && !day(k.deadline))
           || !Array.isArray(k.answers) || !Array.isArray(k.actions) || !Array.isArray(k.steps)) throw new Error('Invalid application kit');
       ids.add(k.id);
+      if (k.jobRef != null && (!k.jobRef || typeof k.jobRef.region !== 'string' || !/^[a-z]+$/.test(k.jobRef.region)
+        || !['string','number'].includes(typeof k.jobRef.id) || !String(k.jobRef.id))) throw new Error('Invalid linked job');
+      if (k.handoff != null) {
+        if (!k.handoff || !Array.isArray(k.handoff.steps) || (k.handoff.updatedAt && !Number.isFinite(Date.parse(k.handoff.updatedAt)))) throw new Error('Invalid handoff');
+        const seen = new Set();
+        k.handoff.steps.forEach(s => {
+          if (!s || !/^[a-z0-9_-]+$/.test(s.id || '') || seen.has(s.id) || !label(s.text)
+            || !['robot-check','code','upload','sign-in','consent','submit','other'].includes(s.kind) || (s.url && !url(s.url))) throw new Error('Invalid handoff step');
+          seen.add(s.id);
+        });
+      }
       if (![k.deadlineKind,k.fit,k.reviewNote,k.sideDoor,k.formNote,k.resume.reason].every(label)
         || (k.coverLetter != null && typeof k.coverLetter !== 'string') || !k.steps.every(label)
         || (k.sources != null && (!Array.isArray(k.sources) || k.sources.some(s => !s || !label(s.label))))
@@ -36,7 +47,10 @@ const ApplyKits = (() => {
     if (!Array.isArray(rows) || rows.some((r, i) => !r || typeof r.id !== 'string' || rows.findIndex(x => x?.id === r.id) !== i
       || (r.answers != null && (typeof r.answers !== 'object' || Array.isArray(r.answers)))
       || (r.completed != null && (typeof r.completed !== 'object' || Array.isArray(r.completed)))
+      || (r.handoffDone != null && (typeof r.handoffDone !== 'object' || Array.isArray(r.handoffDone) || Object.values(r.handoffDone).some(v => v != null && (typeof v !== 'string' || !Number.isFinite(Date.parse(v))))))
+      || (r.manualSteps != null && (!Array.isArray(r.manualSteps) || r.manualSteps.some(s => !s || typeof s.id !== 'string' || typeof s.text !== 'string')))
       || (r.appliedAt != null && (typeof r.appliedAt !== 'string' || !Number.isFinite(Date.parse(r.appliedAt))))
+      || (r.markedWorkingAt != null && (typeof r.markedWorkingAt !== 'string' || !Number.isFinite(Date.parse(r.markedWorkingAt))))
       || (r.appliedDate != null && !day(r.appliedDate)) || (r.followUpDate != null && !day(r.followUpDate))
       || (r.outcome != null && r.outcome !== '' && !outcomes.includes(r.outcome))
       || (r.outcomeDate != null && r.outcomeDate !== '' && !day(r.outcomeDate))
@@ -47,11 +61,10 @@ const ApplyKits = (() => {
   function days(deadline, today) { return day(deadline) ? Math.round((Date.parse(deadline + 'T12:00:00Z') - Date.parse(today + 'T12:00:00Z')) / 864e5) : null; }
   function applied(record, now = new Date()) {
     if (record.appliedAt) return record;
-    const follow = new Date(now); follow.setDate(follow.getDate() + 7);
     const iso = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    return { ...record, appliedAt: now.toISOString(), appliedDate: iso(now), followUpDate: iso(follow) };
+    return { ...record, appliedAt: now.toISOString(), appliedDate: iso(now) };
   }
-  function hashId(hash) { try { return /^#apply\//.test(hash) ? decodeURIComponent(hash.slice(7)) : ''; } catch { return ''; } }
+  function hashId(hash) { try { return /^#apply\//.test(hash) ? decodeURIComponent(hash.slice(7).split('?')[0]) : ''; } catch { return ''; } }
   function setOutcome(record, outcome, date, note = '') {
     const next = {...record};
     if (!outcome) {
@@ -59,6 +72,7 @@ const ApplyKits = (() => {
     } else {
       if (!outcomes.includes(outcome) || !day(date) || typeof note !== 'string') throw new Error('Invalid application outcome');
       Object.assign(next, {outcome, outcomeDate:date, outcomeNote:note.trim()});
+      if (record.outcome !== outcome) delete next.markedWorkingAt;
     }
     return next;
   }

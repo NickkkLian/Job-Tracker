@@ -20,12 +20,12 @@ HARNESS_HTTP=1 SETTINGS_FIXTURE=1 HARNESS_OFFLINE=1 TMPDIR=/absolute/path/to/job
 
 Scenarios S28–S37 extend the shared suite using the same fake GitHub and CDP mobile
 emulation. They cover sorting, deep links, exact copying, real browser download bytes,
-persisted personal answers and application/follow-up dates, stale-save merging,
+persisted personal answers and application dates without new follow-up dates, stale-save merging,
 failed reads/writes, invalid kits, clipboard failure, Chinese, dark mode and 375px
 layout. All fixtures are fictional. No real repository is contacted.
 
-S38–S40 cover stored outcomes in collapsed and open cards, all four results,
-closed follow-up suppression, reload, clearing, preservation of other progress and
+S38–S40 cover stored outcomes in the grouped list and full kit page, all four results,
+follow-up suppression, reload, clearing, preservation of other progress and
 failed saves. Set `EVIDENCE_DIR` to an absolute local folder to capture desktop and
 375px phone screenshots. Set `LEGACY_PAGE` to an archived pre-change `index.html`
 to include S41, which opens that actual older page and saves twice after an
@@ -41,6 +41,14 @@ node test/apply-kits.browser.mjs .
 
 The shared suite stays outside this checkout; the extension is kept here so it can
 be reviewed and run without modifying another workspace.
+
+`ledger.test.mjs` covers derived states, handoff fallback, optional validation,
+linked status changes, honest event dates and atomic linked commits under a moved
+branch or cancelled conflict. `linked-save.test.mjs` checks acknowledgements against
+newer mounted and queued edits. `ledger.browser.mjs` covers Now, its keyboard flow,
+copy marks, region menus, own-data connection, atomic linked saves and failures
+before and during a commit. The existing S31 also verifies that editing a copied
+answer clears its mark and count.
 
 The approved pipeline redesign has two additional browser checks. From the parent
 workspace, with the same offline browser and local HTTP environment, run:
