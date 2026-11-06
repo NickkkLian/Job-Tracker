@@ -344,3 +344,51 @@ button:disabled{opacity:1!important}
 @media(max-width:899px){.kit-answer .send-text{-webkit-line-clamp:1}.kit-answer .send-text.expanded{display:block}}
 
 .send-paper{width:fit-content;max-width:100%}.send-paper:has(.cover-preview[open]){width:100%}
+
+/* Pack compact entries across the available work area. */
+.now-grid{width:100%;max-width:none}
+.handoff-list,.compact-list,.kit-group ul{
+ display:grid;
+ grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));
+ gap:.75rem;
+ width:100%!important;
+ max-width:100%;
+ background:none;
+}
+.handoff-row{grid-column:span 2;width:100%;max-width:100%;min-width:0}
+.handoff-text{flex:0 1 auto;max-width:calc(100% - 8rem)}
+.compact-row,.kit-list-row{width:100%!important;min-width:0;border:0}
+.compact-row .row-link,.kit-list-row>a:first-child{width:100%;max-width:100%;min-width:0}
+.pipeline .pipeline-stage{width:100%;max-width:100%;background:none}
+.pipeline .pipeline-cards{
+ display:grid!important;
+ grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));
+ gap:.75rem;
+ margin:.75rem 0 0;
+}
+.pipeline .pipeline-tier{margin-bottom:1.5rem}
+.pipeline .application-row{width:100%;min-width:0;border:0;border-radius:.5rem;background:var(--surface);gap:.5rem;align-items:center}
+.application-row .job-open{width:max-content;max-width:calc(100% - 3.25rem);flex:0 1 auto}
+.application-row .role,.application-row .job-sub{max-width:100%}
+.application-row .job-move{margin:0;flex:none}
+.current-step b{background:transparent;color:var(--text);padding:0;border-radius:0}
+.answer-jumps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 .5rem;margin-bottom:.75rem}
+.answer-jumps h2{grid-column:1/-1;font-size:.9375rem;margin:0 0 .25rem}
+.answer-jump{margin:0;min-height:2.75rem;padding:0;font-size:.8125rem;line-height:1.4;gap:.5rem}
+.steps-aside>details{margin-top:.5rem;padding:.25rem 0;border:0}
+.resume-row{gap:.5rem}
+.resume-row>span{flex:0 1 auto;min-width:0;width:max-content}
+.resume-row>.btn{margin:0;min-height:2.75rem}
+.resume-reason[open]{flex-basis:100%;max-width:100%}
+.resume-reason[open] p{position:static;width:auto;max-width:26rem;padding:.5rem 0;box-shadow:none}
+.topbar #job-save-status.demo-save{display:flex!important;align-items:center;align-self:center;height:2.75rem;min-height:2.75rem;padding:0}
+@media(max-width:899px){
+ .handoff-list,.compact-list,.kit-group ul,.pipeline .pipeline-cards{grid-template-columns:minmax(0,1fr)}
+ .handoff-row{grid-column:auto;width:100%;max-width:100%}
+ .handoff-text{max-width:calc(100vw - 11rem)}
+ .compact-row .row-link{max-width:100%}
+ .pipeline .application-row .job-open{max-width:100%;flex:1 1 auto}
+}
+@media(min-width:600px) and (max-width:899px){
+ .handoff-list,.compact-list,.kit-group ul,.pipeline .pipeline-cards{grid-template-columns:repeat(auto-fill,minmax(15rem,1fr))}
+}
