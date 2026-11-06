@@ -392,3 +392,6 @@ button:disabled{opacity:1!important}
 @media(min-width:600px) and (max-width:899px){
  .handoff-list,.compact-list,.kit-group ul,.pipeline .pipeline-cards{grid-template-columns:repeat(auto-fill,minmax(15rem,1fr))}
 }
+@media(min-width:900px) and (max-width:1229px){
+ .handoff-row{grid-column:span 1}
+}
