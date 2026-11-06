@@ -18,6 +18,10 @@ async function scenario(name,fn,options={}){let p;try{
 try{
  await scenario('Now opens by default and the handoff link focuses its exact step',async p=>{
   assert.match(await p.eval("document.querySelector('h1').textContent"),/1 thing needs you/);
+  assert.ok(await p.eval("(()=>{const panel=document.querySelector('.waiting-desktop'),strip=panel.querySelector('.age-strip-button').getBoundingClientRect();return panel.checkVisibility()&&strip.bottom<innerHeight})()"));
+  await p.size(390,844);
+  assert.equal(await p.eval("document.querySelector('.waiting-desktop').checkVisibility()"),false);
+  assert.equal(await p.eval("document.querySelector('.waiting-mobile').checkVisibility()"),false);
   await p.click('[data-handoff-open]');await p.until("document.querySelector('.kit-page')");
   assert.equal(await p.eval("document.activeElement.closest('[data-step]').dataset.step"),'robot-submit');
   await p.size(390,844);assert.ok(await p.eval("document.querySelector('.current-step .btn').getBoundingClientRect().bottom<innerHeight"));

@@ -118,7 +118,8 @@ function NowTab({jobs,region,desk,go,openSettings}) {
   useListMovement('[data-handoff]',yours.map(r=>r.id).join(','));
   const coming=rows.filter(r=>r.state==='ready');
   const talking=rows.filter(r=>['talking','offer'].includes(r.state));
-  const sent=rows.filter(r=>r.sentAt||r.job?.status==='applied'),replies=rows.filter(Ledger.isReply);
+  const sent=rows.filter(r=>r.sentAt||r.job?.status==='applied');
+  const waiting=rows.filter(r=>['sent','quiet'].includes(r.state));
   const old=jobs.filter(j=>j.status==='interested'&&Ledger.age(j.dateAdded)>30);
   const open=row=>{if(row.kit)location.hash=kitHref(row.kit,Ledger.openSteps(row.kit,row.record)[0]?.id);else go('tracker',{openJobId:row.job.id});};
   const hide=row=>{const tomorrow=new Date();tomorrow.setHours(24,0,0,0);const next={...snoozed,[row.kit.id]:tomorrow.getTime()};setSnoozed(next);try{localStorage.setItem('jobapp:snoozed',JSON.stringify(next));}catch{}};
@@ -140,24 +141,29 @@ function NowTab({jobs,region,desk,go,openSettings}) {
     if(e.key==='?'){e.preventDefault();const d=e.currentTarget.querySelector('.keyboard-help');if(d){e.currentTarget.querySelector('.activity-panel').open=true;d.open=!d.open;}}
   };
   useEffect(()=>{document.addEventListener('keydown',keys);return()=>document.removeEventListener('keydown',keys);});
-  const compact=row=><li key={row.id} className="compact-row" data-entry="row"><button className="row-link" onClick={()=>open(row)}><b>{row.role}</b><span>{row.company} · {['talking','offer'].includes(row.state)?stateName(row.state):ledgerDate(row.kit?.deadline||row.job?.applicationDeadline)}</span></button></li>;
+  const compact=row=>{
+    const note=(row.record?.outcomeNote||row.job?.notes||stateName(row.state)).split(/\n|\s[—–]\s/)[0];
+    const deadline=row.kit?.deadline||row.job?.applicationDeadline;
+    const when=deadline?T('截止 ','Closes ')+ledgerDate(deadline):row.kit?.applyDate?T('计划 ','Planned ')+ledgerDate(row.kit.applyDate):T('截止日未注明','Deadline not listed');
+    return <li key={row.id} className="compact-row" data-entry="row"><button className="row-link" onClick={()=>open(row)}><b>{row.role}</b><span>{row.company} · {row.state==='offer'?<><Icon name="check" size={12}/> {stateName('offer')}</>:row.state==='talking'?note:<>{when} · {row.kit?T('材料齐全','Kit ready'):T('尚无材料包','No kit yet')}</>}</span></button></li>;
+  };
+  const waitingSummary=<><h2>{T('已投递，等回复','Sent and waiting')} <span className="waiting-head-count">{waiting.length}</span></h2><AgeStrip rows={waiting} onOpen={()=>go('tracker',{status:'applied'})}/></>;
   return <div className="now-view">
     <div className="now-heading"><h1 tabIndex={-1}>{!jobs.length&&!desk.kits.length&&!desk.loading?T('还没有申请','Nothing here yet'):yours.length?T(`有 ${yours.length} 件事等你处理`,`${yours.length} ${yours.length===1?'thing needs':'things need'} you`):T('现在没有要你处理的事','Nothing needs you right now')}</h1></div>
     {!jobs.length&&!desk.kits.length&&!desk.loading&&!desk.error&&<div className="empty-account"><Btn variant="primary" onClick={()=>go('addjob')}>{T('添加职位','Add job')}</Btn><a className="btn" href="?demo=1">{T('看看示例','Try the demo')}</a></div>}
     <div className="now-grid"><div className="now-work">
       <section className="handoffs"><h2 className="sr-only">{T('轮到你','Your turn')}</h2><DeskError desk={desk} openSettings={openSettings}/>
       {desk.loading?<DeskSkeleton/>:yours.length?<ul className="handoff-list">{yours.map(row=>{const step=Ledger.openSteps(row.kit,row.record)[0];return <li key={row.id} className={`handoff-row${leaving===row.id?' leaving':''}`} data-entry="row" data-handoff={row.kit.id}>
-        <div className="handoff-text"><mark title={kitLabel(step.text)}>{kitLabel(step.text)}</mark><span title={`${row.role} · ${row.company}`}>{row.company} · {row.role}</span></div>
+        <div className="handoff-text"><b className="handoff-instruction"><mark title={kitLabel(step.text)}>{kitLabel(step.text)}</mark></b><span title={`${row.role} · ${row.company}`}>{row.company} · {row.kit.deadline?<>{T('截止 ','Closes ')}{ledgerDate(row.kit.deadline)}</>:T('截止日未注明','Deadline not listed')}</span></div>
         <a className="btn btn-primary" data-handoff-open={row.kit.id} href={kitHref(row.kit,step.id)} aria-label={T(`打开这一步：${kitLabel(step.text)}`,`Open at this step: ${kitLabel(step.text)}`)}>{T('打开','Open')}<Icon name="chevron" size={14}/></a>
         <details className="row-actions"><summary aria-label={T('这份申请的更多操作','More actions for this application')}><Icon name="dots"/></summary><div>{row.kit.deadline&&<p>{T('截止 ','Closes ')}{ledgerDate(row.kit.deadline)}</p>}<button disabled={desk.busy} onClick={()=>done(row)}>{T('完成','Done')}</button><button onClick={()=>hide(row)}>{T('明天再办','Not today')}</button></div></details>
       </li>;})}</ul>:!desk.error&&<p className="quiet-line">{T('没有待处理的步骤','No steps waiting on you')}</p>}</section>
-      {!!coming.length&&<section><div className="section-line"><h2>{T('即将截止','Coming up')}</h2></div><ul className="compact-list">{coming.map(compact)}</ul></section>}
+      {!!coming.length&&<section><div className="section-line"><h2>{T('近期投递','Coming up')}</h2></div><ul className="compact-list">{coming.map(compact)}</ul></section>}
       {!!talking.length&&<section><div className="section-line"><h2>{T('沟通中','Talking')}</h2></div><ul className="compact-list">{talking.map(compact)}</ul></section>}
-    </div><details className="activity-panel"><summary>{T('投递动态','Activity')}<Icon name="down" size={14}/></summary><aside className="waiting-panel"><h2>{T('已投递，等回复','Sent and waiting')}</h2><p className="waiting-total">{T(`已投 ${sent.length} 份 · ${replies.length} 份有回复`,`${sent.length} sent · ${replies.length} ${replies.length===1?'reply':'replies'}`)}</p>
-      <AgeStrip rows={sent} onOpen={()=>go('tracker',{status:'applied'})}/>
+    <details className="activity-panel"><summary>{T('投递动态','Activity')}<Icon name="down" size={14}/></summary><aside className="activity-content"><div className="waiting-panel waiting-mobile">{waitingSummary}</div>
       <div className="week-line"><h3>{T('本周','This week')}</h3><p>{T(`已投 ${sent.filter(r=>Ledger.inPeriod(r.sentAt,'week')).length} 份 · 备好 ${preparedThisWeek} 份材料`,`${sent.filter(r=>Ledger.inPeriod(r.sentAt,'week')).length} sent · ${preparedThisWeek} kits prepared`)}</p></div>
       <div className="saved-health"><h3>{T('收藏清单','Saved list')}</h3><p>{old.length?T(`${old.length} 条收藏超过 30 天`,`${old.length} saved over 30 days ago`):T('收藏都在 30 天以内','All saved within 30 days')}</p>{!!old.length&&<button className="btn" onClick={()=>{prefillGhost(old);go('ghost');}}>{T('检查收藏','Check saved rows')}<Icon name="chevron" size={14}/></button>}</div><ShortcutsHelp/>
-    </aside></details></div>
+    </aside></details></div><aside className="waiting-panel waiting-desktop">{waitingSummary}</aside></div>
     {undo&&<div className="desk-undo" role="status">{T('步骤已完成','Step finished')}<button className="btn" onClick={()=>{desk.update(undo.id,r=>({...r,handoffDone:{...r.handoffDone,[undo.step]:null}}));setUndo(null);}}>{T('撤销','Undo')}</button></div>}
   </div>;
 }

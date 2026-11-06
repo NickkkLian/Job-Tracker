@@ -2422,10 +2422,21 @@ function TrackerTab({region,jobs,setJobs,onOpen,resumeDb,formatting,initialStatu
     setFocusId(id);setAnnouncement(T(`${job.role}：${statusLabel(status)}`,`${job.role}: ${statusLabel(status)}`));
   });
   const clear=()=>{setFilter('all');setTierFilter('all');setSearch('');};
+  const decisionFact=job=>{
+    const kit=linked(job),progress=record(kit),state=display(job);
+    const sentAt=progress.appliedAt||job.appliedAt;
+    const sentAge=Ledger.age(sentAt);
+    if(state==='offer')return stateName('offer');
+    if(['sent','quiet'].includes(state)&&sentAge!=null)return T(`已投递 ${sentAge} 天`,`Sent ${sentAge} days ago`);
+    if(progress.outcome)return `${kitOutcomeLabel(progress.outcome)}${progress.outcomeDate?' '+ledgerDate(progress.outcomeDate):''}`;
+    const deadline=kit?.deadline||job.applicationDeadline;
+    if(deadline&&!['closed','working','talking'].includes(state))return `${ApplyKits.days(deadline,localISO(new Date()))<0?T('已截止 ','Closed '):T('截止 ','Closes ')}${ledgerDate(deadline)}`;
+    return stateName(state);
+  };
   const card=job=>{
     const role=job.role||T('（无职位名）','(no title)'),company=job.company||T('（无公司）','(no company)');
     return <li key={job.id} className="job application-row" data-status={job.status} data-job={job.id} data-entry="row">
-      <button className="job-open" title={`${role} · ${company}`} onClick={()=>onOpen(job.id)}><b className="role">{role}</b><span className="job-sub">{company}</span></button>
+      <button className="job-open" title={`${role} · ${company}`} onClick={()=>onOpen(job.id)}><b className="role">{role}</b><span className="job-sub">{company}</span><span className="row-fact">{decisionFact(job)}</span></button>
       <details className="job-move" onKeyDown={e=>{
         const d=e.currentTarget,items=[...d.querySelectorAll('[data-move-status]')];
         if(e.key==='Escape'){e.preventDefault();e.stopPropagation();d.open=false;d.querySelector('summary').focus();}
@@ -3224,7 +3235,6 @@ function InsightsTab({ jobs, regionName, onWorking, onAdd, desk }) {
           <div>
             <h2 id="ins-h" className="display" tabIndex={-1}>{T(`CEC 工时 ${fmtNum(c.total)} / ${fmtNum(CEC_TARGET)}`, `${fmtNum(c.total)} of ${fmtNum(CEC_TARGET)} CEC hours`)}</h2>
             <p className="cec-eta">{c.eta?T(`预计 ${fmtDate(c.eta)} 数满`,`Target reached ${fmtDate(c.eta)}`):T('填写入职日期和工时后开始计数','Add dates and weekly hours to count')}</p>
-            <div className="rule" aria-hidden="true"></div>
           </div>
               <div className="sum-bar" aria-hidden="true">
                 {segs.map((x, i) => <span key={x.id} style={{ width: Math.min(100, x.hours / CEC_TARGET * 100) + '%', background: segColours[i] }}></span>)}
@@ -3269,7 +3279,7 @@ function InsightsTab({ jobs, regionName, onWorking, onAdd, desk }) {
         </div>
       ) : (
         <>
-<details className="insights-extra"><summary>{T('申请统计','Application statistics')}</summary><div className="stats">
+<details className="insights-extra"><summary>{T('申请统计','Application statistics')}<Icon name="down" size={14}/></summary><div className="stats">
             <div className="stat" data-entry="tile"><span className="big">{stats.total}</span><span className="lbl">{T('追踪中','tracked')}</span><small className="amt">{T(`${p.interested} 条待投`, `${p.interested} to apply`)}</small></div>
             <div className="stat" data-entry="tile"><span className="big">{stats.last7}</span><span className="lbl">{T('本周新增','added this week')}</span><small className="amt">{T(`30 天内 ${stats.last30}`, `${stats.last30} in 30 days`)}</small></div>
             <div className="stat" data-entry="tile"><span className="big">{stats.responseRate}%</span><span className="lbl">{T('回应率','response rate')}</span><small className="amt">{T(`基于 ${stats.applied} 条已投`, `of ${stats.applied} applied`)}</small></div>
