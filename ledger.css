@@ -439,3 +439,11 @@ html:root[data-suite-scale="fluid"][data-scheme="dark"]{--on-highlighter:#141517
  .apply-list-view .kit-groups,.apply-list-view .kit-group>ul{grid-template-columns:minmax(0,1fr)}
  .apply-list-view .kit-group-two,.apply-list-view .kit-group-wide{grid-column:auto}
 }
+
+.handoff-instruction{display:block;overflow:visible;-webkit-line-clamp:unset;white-space:normal;overflow-wrap:anywhere}
+@media(min-width:900px){
+ .handoff-row{grid-column:1/-1}
+ .now-work .compact-list{grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));width:100%!important}
+ .now-work .compact-row:only-child{min-height:0}
+ .now-work .compact-row:only-child .row-link{display:flex;flex-wrap:wrap;align-items:baseline;gap:.25rem .75rem}
+}
