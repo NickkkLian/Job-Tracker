@@ -4,16 +4,18 @@
 
 A job-application tracker for people applying in several countries at once. Every region (Canada, US, UK,
 Hong Kong, Mainland China, …) keeps its own pipeline and its own tailored documents; your profile, resume library
-and glossary are shared. The app is one HTML file — React 18, compiled ahead of time, with every library served from
-this repository — and keeps everything in a **private GitHub repo you own**.
+and glossary are shared. Everything is kept in a **private GitHub repo you own**.
 
 **Live demo:** https://nickkklian.github.io/Job-Tracker/?demo=1&tab=tracker (or `&tab=insights`; add `&region=usa`
 to open another region) — sample data, nothing is saved. English by default, 中文 in the top bar.
 
+![Tracker](docs/screenshot-tracker.png)
+
 ## Try it
 
-**In the browser, nothing to install:** [the Ghost check on 20 made-up postings](https://nickkklian.github.io/Job-Tracker/?demo=1&tab=ghost),
-or [the tracker with sample data](https://nickkklian.github.io/Job-Tracker/?demo=1&tab=tracker).
+**In the browser, nothing to install:** [the tracker with sample data](https://nickkklian.github.io/Job-Tracker/?demo=1&tab=tracker),
+or [the Ghost check on 20 made-up postings](https://nickkklian.github.io/Job-Tracker/?demo=1&tab=ghost), which flags postings that
+look abandoned.
 
 **From a clone, one command** (Node, nothing to install, no network):
 
@@ -22,7 +24,9 @@ node ghost-check.mjs examples/ghost-links.txt
 ```
 
 [`examples/ghost-links.txt`](examples/ghost-links.txt) holds four made-up postings. Three lines give the link and what
-the posting says (company, title, posted date); the fourth is a link on its own. This is what comes back:
+the posting says (company, title, posted date); the fourth is a link on its own. The one posted 52 days ago and only on a
+job board comes back *probably not hiring*; the one on the employer's own applicant system comes back *no warning signs
+found*:
 
 ```
 PROBABLY NOT HIRING  https://www.linkedin.com/jobs/view/4000000002
@@ -50,18 +54,11 @@ NOT ENOUGH TO TELL  https://www.linkedin.com/jobs/view/4000000007
 1 line was a link with nothing after it. Nothing is opened without --live, so the rules had nothing to read: add " | company: … | title: … | posted: …" after the link (the posting date matters most), or run with --live to see which postings are closed.
 ```
 
-The check reads what you write after each link. It does not open the link, so a link on its own always comes back
-*not enough to tell*. The rules and their limits are under [Ghost check](#ghost-check-is-anyone-actually-hiring).
-
-![Tracker](docs/screenshot-tracker.png)
+The check reads what you write after each link. It opens a link only with `--live`, so each result notes that the
+posting's page was not checked, and a link on its own comes back *not enough to tell*. The rules and their limits are
+under [Ghost check](#ghost-check-is-anyone-actually-hiring).
 
 ## What's in it
-
-**Apply** collects reviewed private application kits, resume downloads, exact-text
-copy controls, preparation actions and saved application/follow-up dates. Each kit
-has a direct `#apply/<id>` link. See [private kit storage and setup](docs/apply-kits.md)
-and [the additional browser checks](test/README.md). Kit content and selected resumes
-are supplied through the private data repository and are never bundled in this app.
 
 The navigation has two groups: the views that belong to the region you are in, and the ones every region shares.
 
@@ -75,6 +72,14 @@ The navigation has two groups: the views that belong to the region you are in, a
 | **Diagnosis** | A six-step check before applying: stage → strengths → target profile → reality check against real postings → resume narrative → high-stakes decisions |
 | **Resumes** | A library of resume versions: preview, rename, download, delete, or use one as your profile |
 | **Ghost check** | One line per posting: the link, then what the posting says (company, title, posted date). Each line gets *probably not hiring*, *check first*, *not enough to tell* or *no warning signs found*, with the reasons and the evidence behind it. A link on its own comes back *not enough to tell*, because the page does not open links. No score, no AI, no account needed (below) |
+
+**Apply** collects reviewed private application kits, resume downloads, exact-text
+copy controls, preparation actions and saved application/follow-up dates. Each kit
+has a direct `#apply/<id>` link. See [private kit storage and setup](docs/apply-kits.md)
+and [the additional browser checks](test/README.md). Kit content and selected resumes
+are supplied through the private data repository and are never bundled in this app.
+The header keeps save state visible on every page: the time of the last save, or a plain reason and Retry when a
+save fails.
 
 ![Insights](docs/screenshot-insights.png)
 
@@ -160,7 +165,7 @@ either way, and LinkedIn is read through its public guest view, which can change
 
 | Concern | Approach |
 |---|---|
-| Runtime | One `index.html`, built from `src/` by `build.mjs`: the JSX is compiled ahead of time with esbuild (pinned) and inlined. React 18, ReactDOM, mammoth, jsPDF and pdf.js (loaded the first time a `.pdf` is read) are served from `vendor/` (sources and hashes in `vendor/SOURCE.md`; CI fails if a file there does not match its hash); the styles are plain CSS (`app.css`) on the family's design tokens (`design-tokens.css`), with light/dark and three palettes from `appearance.js`. CI rebuilds the page and fails if it differs from the committed one. It also fails on every way of loading a script from another host that `check-scripts.mjs` lists at its top, among them a `<script>` whose `src` is not a path in this repository (in any case, quoting, spacing or line breaks, with character references, or written inside a string in the code), a `<base href>`, a `<link>` that preloads a script, an import map, `import()`, `importScripts`, workers or a `src` set in code unless the address is a plain path, code that runs text as code (`eval`, `Function`), and any address ending in `.js` or `.mjs`. It reads `index.html` and the page's own scripts outside `vendor/`, after a self-test that catches one sample of each form and passes the real page. Ways a static check cannot see, such as code text held in a variable and given to `setTimeout`, or names built while the page runs, are stopped by the browser instead: the page's Content-Security-Policy (written by `build.mjs`) lets scripts come only from this site and from the page's own inline scripts by their sha256, with no `'unsafe-eval'`, so text run as code and scripts from other hosts are refused while the page runs. `check-scripts.mjs` fails CI if that policy is missing, moved after a script, or loosened in any way |
+| Runtime | Built from `src/` by `build.mjs`: the JSX is compiled ahead of time with esbuild (pinned). React 18, ReactDOM, mammoth, jsPDF and pdf.js are served from `vendor/`; the styles are plain CSS on shared design tokens, with light/dark and three palettes. CI rebuilds the page and fails if it differs from the committed one or if any script would load from another host ([details](DOCS.md#runtime)) |
 | Storage | GitHub Contents API against a private repo. Each write sends the file's last known SHA; if the file changed since (another tab or device saved first, GitHub answers 409), it reads the file again and merges: what changed on one side only is kept from both, and when both sides changed the same value it asks which to keep. A page that never read a file does not write over it |
 | Files | PDFs are stored as raw base64 under `data/files/` and cached in localStorage for instant preview; on a new device they're pulled from the repo on first open |
 | JD parsing | Regex heuristics over the first 80 cleaned lines (noise such as contact lines, EEO boilerplate and URLs is stripped first); the raw JD is always stored unmodified |
@@ -183,11 +188,10 @@ build dependency with `npm install` (esbuild 0.27.7), then:
 ```bash
 node build.mjs            # writes index.html
 node build.mjs --check    # what CI runs: index.html must be exactly what src/ builds to, and vendor/ match its hashes
-node check-scripts.mjs    # CI too: no script from another host, and the page's script policy intact (--self-test: each form and each loosened policy is caught)
-node check-models.mjs     # CI too: the page asks for Claude Opus 5.5, Sonnet 5.5 or Haiku 5.5 only, with max_tokens >= 16000, and reads replies by block type (--self-test: each rule is caught)
 node --test test/ghost-flags.test.mjs   # CI too: the Ghost check's rules (src/ghost-flags.js, which build.mjs puts in front of the app)
-node ghost-mutants.mjs    # CI too: breaks each rule in a copy, one at a time; a test must fail for every break
 ```
+
+The other CI checks (scripts from other hosts, model settings, rule mutations) are in [DOCS.md](DOCS.md#ci-checks).
 
 A link can open a region: `?region=usa` (the ids are the `REGIONS` list in `src/app.jsx`); the region picker still
 changes it.
@@ -202,13 +206,6 @@ API key in the same dialog.
   header. The key is stored only in this browser and sent only to Anthropic's API, which suits one person's own copy
   but not a shared deployment.
 - The JD extractor is heuristic and tuned for English postings; it fills, you check.
-
-## Header save status
-
-The header keeps save state visible across pages. “Saved HH:MM” appears after a repository write succeeds.
-Failures show a plain reason and Retry, while keeping the last successful time. Multiple files are combined so
-one saved file cannot conceal another pending or failed save. Offline text distinguishes matching PDF recovery
-bytes kept in this browser from edits held only in the current page. Form drafts still need their Save action.
 
 ## License
 
