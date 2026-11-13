@@ -290,8 +290,10 @@ mark,.your-mark{color:var(--on-highlighter);background:var(--highlighter);border
 .job-move .move-options{position:absolute;z-index:30;right:0;top:calc(100% + .125rem);display:grid;gap:.125rem;width:max-content;min-width:11rem;padding:.375rem;background:var(--surface-raised);border-radius:.625rem;box-shadow:var(--float-shadow)}
 .job-move .move-options button{min-height:2.375rem;padding:.375rem .75rem;border:0;border-radius:.375rem;background:none;color:var(--text);text-align:left;font-size:.8125rem}
 .job-move .move-options button:hover,.job-move .move-options button:focus-visible{background:var(--neutral-tint)}
-/* with a mouse the move button waits at the end of the tile until the tile is pointed at or focused, so the words get the whole width */
-@media (hover:hover) and (pointer:fine){
+/* The move button. Wide screen with a mouse: it waits at the end of the tile until the tile is pointed at or focused,
+   so the words get the whole width. Wide touch screen: always shown, right after the words. Under 900 px it is left
+   out: a tile opens the application, and its status is changed there (one tap more, and a tidy list). */
+@media (hover:hover) and (pointer:fine) and (min-width:900px){
   .application-row .job-open{flex:1 1 auto;padding-right:.75rem}
   .application-row .job-move{position:absolute;right:.25rem;top:50%;margin-top:-1.375rem}
   .job-move>summary{opacity:0;background:var(--surface-raised);box-shadow:-.5rem 0 .5rem var(--surface-raised)}
@@ -449,7 +451,8 @@ mark,.your-mark{color:var(--on-highlighter);background:var(--highlighter);border
   .list-header input[type=search]{flex:1 1 10rem;width:auto}
   .pipeline .pipeline-tier{margin-left:0}
   .pipeline .pipeline-cards,.kit-group>ul{grid-template-columns:minmax(0,1fr)}
-  .job-move>summary{width:2.75rem;height:2.75rem}
+  .application-row .job-move{display:none}
+  .application-row .job-open{flex:1 1 auto;padding-right:.75rem}
   .materials-list{grid-template-columns:minmax(0,1fr)}
   .materials-list>.resume-row,.materials-list>.send-paper{grid-column:1;justify-self:stretch}
   .materials-list>.send-paper{margin-top:.625rem;width:100%}

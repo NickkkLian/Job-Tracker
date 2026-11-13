@@ -39,7 +39,9 @@ code, press Submit). So the interface is a desk where prepared paper waits for a
    and 1.75 on phones).
 3. **Entries are packed.** A row or tile is a strong line and at most one short second line; nothing is pinned to the
    far edge with empty space before it. Application tiles sit four to a row (three from 900 to 1229 px, one on a
-   phone); with a mouse the move button appears when the tile is pointed at or focused.
+   phone). On a wide screen with a mouse the move button appears when the tile is pointed at or focused; on a wide
+   touch screen it sits right after the words; under 900 px it is left out, and the status is changed in the sheet a
+   tile opens.
 4. **Depth comes from paper on a surface**, not from boxes inside boxes: one sheet level (`--sheet-shadow`), one floating
    level for menus and dialogs (`--float-shadow`), and the slip's own shadow on the desk.
 5. **Colour carries meaning only.** Ink for structure and primary actions, blue for links and "talking", green for an
