@@ -487,6 +487,9 @@ const REGION_BY = Object.fromEntries(REGIONS.map(r => [r.id, r]));
 // regions say plain "Working".
 let regionNow = 'canada';
 const inCanada = () => regionNow === 'canada';
+// The public demo (?demo=1) leaves the CEC hours feature out: no ledger, no hours fields, plain "Working". Real
+// accounts in the Canada region keep all of it.
+const cecShown = () => inCanada() && !DEMO;
 // Display name for a region (the id is the stable key used for storage and AI search; never changes)
 const rName = r => r ? T(r.zh || r.name, r.name) : '';
 function regionContact(region){ const r = REGION_BY[region]; return (r && r.contactNote) || 'include all phone numbers, email, and location.'; }
@@ -548,7 +551,7 @@ function cecHours(jobs){
   const eta = weeklyRate > 0 ? new Date(Date.now() + remain/weeklyRate*7*24*3600*1000) : null;
   return { total, per, weeklyRate, remain, eta, capped };
 }
-const stName = s => s.id === 'working' && !inCanada() ? T('在职', 'Working') : T(s.zh, s.label);
+const stName = s => s.id === 'working' && !cecShown() ? T('在职', 'Working') : T(s.zh, s.label);
 const statusLabel = id => stName(STATUSES.find(x => x.id === id) || STATUSES[0]);
 
 // Regional views follow the picker (each region keeps its own job list and tailored
@@ -1946,7 +1949,7 @@ function JobFields({ form, set, idPrefix, error, onTyped }) {
           <Fld id={id('applyMethod')} label={T('投递方式','Apply method')}>{text('applyMethod', { placeholder:T('Easy Apply / 直投 / ATS','Easy Apply / direct / ATS') })}</Fld>
         </div>
       </fieldset>
-      {inCanada() && <fieldset className="fs">
+      {cecShown() && <fieldset className="fs">
         <legend>{T('给 CEC 工时账用','For the CEC hours ledger')}</legend>
         <p className="hint">{T('在这份工作上班之后再填：状态是「在职·计工时」时工时账才会算它。','Only needed once you work in this job: the ledger counts it when the status is Working.')}</p>
         <div className="form-grid">
@@ -2408,7 +2411,7 @@ function TrackerTab({region,jobs,setJobs,onOpen,resumeDb,formatting,initialStatu
   const display=job=>{const kit=linked(job);return Ledger.state(kit,record(kit),job);};
   useListMovement('[data-job]',jobs.map(j=>`${j.id}:${j.status}`).join(','));
   const groupFor=state=>({talking:'talk',offer:'talk',yours:'ready',ready:'ready',sent:'sent',saved:'want',working:'working',quiet:'quiet',closed:'shut'})[state]||'shut';
-  const groupNames={talk:T('沟通中','Talking'),ready:T('待发送','Ready to send'),sent:T('已投递','Sent'),want:T('已收藏','Saved'),working:T(inCanada()?'在职·计工时':'在职',inCanada()?'Working (CEC hours)':'Working'),quiet:T('未回复','No reply'),shut:T('已结束','Closed')};
+  const groupNames={talk:T('沟通中','Talking'),ready:T('待发送','Ready to send'),sent:T('已投递','Sent'),want:T('已收藏','Saved'),working:T(cecShown()?'在职·计工时':'在职',cecShown()?'Working (CEC hours)':'Working'),quiet:T('未回复','No reply'),shut:T('已结束','Closed')};
   const filtered=jobs.filter(j=>(tierFilter==='all'||tierKey(j)===tierFilter)&&(!search||`${j.company} ${j.role} ${j.location}`.toLowerCase().includes(search.toLowerCase()))).sort((a,b)=>String(a.company||'').localeCompare(String(b.company||'')));
   const visible=filtered.filter(j=>filter==='all'||j.status===filter||groupFor(display(j))===filter);
   const updateStatus=async(id,status)=>HubSettingsRuntime.track(async()=>{
@@ -2611,7 +2614,7 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
     [T('薪资','Salary'), form.salaryRange || dash],
     [T('截止','Deadline'), form.applicationDeadline ? fmtDate(form.applicationDeadline) : dash],
     [T('投递方式','Apply method'), form.applyMethod || dash],
-    ...(inCanada() ? [
+    ...(cecShown() ? [
       ['NOC', form.noc ? form.noc + (teerOf(form.noc) ? ` (TEER ${teerOf(form.noc)})` : '') : dash],
       [T('雇佣类型','Employment type'), form.empType || dash],
       [T('每周工时','Weekly hours'), form.weeklyHours || dash],
@@ -3229,7 +3232,7 @@ function InsightsTab({ jobs, regionName, onWorking, onAdd, desk }) {
 
   return (
     <div className="insights-view">
-      <PageHead title={T('数据','Insights')}/><section className="month-line"><h2>{T('本月','This month')}</h2><p>{T(`已投 ${monthSent} 份 · 备好 ${monthPrepared} 份材料 · ${monthReplies} 份有回复`,`${monthSent} sent · ${monthPrepared} kits prepared · ${monthReplies} ${monthReplies===1?'reply':'replies'}`)}</p></section>{inCanada() && !workingJobs.length&&<p className="cec-empty">{T('CEC 工时：尚无在职记录','CEC hours: no working jobs recorded yet')} · <a href="#hours-how">{T('工时如何计算','How hours are counted')}</a><span id="hours-how">{T('每周所有工作合计最多计 30 小时。','At most 30 hours count per week across all jobs.')}</span></p>}{inCanada()&&!!workingJobs.length&&<>
+      <PageHead title={T('数据','Insights')}/><section className="month-line"><h2>{T('本月','This month')}</h2><p>{T(`已投 ${monthSent} 份 · 备好 ${monthPrepared} 份材料 · ${monthReplies} 份有回复`,`${monthSent} sent · ${monthPrepared} kits prepared · ${monthReplies} ${monthReplies===1?'reply':'replies'}`)}</p></section>{cecShown() && !workingJobs.length&&<p className="cec-empty">{T('CEC 工时：尚无在职记录','CEC hours: no working jobs recorded yet')} · <a href="#hours-how">{T('工时如何计算','How hours are counted')}</a><span id="hours-how">{T('每周所有工作合计最多计 30 小时。','At most 30 hours count per week across all jobs.')}</span></p>}{cecShown()&&!!workingJobs.length&&<>
       <section className="plate" aria-labelledby="ins-h">
         <svg className="ledger-mark" hidden width="64" height="64" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12.2" fill="none" stroke="currentColor" strokeWidth="1.2"/><circle cx="14" cy="14" r="10" fill="none" stroke="currentColor" strokeWidth=".6"/><path d="M14 7.5v6.5l4 2.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg><div className="plate-in">
           <div>
