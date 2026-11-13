@@ -3514,7 +3514,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
       try {
         const j = (DEMO && !ghConfigured()) ? sampleJobs(region) : await loadJsonStrict(`${region}:jobs`);
         if (!cancelled) { setJobs(Array.isArray(j) ? j : []); setLoading(false); FirstRead.ready(region); }
-      } catch (e) { if (!cancelled) { setLoadErr(e); setLoading(false);jobRegionError=e; FirstRead.fail(()=>new Promise(resolve=>{retryReadDone.current=resolve;setAttempt(a=>a+1);}),T,true,region); } }finally{jobRegionLoading=false;retryReadDone.current?.();retryReadDone.current=null;}
+      } catch (e) { if (!cancelled) { setLoadErr(e); setLoading(false);jobRegionError=e; FirstRead.fail(()=>new Promise(resolve=>{retryReadDone.current=resolve;setAttempt(a=>a+1);}),T,true,region,e); } }finally{jobRegionLoading=false;retryReadDone.current?.();retryReadDone.current=null;}
     });})();
     return () => { cancelled=true; };
   }, [region, attempt]);
@@ -3771,7 +3771,7 @@ function App() {
           loadJsonStrict('library'),
           loadJsonStrict('diagnosis'),
         ]);
-      } catch (e) { setSharedErr(e); setSharedLoading(false); setLoaded(true); FirstRead.fail(()=>new Promise(resolve=>{sharedRetryDone.current=resolve;setSharedTry(n=>n+1);}),T,true,'shared'); sharedRetryDone.current?.();sharedRetryDone.current=null;return; }
+      } catch (e) { setSharedErr(e); setSharedLoading(false); setLoaded(true); FirstRead.fail(()=>new Promise(resolve=>{sharedRetryDone.current=resolve;setSharedTry(n=>n+1);}),T,true,'shared',e); sharedRetryDone.current?.();sharedRetryDone.current=null;return; }
       setSharedErr(null); FirstRead.ready('shared');
       setDiagnosis(diag && !Array.isArray(diag) ? diag : null);
       let secs = rawSecs;

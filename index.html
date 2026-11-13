@@ -3,7 +3,7 @@
 <html lang="en" data-suite-scale="fluid">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-NRpteoAVfVihvCEQ3QMf/H/h7qCficmenJ6kk2FRouA=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-52myhmphdzCyE7zBSdM63B1wzvCCSfldqfGA24+81ZM='">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-NRpteoAVfVihvCEQ3QMf/H/h7qCficmenJ6kk2FRouA=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-BfItb6yGTO3O2Xn7ENyVMm+CT48ioqUIA3J4w3DzUck='">
 <script src="assets/settings-standard/core.js"></script>
 <script src="assets/settings-standard/save-status.js"></script>
 <script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem(HubSettingsContract.preferenceKey("nl-theme")),s=L.getItem(HubSettingsContract.preferenceKey("nl-scheme"));if(s===null){var o=L.getItem(HubSettingsContract.preferenceKey("theme"))||L.getItem(HubSettingsContract.preferenceKey("qm-theme"));if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);d.setAttribute('data-scheme',s==='dark'?'dark':'light');}catch(e){}})();</script>
@@ -33,7 +33,7 @@
 <link rel="preload" href="assets/fonts/hanken-grotesk-latin-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/source-serif-4-latin-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="ledger.css">
-<script src="assets/first-read.js?v=f4be09df1a2d"></script>
+<script src="assets/first-read.js?v=c0ae9ea0f2b1"></script>
 </head>
 <body>
 <!-- the page before React mounts: the band with the mark, and three skeleton lines -->
@@ -4477,7 +4477,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
             FirstRead.fail(() => new Promise((resolve) => {
               retryReadDone.current = resolve;
               setAttempt((a) => a + 1);
-            }), T, true, region);
+            }), T, true, region, e);
           }
         } finally {
           jobRegionLoading = false;
@@ -4748,7 +4748,7 @@ function App() {
           FirstRead.fail(() => new Promise((resolve) => {
             sharedRetryDone.current = resolve;
             setSharedTry((n) => n + 1);
-          }), T, true, "shared");
+          }), T, true, "shared", e);
           sharedRetryDone.current?.();
           sharedRetryDone.current = null;
           return;

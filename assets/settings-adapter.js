@@ -9,7 +9,7 @@
   connection:()=>({...jobConnection}),
   unsaved:()=>[...jobDrafts.values()].some(Boolean)||jobFailedPaths.size>0||!!document.querySelector('dialog[open]:not(.suite-panel):not(.suite-confirm):not(.suite-merge-dialog)'),
   canRestoreDrafts:()=>![...jobDrafts.values()].some(Boolean)&&[...jobFailedPaths].every(path=>path==='backup-restore')&&!document.querySelector('dialog[open]:not(.suite-panel):not(.suite-confirm):not(.suite-merge-dialog)'),
-  adopt(next){if(R.sameConnection(jobConnection,next))return;jobConnection={...next};adapter.invalidate();jobLatestWrites.clear();jobCachedFiles.clear();jobBinaryValues.clear();jobSaveStatus.reset();refreshJobSaveConnection();pause(true);},
+  adopt(next){if(R.sameConnection(jobConnection,next))return;jobConnection={...next};adapter.invalidate();jobLatestWrites.clear();jobCachedFiles.clear();jobBinaryValues.clear();jobSaveStatus.reset();refreshJobSaveConnection();pause(true);if(document.body.hasAttribute('data-read-blocked'))void R.track(()=>adapter.reload()).catch(()=>{});/* a refused token was replaced: read again now, Retry would find the source paused */},
   invalidate(){for(const map of [shaCache,baseCache,saveQueues])for(const k of Object.keys(map))delete map[k];backup=null;jobFailedPaths.clear();},
   async reload(){
    if(DEMO)return;if(!C.complete(jobConnection))throw new C.SettingsError('required');
