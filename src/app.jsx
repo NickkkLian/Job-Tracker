@@ -79,8 +79,13 @@ function sampleJobs(region = 'canada') {
     { id:'demo8', dateAdded:ago(40), status:'offered',            priority:'T2', company:'Kittiwake Freight',    role:'Data Engineer',                 location:'Delta, BC',     salaryRange:'$84k',  applicationDeadline:'', noc:'21223', empType:'', applyMethod:'Referral', weeklyHours:'', startDate:'', endDate:'', notes:'Offer in hand — answer due next Friday.', jdText:'Airflow pipelines for container tracking; Python, SQL, a little Terraform.' },
     { id:'demo9', dateAdded:ago(12), status:'interested',         priority:'T3', company:'Tidewrack Energy Co-op', role:'Analytics Intern',            location:'Victoria, BC',  salaryRange:'$24/h', applicationDeadline:day(-3), noc:'', empType:'', applyMethod:'Direct', weeklyHours:'', startDate:'', endDate:'', notes:'', jdText:'Summer internship: metering data, Python notebooks, one presentation to the board.' },
   ];
-  const saved=Array.from({length:38},(_,i)=>({id:`demo-saved-${i}`,company:['Cedar Street Foods','North Bay Transit','Seabrook Housing','Oakfield Systems','Stillwater Research','Fieldstone Energy'][i%6],role:['Reporting Analyst','Data Analyst','Operations Analyst','Research Analyst'][i%4],status:'interested',priority:`T${i%4+1}`,dateAdded:ago(i<8?35+i*4:2+i%25),location:'Vancouver, BC',salaryRange:'$65k – $80k',applicationDeadline:i===0?day(6):'',postingUrl:i<3?`https://www.linkedin.com/jobs/view/900000000${i}`:`https://example.com/jobs/saved-${i}`,jdText:'SQL reporting and clear operational analysis.'}));
-  const sent=Array.from({length:11},(_,i)=>({id:`demo-waiting-${i}`,company:['Maple Coast Bank','Clearwater Supply','Westport Research','Bayside Housing'][i%4],role:['Data Analyst','Product Analyst','Reporting Analyst'][i%3],status:'applied',priority:'T2',dateAdded:ago(3+i*3),appliedAt:ago(2+i*3+(i===10?8:0)),location:'Canada',salaryRange:'$70k – $85k',applicationDeadline:''}));
+  // Sample rows are varied on purpose: three lists whose lengths share no factor with the four tiers, so no tier shows one title or one city over and over
+  const savedRoles=['Reporting Analyst','Data Analyst, Customer Insights','Junior Data Engineer','Operations Research Analyst','Product Analyst','LLM Evaluation Analyst','Business Systems Analyst','Analytics Engineer','Research Assistant, Housing Data','Junior Quant Developer','Revenue Operations Analyst'];
+  const savedCompanies=['Cedar Street Foods','North Bay Transit','Seabrook Housing','Oakfield Systems','Stillwater Research','Fieldstone Energy','Juniper Ridge Logistics','Lumen & Hart','Mosscliff Health','Driftwood Games','Orca Bay Energy','Redcedar Systems','Ashgrove Capital'];
+  const savedPlaces=['Vancouver, BC','Burnaby, BC','Toronto, ON (hybrid)','Remote (Canada)','Calgary, AB','Victoria, BC','Montréal, QC'];
+  const saved=Array.from({length:38},(_,i)=>({id:`demo-saved-${i}`,company:i===0?'Kittiwake Freight':savedCompanies[(i*5)%13],role:savedRoles[(i*3)%11],status:'interested',priority:`T${i%4+1}`,dateAdded:ago(i<8?35+i*4:2+i%25),location:savedPlaces[(i*2)%7],salaryRange:'$65k – $80k',applicationDeadline:i===0?day(9):'',postingUrl:i<3?`https://www.linkedin.com/jobs/view/900000000${i}`:`https://example.com/jobs/saved-${i}`,jdText:'SQL reporting and clear operational analysis.'}));
+  const sentRoles=['Data Analyst','Product Analyst','Reporting Analyst','Business Analyst','Analytics Engineer','Operations Analyst','Junior Data Scientist'];
+  const sent=Array.from({length:11},(_,i)=>({id:`demo-waiting-${i}`,company:['Maple Coast Bank','Clearwater Supply','Westport Research','Bayside Housing','Harrow & Vale'][i%5],role:sentRoles[(i*3)%7],status:'applied',priority:'T2',dateAdded:ago(3+i*3),appliedAt:ago(2+i*3+(i===10?8:0)),location:savedPlaces[(i*3+1)%7],salaryRange:'$70k – $85k',applicationDeadline:''}));
   return [...core.map(j=>j.id==='demo7'?{...j,status:'rejected'}:j),...saved,...sent,{id:'demo-talking',company:'Pine Bay Transit',role:'Operations Analyst',status:'interviewing',priority:'T1',dateAdded:ago(12),location:'Vancouver, BC',notes:'First conversation on Friday.'}];
 
 }
@@ -1083,7 +1088,7 @@ function Btn({ children, onClick, variant='secondary', disabled=false, className
 // Status colours: interested is a draft (dashed, not sent yet), applied waits (info), interviewing needs attention
 // (warning), offered and working went well (success), the two rejections are over (neutral: a rejection is the most
 // common outcome of a job search, not an error, and red is kept for errors and destructive actions)
-const STATUS_TAG = { interested:'tag-draft', applied:'tag-info', interviewing:'tag-warning', offered:'tag-success', working:'tag-success', rejected:'tag-neutral', interview_rejected:'tag-neutral' };
+const STATUS_TAG = { interested:'tag-draft', applied:'tag-neutral', interviewing:'tag-info', offered:'tag-success', working:'tag-success', rejected:'tag-neutral', interview_rejected:'tag-neutral' };
 function StatusPill({ status }) {
   const s = STATUSES.find(x => x.id === status);
   return <span className={`tag ${STATUS_TAG[status] || 'tag-neutral'}`}>{s ? stName(s) : String(status || '')}</span>;
@@ -1424,9 +1429,9 @@ function AiPromptSection({ resumeDb, job, formatting, glossary, tailoredResume, 
   ];
   return (
     <section className="card ai-help" aria-labelledby="ai-h">
-      <div className="card-head"><h2 id="ai-h">{T('用 Claude.ai 帮忙','AI help via Claude.ai')}</h2></div>
-      <p className="hint">{T('每个按钮写出一段可以直接贴进 Claude.ai 的提示词。简历和求职信由 Claude 直接做成 PDF，下载后上传到职位里；其余三个在 Claude.ai 里直接读。',
-        'Each button writes a prompt to paste into Claude.ai. For the resume and the cover letter Claude makes the PDF itself — download it and upload it to the job; read the other three in Claude.ai.')}</p>
+      <div className="card-head"><h2 id="ai-h">{T('用 Claude.ai 帮忙','AI help via Claude.ai')}</h2><details className="page-help"><summary aria-label={T('这些按钮怎么用','How these buttons work')}><Icon name="info"/></summary><p className="hint">{T('简历和求职信由 Claude 直接做成 PDF，下载后上传到职位里；其余三个在 Claude.ai 里直接读。',
+        'For the resume and the cover letter Claude makes the PDF itself: download it and upload it to the job. Read the other three in Claude.ai.')}</p></details></div>
+      <p className="hint">{T('每个按钮写出一段可以直接贴进 Claude.ai 的提示词。','Each button writes a prompt to paste into Claude.ai.')}</p>
       {!hasResume && (
         <p className="need" id="ai-need">
           {T('先在「我的资料」里加上你的资料——提示词是用它写的。','Add your profile in My profile first — the prompts are built from it.')}{' '}
@@ -1440,7 +1445,7 @@ function AiPromptSection({ resumeDb, job, formatting, glossary, tailoredResume, 
         ))}
       </div>
       <div className="ai-translate">
-        <h3 className="eyebrow">{T('翻译一份简历','Translate a resume')}</h3>
+        <h3 className="sub-label">{T('翻译一份简历','Translate a resume')}</h3>
         <div className="btn-row">
           <Btn onClick={() => setTranslateLang('simplified')}>{T('译成简体中文','Into Simplified Chinese')}</Btn>
           <Btn onClick={() => setTranslateLang('traditional')}>{T('译成繁體中文','Into Traditional Chinese')}</Btn>
@@ -2399,6 +2404,7 @@ function StageStamp({stage,size=28}) {
 }
 const GROUP_GLYPHS = {
   talk:<><path d="M7.500 9.500h9v6h-5l-3 2.500v-2.500h-1z"/><path d="M18.500 12.500h2v5.500h-1v2l-2.500-2h-4"/></>,
+  yours:<path d="M10 20.500v-13M10 8h8.500l-2.600 3.250 2.600 3.250H10"/>,
   ready:<path d="m7.500 14 13-6-4.500 12.500-2.500-5z"/>,
   sent:<><path d="M7 10h14v9H7z"/><path d="m7 10.500 7 5 7-5"/></>,
   want:<path d="M10 7.500h8v13l-4-3-4 3z"/>,
@@ -2406,7 +2412,7 @@ const GROUP_GLYPHS = {
   quiet:<><circle cx="14" cy="14" r="5.500"/><path d="M14 11v3.200l2 1.300"/></>,
   shut:<path d="m10 10 8 8M18 10l-8 8"/>,
 };
-const GROUP_OF_STATE = {talking:'talk',offer:'working',yours:'ready',ready:'ready',sent:'sent',saved:'want',working:'working',quiet:'quiet',closed:'shut'};
+const GROUP_OF_STATE = {talking:'talk',offer:'working',yours:'yours',ready:'ready',sent:'sent',saved:'want',working:'working',quiet:'quiet',closed:'shut'};
 function GroupStamp({group,size=28}) {
   const id=GROUP_GLYPHS[group]?group:GROUP_OF_STATE[group]||'shut';
   return <svg className={`group-stamp stamp-${id}`} width={size} height={size} viewBox="0 0 28 28" aria-hidden="true" focusable="false"><circle className="ring" cx="14" cy="14" r="12.200"/><circle className="ring2" cx="14" cy="14" r="9.800"/><g className="glyph">{GROUP_GLYPHS[id]}</g></svg>;
@@ -2448,13 +2454,17 @@ function TrackerTab({region,jobs,setJobs,onOpen,resumeDb,formatting,initialStatu
     if(progress.outcome)return `${kitOutcomeLabel(progress.outcome)}${progress.outcomeDate?' '+ledgerDate(progress.outcomeDate):''}`;
     const deadline=kit?.deadline||job.applicationDeadline;
     if(deadline&&!['closed','working','talking'].includes(state))return `${ApplyKits.days(deadline,localISO(new Date()))<0?T('已截止 ','Closed '):T('截止 ','Closes ')}${ledgerDate(deadline)}`;
-    if(state==='saved'&&job.location)return job.location;
-    return stateName(state);
+    const firstLine=text=>String(text||'').split(/\n|\s[—–]\s/)[0].trim();
+    if(state==='talking')return firstLine(progress.outcomeNote||job.notes);
+    if(['sent','quiet'].includes(state))return T('未记录投递日期','No send date');
+    if(state==='working')return job.startDate?T(`${ledgerDate(job.startDate)} 入职`,`Since ${ledgerDate(job.startDate)}`):job.location||'';
+    if(state==='closed')return job.status==='interview_rejected'?T('面试后结束','After an interview'):job.statusChangedAt?ledgerDate(job.statusChangedAt):'';
+    return job.location||'';
   };
   const card=job=>{
-    const role=job.role||T('（无职位名）','(no title)'),company=job.company||T('（无公司）','(no company)');
+    const role=job.role||T('（无职位名）','(no title)'),company=job.company||T('（无公司）','(no company)'),fact=decisionFact(job);
     return <li key={job.id} className="job application-row" data-status={job.status} data-job={job.id} data-entry="row">
-      <button className="job-open" title={`${role} · ${company}`} onClick={()=>onOpen(job.id)}><b className="role">{role}</b><span className="job-line"><span className="job-sub">{company}</span><span className="row-fact">{decisionFact(job)}</span></span></button>
+      <button className="job-open" title={`${role} · ${company}`} onClick={()=>onOpen(job.id)}><b className="role">{role}</b><span className="job-line"><span className="job-sub">{company}</span>{fact&&<span className="row-fact">{fact}</span>}</span></button>
       <details className="job-move" onKeyDown={e=>{
         const d=e.currentTarget,items=[...d.querySelectorAll('[data-move-status]')];
         if(e.key==='Escape'){e.preventDefault();e.stopPropagation();d.open=false;d.querySelector('summary').focus();}
@@ -2574,8 +2584,7 @@ function PdfUploadField({ label, pdfKey }) {
       {err && <p className={`status-bar ${err.kind}`} role="alert">{err.msg}</p>}
       {dataUrl ? (blobUrl ? <iframe className="pdf-view" src={blobUrl} title={label} {...(isHtml ? { sandbox: '' } : {})} />
                          : <div className="pdf-view skel-block" aria-busy="true"><span className="sr-only">{T('正在显示 PDF…','Rendering the PDF…')}</span></div>)
-               : <div className="drop">{T('还没有 PDF——上传 Claude 做好的那个文件。','No PDF yet — upload the file Claude made.')}</div>}
-      <p className="hint">{T('保存在你仓库的 data/files/ 里，并缓存在这个浏览器中。','Saved to data/files/ in your repo and cached in this browser.')}</p>
+               : <p className="drop">{T('还没有 PDF','No PDF yet')}</p>}
     </section>
   );
 }
@@ -2584,7 +2593,7 @@ function PdfUploadField({ label, pdfKey }) {
 // JOB DETAIL
 // ════════════════════════════════════════════════════════════════
 
-function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs, setJobs, onBack, onOpenProfile, desk }) {
+function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs, setJobs, onBack, onOpenProfile, desk, kit }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm]       = useState({...job});
   const [saving, setSaving]   = useState(false);
@@ -2643,21 +2652,20 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
       {desk&&<DeskError desk={desk}/>}
       <div className="page-head">
         <div className="titles">
-          <p className="eyebrow">{rName(REGION_BY[region])}{t ? ` · ${T(t.zh, t.en)}` : ''}</p>
           <h1 id="job-sheet-title" ref={h1} tabIndex={-1}>{form.role || T('（无职位名）','(no title)')}</h1>
-          <p className="sub">{form.company || T('（无公司）','(no company)')}{form.location ? ` · ${form.location}` : ''}</p>
+          <p className="sub">{form.company || T('（无公司）','(no company)')}{form.location ? ` · ${form.location}` : ''}{t ? ` · ${T(t.zh, t.en)}` : ''}</p>
         </div>
         <div className="acts">
           <StatusField value={form.status} onChange={val => { set('status', val); updateJob({ status: val }); }} name={T('状态','Status')} />
+          {kit && <a className="btn btn-primary" href={kitHref(kit)}>{T('打开投递材料包','Open the Apply kit')}</a>}
           {!editing && <Btn onClick={() => {openedWith.current=SafeMerge.snapshot(job);setEditing(true);}}>{T('编辑详情','Edit details')}</Btn>}
-          <Btn className="btn-quiet" onClick={deleteJob}>{T('删除这条投递','Delete application')}</Btn>
         </div>
       </div>
       <div className="stack">
         {!editing ? (
-          <section className="card" aria-labelledby="det-h">
-            <div className="card-head"><h2 id="det-h">{T('详情','Details')}</h2></div>
-            <dl className="kv4">{kv.map(([k, val]) => <div key={k}><dt>{k}</dt><dd>{val}</dd></div>)}</dl>
+          <section className="sheet-facts" aria-labelledby="det-h">
+            <h2 id="det-h" className="sr-only">{T('详情','Details')}</h2>
+            <dl className="kv4">{kv.filter(([, val]) => val && val !== dash && val !== `${dash} · ${dash}`).map(([k, val]) => <div key={k}><dt>{k}</dt><dd>{val}</dd></div>)}</dl>
           </section>
         ) : (
           <section className="card" aria-labelledby="edit-h">
@@ -2674,8 +2682,8 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
         )}
         <AiPromptSection resumeDb={resumeDb} job={form} formatting={formatting} glossary={glossary} tailoredResume={form.tailoredResume||''} library={library} region={region} onOpenProfile={onOpenProfile} />
         <div className="slots-wrap">
-          <p className="hint">{T('从 Claude 拿 PDF：打开 Analysis 工具，粘贴提示词，下载生成的文件，再上传到这里。多数投递系统要分开上传简历和求职信；只要一个文件时（比如用邮件投递），求职信提示词已经让 Claude 做成两页：第一页简历，第二页求职信。',
-            'Get the PDF from Claude: turn on the Analysis tool, paste the prompt, download the file, upload it here. Most application portals take the resume and the cover letter as separate files; when one file is wanted (an email application, say), the cover-letter prompt already asks Claude for two pages, the resume first.')}</p>
+          <div className="card-head"><h2>{T('这份申请的 PDF','PDFs for this application')}</h2><details className="page-help"><summary aria-label={T('怎么拿到 PDF','How to get the PDFs')}><Icon name="info"/></summary><p className="hint">{T('从 Claude 拿 PDF：打开 Analysis 工具，粘贴提示词，下载生成的文件，再上传到这里。多数投递系统要分开上传简历和求职信；只要一个文件时（比如用邮件投递），求职信提示词已经让 Claude 做成两页：第一页简历，第二页求职信。文件保存在你仓库的 data/files/ 里，并缓存在这个浏览器中。',
+            'Get the PDF from Claude: turn on the Analysis tool, paste the prompt, download the file, upload it here. Most application portals take the resume and the cover letter as separate files; when one file is wanted (an email application, say), the cover-letter prompt already asks Claude for two pages, the resume first. Files are saved to data/files/ in your repo and cached in this browser.')}</p></details></div>
           <div className="slots">
             <PdfUploadField label={T('定制简历 · PDF','Tailored resume · PDF')} pdfKey={`${region}:${job.id}:resume`} />
             <PdfUploadField label={T('求职信 · PDF','Cover letter · PDF')} pdfKey={`${region}:${job.id}:cover`} />
@@ -2683,16 +2691,17 @@ function JobDetail({ region, job, resumeDb, formatting, glossary, library, jobs,
         </div>
         <section className="card" aria-labelledby="notes-h">
           <div className="card-head"><h2 id="notes-h">{T('我的备注','My notes')}</h2></div>
-          <textarea id="det-notes" aria-labelledby="notes-h" rows={5} value={form.notes||''} onChange={e=>set('notes',e.target.value)}
+          <textarea id="det-notes" aria-labelledby="notes-h" rows={3} value={form.notes||''} onChange={e=>set('notes',e.target.value)}
             placeholder={T('招聘者姓名、沟通内容、未录用原因、面试感受…','Recruiter names, conversation notes, reasons for a decision, interview impressions…')} />
           <div className="form-acts"><Btn onClick={handleSaveNotes}>{notesSaved ? T('已保存','Saved') : T('保存备注','Save notes')}</Btn></div>
         </section>
         {form.jdText && (
-          <details className="card jd-orig">
+          <details className="fold jd-orig">
             <summary>{T('原始职位描述','Original job description')}</summary>
             <pre className="sunken">{form.jdText}</pre>
           </details>
         )}
+        <div className="sheet-foot"><Btn className="btn-quiet" onClick={deleteJob}>{T('删除这条投递','Delete application')}</Btn></div>
       </div>
     </>
   );
@@ -3103,15 +3112,18 @@ function PipelineChart({ p, titleId, eqId }) {
     return () => ro.disconnect();
   }, []);
   const w = W || 600;
+  // every length in the drawing is a multiple of k, the page's scale (root font size / 16), so the chart grows with
+  // the rest of the page on wide screens and its words stay the size of the words around it
+  const k = parseFloat(getComputedStyle(document.documentElement).fontSize) / 16 || 1;
   // three widths: wide (the source's label left of it), middle, and narrow — a phone, where three columns of labels do
   // not fit side by side, so the source's label moves to a line above the drawing and the left margin goes
-  const wide = w >= 640, narrow = w < 480;
-  const H = wide ? 260 : narrow ? 250 : 220, nw = 12, gap = 6, minH = 6;
-  const top0 = narrow ? 28 : 0;
-  const L = wide ? 96 : narrow ? 8 : 80, R = wide ? 112 : 88;
+  const wide = w >= 640 * k, narrow = w < 480 * k;
+  const H = (wide ? 260 : narrow ? 250 : 220) * k, nw = 12 * k, gap = 6 * k, minH = 6 * k;
+  const top0 = narrow ? 28 * k : 0;
+  const L = (wide ? 104 : narrow ? 8 : 88) * k, R = (wide ? 128 : 112) * k;
   const x0 = L, x2 = w - R - nw, x1 = Math.round((x0 + x2) / 2);
   const plotH = H - top0;
-  const unit = p.apps ? Math.min(40, (plotH - 16) / p.apps) : 0;
+  const unit = p.apps ? Math.min(40 * k, (plotH - 16 * k) / p.apps) : 0;
   const hOf = n => n > 0 ? Math.max(n * unit, minH) : 0;
   const stack = (nodes, center) => {
     const list = nodes.filter(n => n.n > 0).map(n => ({ ...n, h: hOf(n.n) }));
@@ -3142,12 +3154,15 @@ function PipelineChart({ p, titleId, eqId }) {
   const links = (src, sy, targets, xa, xb) => { let y = sy; return targets.map(t => { const hs = t.n * (src ? unit : 0); const d = band(xa, y, hs, xb, t.y, t.h); y += hs; return { d, kind: t.kind === 'fwd' ? 'link-fwd' : 'link-end', id: t.id, node: t }; }); };
   const l1 = links(true, srcY, col1, x0 + nw, x1);
   const l2 = iv ? links(true, iv.y, col2, x1 + nw, x2) : [];
+  // the source's label: the count over the word, right-aligned beside its bar
   const label = (x, y, n, word, anchor) => (
     <>
       <text className="n" x={x} y={y} textAnchor={anchor}>{n}</text>
-      <text className="w" x={x} y={y + 16} textAnchor={anchor}>{word}</text>
+      <text className="w" x={x} y={y + 16 * k} textAnchor={anchor}>{word}</text>
     </>
   );
+  // a node's label: the count and the word on one line beside the node, so a column of labels needs a third less height
+  const nodeLabel = (x, y, n, word) => <text x={x} y={y}><tspan className="n">{n}</tspan><tspan className="w" dx={6 * k}>{word}</tspan></text>;
   const pct = n => p.apps ? Math.round(n / p.apps * 100) : 0;
   const tipOf = n => T(`${n.label}：${n.n} 条，占全部申请的 ${pct(n.n)}%`, `${n.label}: ${n.n} of ${p.apps} applications (${pct(n.n)}%)`);
   const nodeRect = (x, n) => (
@@ -3156,20 +3171,19 @@ function PipelineChart({ p, titleId, eqId }) {
       {n.kind === 'unk' && <rect x={x + .5} y={n.y + .5} width={nw - 1} height={Math.max(0, n.h - 1)} rx="2" className="unk-edge" />}
     </>
   );
-  // a label sits by the top of its node and always inside the drawing (the lowest node's word used to be cut off)
-  const top = n => Math.max(top0 + 14, Math.min(H - 20, n.y + Math.min(n.h / 2, 12) + 3));
-  // Labels in one column never run into each other. A label is two lines, the count and the word 16px below it, and
-  // needs about 34px, so consecutive labels keep 36px between their counts: each is moved down past the one above, then,
-  // if the last one would leave the drawing, they are moved back up. With a handful of applications nothing moves; with
-  // dozens, a 3-of-27 node is 20px tall on a phone and the next label used to overlap its word.
-  const LABEL_STEP = 36;
-  const spread = col => {
-    const ys = col.map(top);
-    for (let i = 1; i < ys.length; i++) ys[i] = Math.max(ys[i], ys[i - 1] + LABEL_STEP);
-    for (let i = ys.length - 1; i >= 0; i--) ys[i] = Math.min(ys[i], i === ys.length - 1 ? H - 20 : ys[i + 1] - LABEL_STEP);
+  // Labels in one column never run into each other. A one-line label is about 16 units tall, so consecutive labels
+  // keep 24 units between their baselines (40 for the two-line labels of the middle column on a phone, where one line
+  // would run into the next column): each label starts at the middle of its node, is moved down past the one above,
+  // then, if the last one would leave the drawing, they are moved back up. With a handful of applications nothing
+  // moves; with dozens, thin nodes sit close together and their labels used to overlap.
+  const spread = (col, twoLine) => {
+    const step = (twoLine ? 40 : 24) * k, low = H - (twoLine ? 22 : 6) * k;
+    const ys = col.map(n => Math.max(top0 + 14 * k, Math.min(low, n.y + n.h / 2 + (twoLine ? -3 : 5) * k)));
+    for (let i = 1; i < ys.length; i++) ys[i] = Math.max(ys[i], ys[i - 1] + step);
+    for (let i = ys.length - 1; i >= 0; i--) ys[i] = Math.min(ys[i], i === ys.length - 1 ? low : ys[i + 1] - step);
     return ys;
   };
-  const ly1 = spread(col1), ly2 = spread(col2);
+  const ly1 = spread(col1, narrow), ly2 = spread(col2, false);
   return (
     <div className="sankey" ref={wrapRef}>
       {W > 0 && (
@@ -3184,10 +3198,10 @@ function PipelineChart({ p, titleId, eqId }) {
           {l2.map(l => <path key={'b' + l.id} d={l.d} className={`${l.kind} link-${l.id}`}><title>{tipOf(l.node)}</title></path>)}
           <rect x={x0} y={srcY} width={nw} height={srcH} rx="2" className="src"><title>{T(`申请：${p.apps} 条`, `Applications: ${p.apps}`)}</title></rect>
           {narrow
-            ? <text x={x0} y={18}><tspan className="n">{p.apps}</tspan><tspan className="w" dx="6">{T('申请', p.apps === 1 ? 'application' : 'applications')}</tspan></text>
-            : label(x0 - 8, srcY + srcH / 2 - 2, p.apps, T('申请', p.apps === 1 ? 'Application' : 'Applications'), 'end')}
-          {col1.map((n, i) => <React.Fragment key={n.id}>{nodeRect(x1, n)}{label(x1 + nw + 8, ly1[i], n.n, n.label, 'start')}</React.Fragment>)}
-          {col2.map((n, i) => <React.Fragment key={n.id}>{nodeRect(x2, n)}{label(x2 + nw + 8, ly2[i], n.n, n.label, 'start')}</React.Fragment>)}
+            ? <text x={x0} y={18 * k}><tspan className="n">{p.apps}</tspan><tspan className="w" dx={6 * k}>{T('申请', p.apps === 1 ? 'application' : 'applications')}</tspan></text>
+            : label(x0 - 8 * k, srcY + srcH / 2 - 2 * k, p.apps, T('申请', p.apps === 1 ? 'Application' : 'Applications'), 'end')}
+          {col1.map((n, i) => <React.Fragment key={n.id}>{nodeRect(x1, n)}{narrow ? label(x1 + nw + 8 * k, ly1[i], n.n, n.label, 'start') : nodeLabel(x1 + nw + 8 * k, ly1[i], n.n, n.label)}</React.Fragment>)}
+          {col2.map((n, i) => <React.Fragment key={n.id}>{nodeRect(x2, n)}{nodeLabel(x2 + nw + 8 * k, ly2[i], n.n, n.label)}</React.Fragment>)}
         </svg>
       )}
     </div>
@@ -3588,7 +3602,7 @@ function RegionApp({ region, tab, go, openJobId, setOpenJobId, trackerStatus, on
     <>
       {tab==='addjob'  && <AddJobTab resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} region={region} onSaved={id=>{setFocusJob(id);go('tracker');window.dispatchEvent(new CustomEvent('jobapp:toast',{detail:T('已加入收藏','Added to Saved')}));}} onOpenProfile={()=>go('profile')} />}
       {tab==='tracker' && <TrackerTab region={region} jobs={jobs} setJobs={setJobs} resumeDb={resumeDb} formatting={formatting} initialStatus={trackerStatus} onAdd={()=>go('addjob')} onOpen={id=>setOpenJobId(id)} focusJobId={focusJob} onFocused={()=>setFocusJob(null)} desk={desk} go={go}/>}
-      {tab==='tracker' && openJob && <div className="job-detail-sheet"><Dialog labelId="job-sheet-title" wide onClose={()=>{setFocusJob(openJob.id);setOpenJobId(null);}}>{!DEMO&&<div className="sheet-save"><JobSaveStatus id="job-sheet-save-status"/></div>}{desk.kits.find(k=>k.jobRef?.region===region&&String(k.jobRef.id)===String(openJob.id))&&<a className="btn" href={kitHref(desk.kits.find(k=>k.jobRef?.region===region&&String(k.jobRef.id)===String(openJob.id)))}>{T('打开投递材料包','Open the Apply kit')}</a>}<JobDetail desk={desk} region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>{ setFocusJob(openJob.id); setOpenJobId(null); }} onOpenProfile={()=>go('profile')} /></Dialog></div>}
+      {tab==='tracker' && openJob && <div className="job-detail-sheet"><Dialog labelId="job-sheet-title" wide onClose={()=>{setFocusJob(openJob.id);setOpenJobId(null);}}>{!DEMO&&<div className="sheet-save"><JobSaveStatus id="job-sheet-save-status"/></div>}<JobDetail kit={desk.kits.find(k=>k.jobRef?.region===region&&String(k.jobRef.id)===String(openJob.id))} desk={desk} region={region} job={openJob} resumeDb={resumeDb} formatting={formatting} glossary={glossary} library={library} jobs={jobs} setJobs={setJobs} onBack={()=>{ setFocusJob(openJob.id); setOpenJobId(null); }} onOpenProfile={()=>go('profile')} /></Dialog></div>}
       {tab==='profile' && <ProfileTab sections={sections} updateSections={updateSections} formatting={formatting} setFormatting={setFormatting} glossary={glossary} setGlossary={setGlossary} region={region} resumeDb={resumeDb} />}
       {tab==='diagnosis' && <DiagnosisTab diagnosis={diagnosis} setDiagnosis={setDiagnosis} />}
       {tab==='library' && <LibraryTab library={library} setLibrary={setLibrary} updateSections={updateSections} />}

@@ -6,10 +6,12 @@ A job-application tracker for people applying in several countries at once. Ever
 Hong Kong, Mainland China, …) keeps its own pipeline and its own tailored documents; your profile, resume library
 and glossary are shared. Everything is kept in a **private GitHub repo you own**.
 
-**Live demo:** https://nickkklian.github.io/Job-Tracker/?demo=1&tab=tracker (or `&tab=insights`; add `&region=usa`
-to open another region) — sample data, nothing is saved. English by default, 中文 in the top bar.
+**Live demo:** https://nickkklian.github.io/Job-Tracker/?demo=1 (add `&tab=tracker` or `&tab=insights` for another view,
+`&region=usa` for another region) — sample data, nothing is saved. English by default, 中文 in the top bar.
 
-![Tracker](docs/screenshot-tracker.png)
+![Now: the one step that is yours, with the days left and the button that opens its kit](docs/screenshot-now.png)
+
+![Applications, grouped by where each one stands](docs/screenshot-tracker.png)
 
 ## Try it
 
