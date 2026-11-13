@@ -163,8 +163,8 @@ function NowTab({jobs,region,desk,go,openSettings}) {
         <details className="row-actions"><summary aria-label={T('这份申请的更多操作','More actions for this application')}><Icon name="dots"/></summary><div>{row.kit.deadline&&<p>{T('截止 ','Closes ')}{ledgerDate(row.kit.deadline)}</p>}<button disabled={desk.busy} onClick={()=>done(row)}>{T('完成','Done')}</button><button onClick={()=>hide(row)}>{T('明天再办','Not today')}</button></div></details>
       </li>;})}</ul>:!desk.error&&!empty&&<p className="quiet-line">{T('没有待处理的步骤','No steps waiting on you')}</p>}</section>
     </div><DeskArt waiting={yours.length>0}/></div>
-    <div className="now-ledger">{!!coming.length&&<section className="ledger-sheet"><div className="section-line"><h2>{T('近期投递','Coming up')}</h2><span>{coming.length}</span></div><ul className="compact-list">{coming.map(compact)}</ul></section>}
-      {!!talking.length&&<section className="ledger-sheet"><div className="section-line"><h2>{T('沟通中','Talking')}</h2><span>{talking.length}</span></div><ul className="compact-list">{talking.map(compact)}</ul></section>}
+    <div className="now-ledger">{!!coming.length&&<section className="ledger-sheet"><div className="section-line"><h2>{T('近期投递','Coming up')}</h2></div><ul className="compact-list">{coming.map(compact)}</ul></section>}
+      {!!talking.length&&<section className="ledger-sheet"><div className="section-line"><h2>{T('沟通中','Talking')}</h2></div><ul className="compact-list">{talking.map(compact)}</ul></section>}
       {(!!waiting.length||!!jobs.length)&&<aside className="ledger-sheet waiting-panel waiting-desktop">{waitingSummary}</aside>}
     </div>
     <details className="activity-panel"><summary>{T('投递动态','Activity')}<Icon name="down" size={14}/></summary><aside className="activity-content"><div className="waiting-panel waiting-mobile">{waitingSummary}</div>

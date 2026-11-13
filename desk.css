@@ -311,6 +311,7 @@ mark,.your-mark{color:var(--on-highlighter);background:var(--highlighter);border
 .kit-list-row b{font-size:1.125rem;font-weight:600}
 .kit-list-row>a>span{font-size:.8125rem;color:var(--text-2)}
 .kit-list-row .kit-holds{margin-top:.5rem;padding-top:.5rem;border-top:1px dashed var(--hairline)}
+.kit-list-row .kit-step{margin-top:.375rem;font-size:.9375rem;font-weight:600;color:var(--text)}
 [data-kit-group=yours] .kit-list-row::before{background:var(--highlighter);box-shadow:none}
 [data-kit-group=yours] .group-stamp{color:var(--text)}
 
