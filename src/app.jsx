@@ -90,7 +90,7 @@ function sampleJobs(region = 'canada') {
 function sampleProfile() {
   const ago = n => new Date(Date.now() - n * 86400000).toISOString();
   const sections = [
-    { id:'demo-p1', name:'Contact & Links', source:'template', addedAt:ago(40), content:'Full name: Sam Example\nLocation: Vancouver, BC, Canada\nEmail: sam@example.com\nPortfolio: example.com/sam\nWork authorization: open work permit (Canada)' },
+    { id:'demo-p1', name:'Contact & Links', source:'template', addedAt:ago(40), content:'Full name: Sam Example\nLocation: Vancouver, BC, Canada\nEmail: sam@example.com\nPortfolio: example.com/sam' },
     { id:'demo-p2', name:'Experience', source:'manual', addedAt:ago(40), content:'Harbourline Logistics — Operations Analyst (Richmond, BC) | Apr 2026 – Present\n• Rebuilt the weekly throughput report in SQL and Looker; the operations review went from two hours to thirty minutes\n• Modelled dock scheduling in Python; peak-hour truck waits fell by a fifth\n\nSaltmarsh Policy Lab — Research Assistant, part-time (Vancouver, BC) | Jul 2026 – Sep 2026\n• Cleaned and documented a 12,000-row housing survey for a policy brief' },
     { id:'demo-p3', name:'Skills', source:'template', addedAt:ago(40), content:'Analysis: SQL, Python (pandas), Excel\nBI: Looker, Tableau\nMethods: A/B testing, regression, forecasting\nLanguages: English, Mandarin' },
   ];

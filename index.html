@@ -3,7 +3,7 @@
 <html lang="en" data-suite-scale="fluid">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-NRpteoAVfVihvCEQ3QMf/H/h7qCficmenJ6kk2FRouA=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-2FWzbI9DclTYi8mTU3BZqLr3edpwc8+2pwKde7BAjKc='">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-NRpteoAVfVihvCEQ3QMf/H/h7qCficmenJ6kk2FRouA=' 'sha256-1lt1JlYF7m66Y0fdxs4BdOVS4Teb8gt1K9P5wWNJIJc=' 'sha256-52myhmphdzCyE7zBSdM63B1wzvCCSfldqfGA24+81ZM='">
 <script src="assets/settings-standard/core.js"></script>
 <script src="assets/settings-standard/save-status.js"></script>
 <script>/* appearance boot — runs before any stylesheet so the stored palette and light/dark apply on the first paint */(function(){try{var d=document.documentElement,L=window.localStorage,t=L.getItem(HubSettingsContract.preferenceKey("nl-theme")),s=L.getItem(HubSettingsContract.preferenceKey("nl-scheme"));if(s===null){var o=L.getItem(HubSettingsContract.preferenceKey("theme"))||L.getItem(HubSettingsContract.preferenceKey("qm-theme"));if(o==='dark'||o==='light')s=o;}if(t==='paper'||t==='ink')d.setAttribute('data-theme',t);d.setAttribute('data-scheme',s==='dark'?'dark':'light');}catch(e){}})();</script>
@@ -676,7 +676,6 @@ function sampleApplyDesk() {
   const answers = [
     ["name", "Full name", "姓名", "Sam Example"],
     ["city", "Current city", "现居城市", "Vancouver, BC"],
-    ["authorization", "Work authorization", "工作许可", "Open work permit in Canada"],
     ["sponsor", "Sponsorship required", "是否需要雇主担保", "No"],
     ["experience", "Relevant experience", "相关经验", "Operations reporting in SQL and Looker, with Python for scheduling analysis."],
     ["analysis", "An analysis that changed a decision", "影响决策的分析", "I rebuilt the weekly throughput report at Harbourline Logistics. The new SQL model separated dock delays from loading time, so the team could change the peak-hour schedule. Truck waits fell by a fifth."],
@@ -1368,7 +1367,7 @@ function sampleJobs(region = "canada") {
 function sampleProfile() {
   const ago = (n) => new Date(Date.now() - n * 864e5).toISOString();
   const sections = [
-    { id: "demo-p1", name: "Contact & Links", source: "template", addedAt: ago(40), content: "Full name: Sam Example\nLocation: Vancouver, BC, Canada\nEmail: sam@example.com\nPortfolio: example.com/sam\nWork authorization: open work permit (Canada)" },
+    { id: "demo-p1", name: "Contact & Links", source: "template", addedAt: ago(40), content: "Full name: Sam Example\nLocation: Vancouver, BC, Canada\nEmail: sam@example.com\nPortfolio: example.com/sam" },
     { id: "demo-p2", name: "Experience", source: "manual", addedAt: ago(40), content: "Harbourline Logistics — Operations Analyst (Richmond, BC) | Apr 2026 – Present\n• Rebuilt the weekly throughput report in SQL and Looker; the operations review went from two hours to thirty minutes\n• Modelled dock scheduling in Python; peak-hour truck waits fell by a fifth\n\nSaltmarsh Policy Lab — Research Assistant, part-time (Vancouver, BC) | Jul 2026 – Sep 2026\n• Cleaned and documented a 12,000-row housing survey for a policy brief" },
     { id: "demo-p3", name: "Skills", source: "template", addedAt: ago(40), content: "Analysis: SQL, Python (pandas), Excel\nBI: Looker, Tableau\nMethods: A/B testing, regression, forecasting\nLanguages: English, Mandarin" }
   ];

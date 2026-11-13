@@ -55,3 +55,12 @@ for(const [name,src,needle] of [
   assert.ok(gate>before.lastIndexOf('inCanada()'),`${name}: nearest gate is the region check, not the demo-aware one`);
   assert.ok(at-gate<4000,`${name}: no demo-aware gate near it`);
 });
+
+// The made-up demo person carries no work-permit / PGWP wording in any sample text the demo can show
+// (profile sections, apply-desk answers). Immigration status stays off every public surface.
+test('demo sample text has no work permit or PGWP wording',()=>{
+  const demoLedger=fs.readFileSync(new URL('../src/ledger-demo.js',import.meta.url),'utf8');
+  const profile=between(app,'function sampleProfile()','const library');
+  for(const [name,text] of [['sample profile',profile],['apply-desk answers',demoLedger]])
+    assert.ok(!/work permit|PGWP/i.test(text),`${name} mentions a work permit or PGWP`);
+});

@@ -3,7 +3,7 @@ function sampleApplyDesk() {
   const day=n=>localISO(new Date(Date.now()+n*864e5));
   const answers=[
     ['name','Full name','姓名','Sam Example'],['city','Current city','现居城市','Vancouver, BC'],
-    ['authorization','Work authorization','工作许可','Open work permit in Canada'],['sponsor','Sponsorship required','是否需要雇主担保','No'],
+    ['sponsor','Sponsorship required','是否需要雇主担保','No'],
     ['experience','Relevant experience','相关经验','Operations reporting in SQL and Looker, with Python for scheduling analysis.'],
     ['analysis','An analysis that changed a decision','影响决策的分析','I rebuilt the weekly throughput report at Harbourline Logistics. The new SQL model separated dock delays from loading time, so the team could change the peak-hour schedule. Truck waits fell by a fifth.'],
     ['tools','Tools','常用工具','SQL, Python (pandas), Excel, Looker, Tableau'],['start','Available to start','可入职时间','Two weeks after accepting an offer'],
