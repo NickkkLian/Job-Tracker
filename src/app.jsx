@@ -2454,7 +2454,7 @@ function TrackerTab({region,jobs,setJobs,onOpen,resumeDb,formatting,initialStatu
   const card=job=>{
     const role=job.role||T('（无职位名）','(no title)'),company=job.company||T('（无公司）','(no company)');
     return <li key={job.id} className="job application-row" data-status={job.status} data-job={job.id} data-entry="row">
-      <button className="job-open" title={`${role} · ${company}`} onClick={()=>onOpen(job.id)}><b className="role">{role}</b><span className="job-sub">{company}</span><span className="row-fact">{decisionFact(job)}</span></button>
+      <button className="job-open" title={`${role} · ${company}`} onClick={()=>onOpen(job.id)}><b className="role">{role}</b><span className="job-line"><span className="job-sub">{company}</span><span className="row-fact">{decisionFact(job)}</span></span></button>
       <details className="job-move" onKeyDown={e=>{
         const d=e.currentTarget,items=[...d.querySelectorAll('[data-move-status]')];
         if(e.key==='Escape'){e.preventDefault();e.stopPropagation();d.open=false;d.querySelector('summary').focus();}

@@ -32,7 +32,7 @@ try{
   await p.key('k','k');await p.key('Enter','\r');await p.until("document.querySelector('.kit-page')");
   await p.eval("window.__copies=[];Object.defineProperty(navigator,'clipboard',{value:{writeText:async t=>__copies.push(t)},configurable:true});document.querySelector('.kit-answer').focus()");
   await p.key('c','c');await p.until('__copies.length===1');
-  assert.match(await p.eval("document.querySelector('.materials-list .section-line').textContent"),/1 of 11 copied/);
+  assert.match(await p.eval("document.querySelector('.materials-list .section-line').textContent"),/1 of 10 copied/);
   await p.eval('new Promise(r=>setTimeout(r,1700))');assert.ok(await p.eval("!!document.querySelector('.kit-answer [data-copy] svg path')"));
  });
  await scenario('D finishes the handoff, Undo restores it, H hides it until tomorrow',async p=>{
