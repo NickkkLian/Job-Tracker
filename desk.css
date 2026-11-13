@@ -328,6 +328,8 @@ mark,.your-mark{color:var(--on-highlighter);background:var(--highlighter);border
 .kit-overflow>div{z-index:30;background:var(--surface-raised);color:var(--text);border-radius:.625rem;box-shadow:var(--float-shadow)}
 .your-part{width:fit-content;max-width:100%;margin:.8125rem 0 0;padding:1.375rem 1.25rem 1rem;border-left:0}
 .your-part>h2.slip-flag{margin:0;color:var(--on-highlighter);font:600 .75rem/1 var(--font-serif)}
+/* a kit that is sent or closed has nothing left for the person: its tab is plain paper, not marker yellow */
+.your-part.is-settled>h2.slip-flag{background:var(--slip);color:var(--slip-2)}
 .your-part .your-steps b{font-size:1.125rem;font-weight:600;line-height:1.4}
 .your-part .your-steps input{accent-color:var(--slip-ink);width:1.125rem;height:1.125rem;margin-top:.3125rem}
 .your-part .sent-line,.your-part>p{font-size:1.125rem;font-weight:500}
@@ -380,6 +382,8 @@ mark,.your-mark{color:var(--on-highlighter);background:var(--highlighter);border
 .insights-view .stat{background:var(--surface);border:0;border-radius:.625rem;box-shadow:var(--sheet-shadow);padding:.875rem 1.25rem .875rem 1.125rem}
 .stat .big{font:600 2rem/1.15 var(--font-serif);letter-spacing:-.02em}
 .insights-view .chart,.insights-view .plate{background:var(--surface);border:0;border-radius:.625rem;box-shadow:var(--sheet-shadow)}
+/* the hours plate is a paper sheet here, so the band tokens it reads are paper values inside it */
+.insights-view .plate{--band:var(--surface);--on-band:var(--text);--on-band-2:var(--text-2);--on-band-3:var(--text-2);--band-line:var(--border);color:var(--text)}
 .insights-grid{display:grid;grid-template-columns:minmax(0,1.85fr) minmax(0,1fr);gap:1.25rem;align-items:start;margin-top:1.25rem}
 .insights-side{display:grid;gap:1.25rem;min-width:0}
 .insights-side .card{padding:1rem 1.25rem 1.125rem}
@@ -491,3 +495,5 @@ mark,.your-mark{color:var(--on-highlighter);background:var(--highlighter);border
 .empty-account .btn:not(.btn-primary){background:transparent;border-color:var(--desk-line);color:var(--on-desk);box-shadow:none}
 .header-menu summary{line-height:1.5}
 .insights-view .stat small{font-size:.75rem;color:var(--text-2)}
+.honest :focus-visible{outline-color:var(--focus)}
+.insights-view .plate-head .btn{margin-inline-start:0}
