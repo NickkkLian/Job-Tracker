@@ -64,9 +64,9 @@ The navigation has two groups: the views that belong to the region you are in, a
 
 | View | What it does |
 |---|---|
-| **Add job** | Paste a job description or upload one (`.txt/.md/.docx/.pdf`). An upload fills the empty fields — company, role, location, salary, deadline — from the text, heuristically; for pasted text, *Fill fields from the description* does the same. You check them before saving. Tier (T1–T4) and status are on the same form, and in Canada so are the five fields the hours ledger reads |
+| **Add job** | Paste a job description or upload one (`.txt/.md/.docx/.pdf`). An upload fills the empty fields — company, role, location, salary, deadline — from the text, heuristically; for pasted text, *Fill fields from the description* does the same. You check them before saving. Tier (T1–T4) and status are on the same form |
 | **Tracker** | Applications grouped into populated stages, with search, tier filters and matching counts. To apply opens Tier 1 first and remembers folded tiers per region. Desktop cards have a keyboard-accessible Move to… menu; phone puts work in progress first and uses Status in the job details. Delete application is in details with confirmation. Opening a job also gives prompt generators for a tailored resume, cover letter, interview prep, networking plan and job-description analysis — copied into Claude.ai, no API key needed — translation prompts, and PDF slots that sync to the repo |
-| **Insights** | Where every application stands: a pipeline chart (or the same numbers as a table) whose parts add up to the whole, response and offer rates, upcoming deadlines and the companies you applied to most. In Canada it opens with the **CEC hours ledger** (below) |
+| **Insights** | Where every application stands: a pipeline chart (or the same numbers as a table) whose parts add up to the whole, response and offer rates, upcoming deadlines and the companies you applied to most |
 | **Alerts** | Optional, needs an Anthropic key: paste a LinkedIn job-alert email; Claude looks up each posting on the company's careers page and scores it against your profile, and the ones you tick go into the tracker. *Discover new jobs* has Claude run up to five web searches for postings from the last 24 hours that fit your profile and score them the same way. It searches the region picked at the top: each of the twelve regions names its own place and main cities in the search (Remote / Global asks for fully remote roles open to any country) |
 | **My profile** | A sectioned profile (upload files, or start from a skeleton and per-role skills blocks), a translation glossary, and formatting rules that go into every resume prompt |
 | **Diagnosis** | A six-step check before applying: stage → strengths → target profile → reality check against real postings → resume narrative → high-stakes decisions |
@@ -80,17 +80,6 @@ and [the additional browser checks](test/README.md). Kit content and selected re
 are supplied through the private data repository and are never bundled in this app.
 The header keeps save state visible on every page: the time of the last save, or a plain reason and Retry when a
 save fails.
-
-![Insights](docs/screenshot-insights.png)
-
-### Canada: the CEC hours ledger
-
-The Canadian Experience Class counts skilled work hours toward 1,560, and IRCC's 30-hours-a-week cap applies
-**across all jobs combined**, not per job. The ledger therefore slices time by week, sums every working job's hours
-for that week, caps the total at 30 and gives the capped hours back to each job in proportion — so two 25-hour jobs
-count as 30, not 50. It leaves out jobs whose NOC code isn't TEER 1–3 (a job with no NOC code yet is treated as
-TEER 2), warns about working jobs with no employment type recorded, since contractor hours don't count, and shows
-the date you reach 1,560 at the current weekly rate.
 
 ### Batch tailoring (optional, needs an Anthropic key)
 
