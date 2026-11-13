@@ -2397,6 +2397,20 @@ const ledgerDate = value => {const d=new Date(value);return !value?'':isNaN(d)?S
 function StageStamp({stage,size=28}) {
   return <svg className="stage-stamp" width={size} height={size} style={{width:`calc(${size} * var(--suite-px, 1px))`,height:`calc(${size} * var(--suite-px, 1px))`}} viewBox="0 0 28 28" aria-hidden="true"><circle className="ring" cx="14" cy="14" r="12.2"/><circle className="ring2" cx="14" cy="14" r="10"/><g className="glyph">{stage.glyph}</g></svg>;
 }
+const GROUP_GLYPHS = {
+  talk:<><path d="M7.500 9.500h9v6h-5l-3 2.500v-2.500h-1z"/><path d="M18.500 12.500h2v5.500h-1v2l-2.500-2h-4"/></>,
+  ready:<path d="m7.500 14 13-6-4.500 12.500-2.500-5z"/>,
+  sent:<><path d="M7 10h14v9H7z"/><path d="m7 10.500 7 5 7-5"/></>,
+  want:<path d="M10 7.500h8v13l-4-3-4 3z"/>,
+  working:<path d="m9 14.500 3.300 3.300L19 11"/>,
+  quiet:<><circle cx="14" cy="14" r="5.500"/><path d="M14 11v3.200l2 1.300"/></>,
+  shut:<path d="m10 10 8 8M18 10l-8 8"/>,
+};
+const GROUP_OF_STATE = {talking:'talk',offer:'working',yours:'ready',ready:'ready',sent:'sent',saved:'want',working:'working',quiet:'quiet',closed:'shut'};
+function GroupStamp({group,size=28}) {
+  const id=GROUP_GLYPHS[group]?group:GROUP_OF_STATE[group]||'shut';
+  return <svg className={`group-stamp stamp-${id}`} width={size} height={size} viewBox="0 0 28 28" aria-hidden="true" focusable="false"><circle className="ring" cx="14" cy="14" r="12.200"/><circle className="ring2" cx="14" cy="14" r="9.800"/><g className="glyph">{GROUP_GLYPHS[id]}</g></svg>;
+}
 function tierFolds(region) {
   try { const saved=JSON.parse(localStorage.getItem(`jobapp:tier-folds:${region}`)||'{}');return saved&&typeof saved==='object'?saved:{}; } catch { return {}; }
 }
@@ -2434,6 +2448,7 @@ function TrackerTab({region,jobs,setJobs,onOpen,resumeDb,formatting,initialStatu
     if(progress.outcome)return `${kitOutcomeLabel(progress.outcome)}${progress.outcomeDate?' '+ledgerDate(progress.outcomeDate):''}`;
     const deadline=kit?.deadline||job.applicationDeadline;
     if(deadline&&!['closed','working','talking'].includes(state))return `${ApplyKits.days(deadline,localISO(new Date()))<0?T('已截止 ','Closed '):T('截止 ','Closes ')}${ledgerDate(deadline)}`;
+    if(state==='saved'&&job.location)return job.location;
     return stateName(state);
   };
   const card=job=>{
@@ -2452,7 +2467,7 @@ function TrackerTab({region,jobs,setJobs,onOpen,resumeDb,formatting,initialStatu
     <DeskError desk={desk}/>{(search||tierFilter!=='all'||filter!=='all')&&<p className="applications-meta" role="status">{T(`找到 ${visible.length} 条`,`${visible.length} matches`)}</p>}<p id="pipeline-announcement" className="sr-only" role="status" aria-live="polite">{announcement}</p>
     <div className="pipeline application-list" data-region={region}>{Object.keys(groupNames).map(group=>{
       const items=visible.filter(j=>groupFor(display(j))===group);if(!items.length)return null;
-      return <section className={`pipeline-stage s-${group}`} data-stage={group} key={group}><details className="application-group" open={groups[group]??!['quiet','shut'].includes(group)}><summary onClick={e=>{e.preventDefault();foldGroup(group,!(groups[group]??!['quiet','shut'].includes(group)));}}><Icon name="chevron" size={14}/><h2>{groupNames[group]}</h2><span className="stage-n">{items.length}</span></summary>
+      return <section className={`pipeline-stage s-${group}`} data-stage={group} key={group}><details className="application-group" open={groups[group]??!['quiet','shut'].includes(group)}><summary onClick={e=>{e.preventDefault();foldGroup(group,!(groups[group]??!['quiet','shut'].includes(group)));}}><GroupStamp group={group}/><h2>{groupNames[group]}</h2><span className="stage-n">{items.length}</span><Icon name="chevron" size={14}/></summary>
         {group==='want'?[...TIERS.map(t=>t.id),''].map(id=>{const tierJobs=items.filter(j=>tierKey(j)===id);if(!tierJobs.length)return null;return <details className="pipeline-tier" key={id} data-tier={id||'none'} open={folds[id]??(id==='T1'||id==='')}><summary onClick={e=>{e.preventDefault();foldTier(id,!(folds[id]??(id==='T1'||id==='')));}}><Icon name="chevron" size={12}/><span>{id?T(`第 ${id.slice(1)} 梯队`,`Tier ${id.slice(1)}`):T('未分级','Unranked')}</span><span className="stage-n">{tierJobs.length}</span></summary><ul className="pipeline-cards">{tierJobs.map(card)}</ul></details>;}):<ul className="pipeline-cards">{items.map(card)}</ul>}
       </details></section>;
     })}</div>{!visible.length&&<div className="empty"><h2>{jobs.length?T('没有符合这些筛选条件的申请','No applications match these filters'):T(`${rName(REGION_BY[region])}还没有申请`,`No applications in ${rName(REGION_BY[region])} yet`)}</h2><Btn onClick={jobs.length?clear:onAdd}>{jobs.length?T('清除筛选','Clear filters'):T('添加职位','Add job')}</Btn></div>}
@@ -3232,7 +3247,11 @@ function InsightsTab({ jobs, regionName, onWorking, onAdd, desk }) {
 
   return (
     <div className="insights-view">
-      <PageHead title={T('数据','Insights')}/><section className="month-line"><h2>{T('本月','This month')}</h2><p>{T(`已投 ${monthSent} 份 · 备好 ${monthPrepared} 份材料 · ${monthReplies} 份有回复`,`${monthSent} sent · ${monthPrepared} kits prepared · ${monthReplies} ${monthReplies===1?'reply':'replies'}`)}</p></section>{cecShown() && !workingJobs.length&&<p className="cec-empty">{T('CEC 工时：尚无在职记录','CEC hours: no working jobs recorded yet')} · <a href="#hours-how">{T('工时如何计算','How hours are counted')}</a><span id="hours-how">{T('每周所有工作合计最多计 30 小时。','At most 30 hours count per week across all jobs.')}</span></p>}{cecShown()&&!!workingJobs.length&&<>
+      <PageHead title={T('数据','Insights')}/><section className="month-line" aria-labelledby="month-h"><h2 id="month-h">{T('本月','This month')}</h2><ul className="month-figures">
+        <li data-entry="tile"><b>{monthSent}</b><span>{T('份已投','sent')}</span></li>
+        <li data-entry="tile"><b>{monthPrepared}</b><span>{T('份材料备好',monthPrepared===1?'kit prepared':'kits prepared')}</span></li>
+        <li data-entry="tile"><b>{monthReplies}</b><span>{T('份有回复',monthReplies===1?'reply':'replies')}</span></li>
+      </ul></section>{cecShown() && !workingJobs.length&&<p className="cec-empty">{T('CEC 工时：尚无在职记录','CEC hours: no working jobs recorded yet')} · <a href="#hours-how">{T('工时如何计算','How hours are counted')}</a><span id="hours-how">{T('每周所有工作合计最多计 30 小时。','At most 30 hours count per week across all jobs.')}</span></p>}{cecShown()&&!!workingJobs.length&&<>
       <section className="plate" aria-labelledby="ins-h">
         <svg className="ledger-mark" hidden width="64" height="64" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12.2" fill="none" stroke="currentColor" strokeWidth="1.2"/><circle cx="14" cy="14" r="10" fill="none" stroke="currentColor" strokeWidth=".6"/><path d="M14 7.5v6.5l4 2.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg><div className="plate-in">
           <div>
@@ -3282,7 +3301,7 @@ function InsightsTab({ jobs, regionName, onWorking, onAdd, desk }) {
         </div>
       ) : (
         <>
-<details className="insights-extra"><summary>{T('申请统计','Application statistics')}<Icon name="down" size={14}/></summary><div className="stats">
+<details className="insights-extra" open><summary>{T('申请统计','Application statistics')}<Icon name="down" size={14}/></summary><div className="stats">
             <div className="stat" data-entry="tile"><span className="big">{stats.total}</span><span className="lbl">{T('追踪中','tracked')}</span><small className="amt">{T(`${p.interested} 条待投`, `${p.interested} to apply`)}</small></div>
             <div className="stat" data-entry="tile"><span className="big">{stats.last7}</span><span className="lbl">{T('本周新增','added this week')}</span><small className="amt">{T(`30 天内 ${stats.last30}`, `${stats.last30} in 30 days`)}</small></div>
             <div className="stat" data-entry="tile"><span className="big">{stats.responseRate}%</span><span className="lbl">{T('回应率','response rate')}</span><small className="amt">{T(`基于 ${stats.applied} 条已投`, `of ${stats.applied} applied`)}</small></div>
@@ -3689,7 +3708,7 @@ function App() {
     };
     const observer=new MutationObserver(replaceLanguageIcon);observer.observe(document.querySelector('#root header.topbar'),{childList:true,subtree:true});replaceLanguageIcon();return()=>observer.disconnect();
   },[]);
-  useEffect(()=>{requestAnimationFrame(()=>document.fonts.load('15px \"Source Serif 4\"').catch(()=>{}));},[]);
+  useEffect(()=>{requestAnimationFrame(()=>document.fonts.load('600 32px \"Noto Serif SC Variable\"').catch(()=>{}));},[]);
   useEffect(()=>{const header=document.querySelector('#root header.topbar');const observer=new ResizeObserver(()=>document.documentElement.style.setProperty('--header-height',`${header.getBoundingClientRect().height}px`));observer.observe(header);return()=>observer.disconnect();},[]);
   const [region, setRegionState] = useState(regionFromUrl);
   regionNow = region;

@@ -141,31 +141,82 @@ function NowTab({jobs,region,desk,go,openSettings}) {
     if(e.key==='?'){e.preventDefault();const d=e.currentTarget.querySelector('.keyboard-help');if(d){e.currentTarget.querySelector('.activity-panel').open=true;d.open=!d.open;}}
   };
   useEffect(()=>{document.addEventListener('keydown',keys);return()=>document.removeEventListener('keydown',keys);});
+  const today=localISO(new Date());
   const compact=row=>{
     const note=(row.record?.outcomeNote||row.job?.notes||stateName(row.state)).split(/\n|\s[—–]\s/)[0];
     const deadline=row.kit?.deadline||row.job?.applicationDeadline;
     const when=deadline?T('截止 ','Closes ')+ledgerDate(deadline):row.kit?.applyDate?T('计划 ','Planned ')+ledgerDate(row.kit.applyDate):T('截止日未注明','Deadline not listed');
-    return <li key={row.id} className="compact-row" data-entry="row"><button className="row-link" onClick={()=>open(row)}><b>{row.role}</b><span>{row.company} · {row.state==='offer'?<><Icon name="check" size={12}/> {stateName('offer')}</>:row.state==='talking'?note:<>{when} · {row.kit?T('材料齐全','Kit ready'):T('尚无材料包','No kit yet')}</>}</span></button></li>;
+    return <li key={row.id} className="compact-row" data-entry="row"><button className="row-link" onClick={()=>open(row)}><span className="row-main"><b>{row.role}</b><i>{row.company}</i></span><span className="row-sub">{row.state==='offer'?<><Icon name="check" size={12}/> {stateName('offer')}</>:row.state==='talking'?note:<>{when} · {row.kit?T('材料齐全','Kit ready'):T('尚无材料包','No kit yet')}</>}</span></button></li>;
   };
   const waitingSummary=<><h2>{T('已投递，等回复','Sent and waiting')} <span className="waiting-head-count">{waiting.length}</span></h2><AgeStrip rows={waiting} onOpen={()=>go('tracker',{status:'applied'})}/></>;
+  const empty=!jobs.length&&!desk.kits.length&&!desk.loading;
   return <div className="now-view">
-    <div className="now-heading"><h1 tabIndex={-1}>{!jobs.length&&!desk.kits.length&&!desk.loading?T('还没有申请','Nothing here yet'):yours.length?T(`有 ${yours.length} 件事等你处理`,`${yours.length} ${yours.length===1?'thing needs':'things need'} you`):T('现在没有要你处理的事','Nothing needs you right now')}</h1></div>
-    {!jobs.length&&!desk.kits.length&&!desk.loading&&!desk.error&&<div className="empty-account"><Btn variant="primary" onClick={()=>go('addjob')}>{T('添加职位','Add job')}</Btn><a className="btn" href="?demo=1">{T('看看示例','Try the demo')}</a></div>}
-    <div className="now-grid"><div className="now-work">
+    <div className={`now-desk${yours.length?' has-slips':''}`}><div className="now-desk-main">
+      <div className="now-heading"><h1 tabIndex={-1}>{empty?T('还没有申请','Nothing here yet'):yours.length?T(`有 ${yours.length} 件事等你处理`,`${yours.length} ${yours.length===1?'thing needs':'things need'} you`):T('现在没有要你处理的事','Nothing needs you right now')}</h1></div>
+      {empty&&!desk.error&&<div className="empty-account"><Btn variant="primary" onClick={()=>go('addjob')}>{T('添加职位','Add job')}</Btn><a className="btn" href="?demo=1">{T('看看示例','Try the demo')}</a></div>}
       <section className="handoffs"><h2 className="sr-only">{T('轮到你','Your turn')}</h2><DeskError desk={desk} openSettings={openSettings}/>
-      {desk.loading?<DeskSkeleton/>:yours.length?<ul className="handoff-list">{yours.map(row=>{const step=Ledger.openSteps(row.kit,row.record)[0];return <li key={row.id} className={`handoff-row${leaving===row.id?' leaving':''}`} data-entry="row" data-handoff={row.kit.id}>
-        <div className="handoff-text"><b className="handoff-instruction"><mark title={kitLabel(step.text)}>{kitLabel(step.text)}</mark></b><span title={`${row.role} · ${row.company}`}>{row.company} · {row.kit.deadline?<>{T('截止 ','Closes ')}{ledgerDate(row.kit.deadline)}</>:T('截止日未注明','Deadline not listed')}</span></div>
+      {desk.loading?<DeskSkeleton/>:yours.length?<ul className="slip-list">{yours.map(row=>{const step=Ledger.openSteps(row.kit,row.record)[0],left=row.kit.deadline?ApplyKits.days(row.kit.deadline,today):null;return <li key={row.id} className={`slip${leaving===row.id?' leaving':''}`} data-entry="row" data-handoff={row.kit.id}>
+        <span className="slip-flag">{T('轮到你','Your turn')}</span>
+        {left!=null&&left>=0&&<span className="slip-due"><b>{left}</b><span>{left===1?T('天后截止','day left'):T('天后截止','days left')}</span></span>}
+        <div className="slip-text"><b className="slip-step"><mark title={kitLabel(step.text)}>{kitLabel(step.text)}</mark></b><span className="slip-meta" title={`${row.role} · ${row.company}`}>{row.role} · {row.company} · {row.kit.deadline?<>{T('截止 ','Closes ')}{ledgerDate(row.kit.deadline)}</>:T('截止日未注明','Deadline not listed')}</span></div>
         <a className="btn btn-primary" data-handoff-open={row.kit.id} href={kitHref(row.kit,step.id)} aria-label={T(`打开这一步：${kitLabel(step.text)}`,`Open at this step: ${kitLabel(step.text)}`)}>{T('打开','Open')}<Icon name="chevron" size={14}/></a>
         <details className="row-actions"><summary aria-label={T('这份申请的更多操作','More actions for this application')}><Icon name="dots"/></summary><div>{row.kit.deadline&&<p>{T('截止 ','Closes ')}{ledgerDate(row.kit.deadline)}</p>}<button disabled={desk.busy} onClick={()=>done(row)}>{T('完成','Done')}</button><button onClick={()=>hide(row)}>{T('明天再办','Not today')}</button></div></details>
-      </li>;})}</ul>:!desk.error&&<p className="quiet-line">{T('没有待处理的步骤','No steps waiting on you')}</p>}</section>
-      <div className="now-secondary">{!!coming.length&&<section><div className="section-line"><h2>{T('近期投递','Coming up')}</h2></div><ul className="compact-list">{coming.map(compact)}</ul></section>}
-      {!!talking.length&&<section><div className="section-line"><h2>{T('沟通中','Talking')}</h2></div><ul className="compact-list">{talking.map(compact)}</ul></section>}
-      </div><details className="activity-panel"><summary>{T('投递动态','Activity')}<Icon name="down" size={14}/></summary><aside className="activity-content"><div className="waiting-panel waiting-mobile">{waitingSummary}</div>
+      </li>;})}</ul>:!desk.error&&!empty&&<p className="quiet-line">{T('没有待处理的步骤','No steps waiting on you')}</p>}</section>
+    </div><DeskArt waiting={yours.length>0}/></div>
+    <div className="now-ledger">{!!coming.length&&<section className="ledger-sheet"><div className="section-line"><h2>{T('近期投递','Coming up')}</h2><span>{coming.length}</span></div><ul className="compact-list">{coming.map(compact)}</ul></section>}
+      {!!talking.length&&<section className="ledger-sheet"><div className="section-line"><h2>{T('沟通中','Talking')}</h2><span>{talking.length}</span></div><ul className="compact-list">{talking.map(compact)}</ul></section>}
+      {(!!waiting.length||!!jobs.length)&&<aside className="ledger-sheet waiting-panel waiting-desktop">{waitingSummary}</aside>}
+    </div>
+    <details className="activity-panel"><summary>{T('投递动态','Activity')}<Icon name="down" size={14}/></summary><aside className="activity-content"><div className="waiting-panel waiting-mobile">{waitingSummary}</div>
       <div className="week-line"><h3>{T('本周','This week')}</h3><p>{T(`已投 ${sent.filter(r=>Ledger.inPeriod(r.sentAt,'week')).length} 份 · 备好 ${preparedThisWeek} 份材料`,`${sent.filter(r=>Ledger.inPeriod(r.sentAt,'week')).length} sent · ${preparedThisWeek} kits prepared`)}</p></div>
       <div className="saved-health"><h3>{T('收藏清单','Saved list')}</h3><p>{old.length?T(`${old.length} 条收藏超过 30 天`,`${old.length} saved over 30 days ago`):T('收藏都在 30 天以内','All saved within 30 days')}</p>{!!old.length&&<button className="btn" onClick={()=>{prefillGhost(old);go('ghost');}}>{T('检查收藏','Check saved rows')}<Icon name="chevron" size={14}/></button>}</div><ShortcutsHelp/>
-    </aside></details></div><aside className="waiting-panel waiting-desktop">{waitingSummary}</aside></div>
+    </aside></details>
     {undo&&<div className="desk-undo" role="status">{T('步骤已完成','Step finished')}<button className="btn" onClick={()=>{desk.update(undo.id,r=>({...r,handoffDone:{...r.handoffDone,[undo.step]:null}}));setUndo(null);}}>{T('撤销','Undo')}</button></div>}
   </div>;
+}
+
+// The desk still life beside the Now heading. It is drawn here (no image file) so it takes the desk colour of every
+// palette and theme; it shows the state the heading states: a paper waiting with its flag, or a cleared desk.
+function DeskArt({waiting}) {
+  return <svg className="desk-art" viewBox="0 0 560 320" aria-hidden="true" focusable="false">
+    <defs>
+      <filter id="desk-shadow" x="-20%" y="-20%" width="150%" height="160%"><feDropShadow dx="7" dy="10" stdDeviation="7" floodColor="#03070d" floodOpacity=".5"/></filter>
+      <filter id="desk-shadow-sm" x="-30%" y="-30%" width="170%" height="180%"><feDropShadow dx="3" dy="4" stdDeviation="2.5" floodColor="#03070d" floodOpacity=".45"/></filter>
+      <linearGradient id="desk-tea" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#d9a04a"/><stop offset="1" stopColor="#b97a26"/></linearGradient>
+      <linearGradient id="desk-pen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#2f7d86"/><stop offset=".55" stopColor="#1f5c63"/><stop offset="1" stopColor="#174a50"/></linearGradient>
+    </defs>
+    {waiting?<>
+      <g filter="url(#desk-shadow)" transform="rotate(-5 250 165)">
+        <rect className="art-paper" x="150" y="28" width="204" height="268" rx="3"/>
+        <g className="art-rule"><path d="M176 64h112M176 86h152M176 104h152M176 122h140M176 140h152M176 158h96"/><path d="M176 196h152M176 214h152M176 232h118"/></g>
+        <path className="art-sign" d="M176 268h108"/>
+        <path className="art-cross" d="m180 252 8 8m0-8-8 8"/>
+        <g filter="url(#desk-shadow-sm)"><path className="art-flag" d="M300 250h78a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3h-78l-10-10z"/></g>
+      </g>
+      <g filter="url(#desk-shadow)" transform="rotate(38 448 190)">
+        <rect x="372" y="182" width="150" height="16" rx="8" fill="url(#desk-pen)"/>
+        <rect className="art-steel" x="402" y="181" width="7" height="18" rx="1.5"/>
+        <path className="art-steel" d="M372 183.5 348 190l24 6.500z"/>
+        <path d="M352 190h18" stroke="#1b2a3a" strokeWidth="1.2" fill="none"/>
+      </g>
+      <g filter="url(#desk-shadow)" transform="rotate(-24 452 262)"><rect x="412" y="254" width="78" height="17" rx="8.500" fill="url(#desk-pen)"/><rect className="art-steel" x="474" y="250" width="3.500" height="25" rx="1.750"/></g>
+    </>:<>
+      <g filter="url(#desk-shadow)" transform="rotate(-3 250 165)">
+        <path className="art-folder-back" d="M146 40h74l12 14h126a4 4 0 0 1 4 4v230a4 4 0 0 1-4 4H146a4 4 0 0 1-4-4V44a4 4 0 0 1 4-4z"/>
+        <rect className="art-paper" x="142" y="62" width="220" height="230" rx="4"/>
+        <path className="art-rule" d="M170 100h92M170 118h56"/>
+      </g>
+      <g filter="url(#desk-shadow)" transform="rotate(-3 392 170)">
+        <rect x="384" y="78" width="17" height="186" rx="8.500" fill="url(#desk-pen)"/>
+        <rect className="art-steel" x="383" y="138" width="19" height="6" rx="1.500"/>
+        <rect className="art-steel" x="399" y="86" width="3.500" height="44" rx="1.750"/>
+      </g>
+      <g filter="url(#desk-shadow)"><circle className="art-glass" cx="478" cy="232" r="26"/><circle className="art-water" cx="478" cy="232" r="19"/>
+        <path className="art-leaf" d="M478 232c-4-22 4-40 20-52 4 20-2 40-20 52z"/><path className="art-leaf art-leaf-2" d="M478 232c-18-8-30-22-32-42 18 4 30 18 32 42z"/><path d="M478 232c2-18 8-34 20-52M478 232c-8-16-18-30-32-42" stroke="#2c5a44" strokeWidth="1.2" fill="none"/></g>
+    </>}
+    <g filter="url(#desk-shadow)"><circle className="art-saucer" cx="66" cy="84" r="48"/><rect className="art-cup" x="14" y="38" width="30" height="15" rx="7.500" transform="rotate(42 29 45)"/><circle className="art-cup" cx="66" cy="84" r="34"/><circle cx="66" cy="84" r="27.500" fill="url(#desk-tea)"/><path d="M47 77a21 21 0 0 1 23-13" stroke="#f2c97a" strokeWidth="3" strokeLinecap="round" fill="none" opacity=".7"/></g>
+    <g className="art-clip" filter="url(#desk-shadow-sm)"><path d="M70 196v34a9 9 0 0 0 18 0v-40a6 6 0 0 0-12 0v36" transform="rotate(-28 79 214)"/><path d="M108 236v30a8 8 0 0 0 16 0v-36a5.500 5.500 0 0 0-11 0v32" transform="rotate(34 116 252)"/></g>
+  </svg>;
 }
 
 let ghostAddedDates=false,ghostMissingLinks=0;
@@ -202,7 +253,7 @@ function AgeStrip({rows,onOpen}) {
 function AboutTab({go,openSettings}) {
   const code=path=>`https://github.com/NickkkLian/Job-Tracker/blob/main/${path}`;
   const labels=[T('职位提醒','Job alert'),T('筛选','Triage'),T('投递材料包','Apply kit'),T('轮到你','Your turn'),T('已投递','Sent'),T('回复或未回复','Reply or no reply')];
-  return <div className="about-view"><PageHead title={T('了解原理','How it works')} sub={T('从一条职位提醒，到一份有记录的申请。','From a job alert to a recorded application.')}/><div className="system-diagram" role="img" aria-label={labels.join(' → ')}>{labels.map((label,i)=><React.Fragment key={label}><span className={i===3?'your-mark':''}>{label}</span>{i<5&&<Icon name="chevron"/>}</React.Fragment>)}</div>
+  return <div className="about-view"><PageHead title={T('了解原理','How it works')} sub={T('从一条职位提醒，到一份有记录的申请。','From a job alert to a recorded application.')}/><ol className="system-diagram" aria-label={labels.join(' → ')}>{labels.map((label,i)=><li key={label} className={i===3?'is-yours':''}><GroupStamp group={['want','quiet','ready','ready','sent','talk'][i]} size={36}/><span className={i===3?'your-mark':''}>{label}</span></li>)}</ol>
     <section><h2>{T('数据存在你自己的 GitHub 私有仓库','Your data stays in your own private GitHub repository')}</h2><p>{T('页首会显示正在保存、保存时间，或者未保存的原因和重试按钮。每份文件都有独立的保存队列。','The header shows saving, the saved time, or a plain reason and Retry. Each file has its own save queue.')} <a href={code('test/save-status.test.mjs')}>{T('查看保存测试','Read the save tests')}</a></p></section>
     <section><h2>{T('两处编辑，也能合并','Edits from two places can merge')}</h2><p>{T('保存会比较本页打开时、仓库里现在、本页修改后的三个版本。不同字段的更改都会保留。同一字段改成不同内容时，由你选择。','Saving compares the version you opened, the current repository version, and your edit. Changes to different fields are kept. Different edits to the same field ask you to choose.')} <a href={code('src/index.template.html')}>{T('查看合并代码','Read the merge code')}</a></p>{DEMO&&<button className="btn" onClick={()=>SafeMerge.ask([{path:['Sample application','notes'],ours:T('周四下午面试','Interview Thursday afternoon'),theirs:T('周五上午面试','Interview Friday morning')}],T)}>{T('试试冲突处理','Try it')}</button>}</section>
     <section><h2>{T('把时间留给还在招聘的职位','Check whether a posting is still hiring')}</h2><p>{T('幽灵岗检查使用四条规则，查看页面是否关闭、职位是否过旧、是否重复发布，以及是否是长期人才库。每条结论都附上原因。','Ghost check uses four rules for closed pages, old postings, repeated listings, and evergreen talent pools. Every result includes reasons.')} <a href={code('test/ghost-flags.test.mjs')}>{T('查看规则测试','Read the rule tests')}</a></p><button className="btn" onClick={()=>{ghostDraft=GhostFlags.SAMPLE;ghostAddedDates=false;go('ghost');}}>{T('检查 20 条示例','Check 20 samples')}</button></section>
