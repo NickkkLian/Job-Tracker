@@ -153,6 +153,10 @@ function initializeJobConnection(){
       if(localStorage.getItem('jobapp:connection')!==raw)throw new HubSettingsContract.SettingsError('readback');
     }
     jobConnection=HubSettingsRuntime.resolve('Job-Tracker',HubSettingsContract.object(localStorage.getItem('jobapp:connection'))).config;
+    // 'jobapp:githubToken' only fed the one-time copy above and is never read again, so it is a second copy of the token.
+    // It is removed once the connection in effect (shared, or this app's own slot) holds a token. With no token in effect
+    // it stays untouched and Settings asks to connect; the page never falls back to it.
+    if(jobConnection.token)try{localStorage.removeItem('jobapp:githubToken');}catch{}
   }catch{/* Invalid storage is shown in Settings without replacing it. */}
 }
 initializeJobConnection();
