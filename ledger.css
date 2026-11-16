@@ -46,7 +46,7 @@ summary::-webkit-details-marker{display:none}
 .header-menu-items button span{min-width:2ch;font-variant-numeric:tabular-nums;color:var(--text-2)}
 .header-menu-items button:hover,.header-menu-items button:focus-visible{background:var(--neutral-tint)}
 .header-menu-items p{font-size:.75rem;color:var(--text-2);padding:.75rem .75rem .25rem}
-.topbar [data-settings-slot]{margin:0;gap:.125rem;min-width:0;flex:none}
+.topbar [data-settings-slot]{margin:0;gap:.5rem;min-width:0;flex:none}
 .topbar [data-settings-slot]>.suite-preference,.topbar [data-settings-slot]>.suite-gear{width:2.25rem!important;height:2.25rem!important;min-width:2.25rem!important;min-height:2.25rem!important;padding:.5rem!important;border:0!important;border-radius:.25rem;background:transparent;color:var(--text);position:static!important}
 .topbar [data-settings-slot] svg{width:1.25rem;height:1.25rem;stroke:currentColor;fill:none;stroke-width:1.7}
 .topbar .suite-header-divider{display:none}
@@ -118,7 +118,7 @@ mark,.your-mark{color:var(--mark-ink);background:var(--mark-bg);border-radius:.1
  .topbar .brand b{display:none!important}.topbar .brand{flex:none!important;margin:0 .25rem 0 0}.topbar .brand .app-logo{width:1.5rem;height:1.5rem}
  .desktop-nav{display:none}.region-menu summary{font-size:.8125rem;max-width:8rem;white-space:normal;padding:0 .25rem;gap:.25rem}
  .topbar #job-save-status{min-height:0;flex:1 1 auto;max-width:none;margin-left:auto;padding:0;font-size:.75rem}.topbar #job-save-status .suite-save-status{gap:.25rem;font-size:.75rem}.topbar #job-save-status .suite-save-status>button{font-size:.75rem;padding:.25rem;min-width:2.25rem}
- .topbar [data-settings-slot]{margin-left:0;gap:0}.topbar [data-settings-slot]>.suite-preference,.topbar [data-settings-slot]>.suite-gear{width:2rem!important;min-width:2rem!important;height:2.25rem!important;min-height:2.25rem!important;padding:.375rem!important}
+ .topbar [data-settings-slot]{margin-left:0;gap:.5rem}.topbar [data-settings-slot]>.suite-preference,.topbar [data-settings-slot]>.suite-gear{width:2rem!important;min-width:2rem!important;height:2.25rem!important;min-height:2.25rem!important;padding:.375rem!important}
  .main{padding:1.5rem 1rem 1rem}.main-in{max-width:none}
  .bottom-nav{display:flex;align-items:center;justify-content:space-around;position:fixed;left:0;right:0;bottom:0;min-height:3.5rem;padding:0 .5rem env(safe-area-inset-bottom);background:var(--surface);box-shadow:0 -.25rem 1rem rgb(0 0 0 / .06);z-index:50}
  .bottom-nav>a{display:flex;align-items:center;flex-direction:column;gap:.125rem;justify-content:center;min-height:3.5rem;padding:.375rem .5rem;color:var(--text-2);font-size:.75rem;text-decoration:none;border-radius:.25rem;min-width:3.5rem}.bottom-nav .cnt{display:none}.bottom-nav>a[aria-current]{color:var(--accent-text);font-weight:650}.bottom-nav .ico svg{width:1.125rem;height:1.125rem}
@@ -164,7 +164,7 @@ mark,.your-mark{color:var(--mark-ink);background:var(--mark-bg);border-radius:.1
 .resume-row>span{max-width:26rem}.resume-row{align-items:flex-start}.resume-row .btn{min-height:2.75rem}
 @media(max-width:899px){
  .topbar,.topbar:has(#job-save-status),.topbar:has(#job-save-status[data-save-state]){gap:.5rem!important}
- .topbar [data-settings-slot]{gap:0}.topbar .region-menu summary{max-width:7rem}
+ .topbar [data-settings-slot]{gap:.5rem}.topbar .region-menu summary{max-width:7rem}
  .answers-list{display:block}.kit-answer{padding:.75rem}.answer-group{display:contents}.answer-group>h4{margin:1rem 0 .5rem}
  .kit-answer .kit-copy,.kit-answer .kit-copy:has(.show-all),.kit-answer.short-answer .kit-copy{grid-template-columns:minmax(0,1fr) 4.5rem;gap:.25rem .5rem;justify-content:stretch}.kit-answer .kit-copy-head label{grid-column:1;grid-row:1;padding-top:0}.kit-answer .send-text{grid-column:1;grid-row:2;padding:0}.kit-answer .kit-copy-head .btn{grid-column:2;grid-row:1/3;align-self:start}.kit-answer .kit-copy .show-all{grid-column:1;grid-row:3;justify-self:start}.kit-answer .show-all{min-height:2.75rem}
  .kit-working-bar{gap:.5rem;padding:.75rem;margin-bottom:1rem;top:var(--header-height,3.5rem)}.kit-working-bar>div{flex:1 1 100%;max-width:none}.kit-working-bar .btn{font-size:.75rem}.working-copy-count{font-size:.75rem}.kit-working-bar b{font-size:.8125rem}.kit-header{position:static}
