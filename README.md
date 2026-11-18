@@ -160,7 +160,7 @@ either way, and LinkedIn is read through its public guest view, which can change
 | Storage | GitHub Contents API against a private repo. Each write sends the file's last known SHA; if the file changed since (another tab or device saved first, GitHub answers 409), it reads the file again and merges: what changed on one side only is kept from both, and when both sides changed the same value it asks which to keep. A page that never read a file does not write over it |
 | Files | PDFs are stored as raw base64 under `data/files/` and cached in localStorage for instant preview; on a new device they're pulled from the repo on first open |
 | JD parsing | Regex heuristics over the first 80 cleaned lines (noise such as contact lines, EEO boilerplate and URLs is stripped first); the raw JD is always stored unmodified |
-| Prompts | Long, explicit reportlab instructions (column widths, table styles, one-page enforcement, a banned-word list for junior résumés) so Claude.ai's Analysis tool produces a consistent PDF every time |
+| Prompts | Long, explicit reportlab instructions (column widths, table styles, one-page enforcement, a banned-word list for junior résumés) so Claude.ai's Analysis tool produces a consistent PDF |
 | Secrets | GitHub token and Anthropic key live only in this browser's localStorage |
 | Language | English by default, 中文 via the top bar; stored ids and prompt templates are never translated |
 

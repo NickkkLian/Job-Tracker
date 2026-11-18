@@ -7,7 +7,7 @@ displayed file is older, no-write merges, restore reload errors and PDF recovery
 `save-status.browser.mjs green` uses the shared harness with only fictional HTTP fixtures; `red` requires
 `APP_ROOT` pointing to a pre-status checkout. It checks header transitions, Retry, offline retention, writes made
 while another save is in flight, attachment/restore paths and geometry in all six states. Set `EVIDENCE_DIR` for
-JSON and header screenshots. Browser runs need an explicitly approved round and must respect the run cap.
+JSON and header screenshots.
 
 The browser extension uses the shared app-harness `cdp.mjs` and `page.mjs`. Set
 `HARNESS_ROOT` to that folder (the one holding `cdp.mjs` and `page.mjs`).
@@ -50,7 +50,7 @@ copy marks, region menus, own-data connection, atomic linked saves and failures
 before and during a commit. The existing S31 also verifies that editing a copied
 answer clears its mark and count.
 
-The approved pipeline redesign has two additional browser checks. From the parent
+The pipeline view has two additional browser checks. From the parent
 workspace, with the same offline browser and local HTTP environment, run:
 
 ```sh
